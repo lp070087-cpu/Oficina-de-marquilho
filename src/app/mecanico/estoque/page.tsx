@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import React from 'react';
 
 interface Categoria { id: string; nome: string; slug: string; }
 interface Peca { id: string; nome: string; codigo: string; subcategoria?: string; marca?: string; compatibilidade?: string; precoVenda: number; quantidade: number; estoqueMinimo: number; categoriaId: string; categoria: { nome: string }; }
@@ -8,7 +8,7 @@ interface Peca { id: string; nome: string; codigo: string; subcategoria?: string
 type View = 'categorias' | 'subcategorias' | 'pecas';
 
 const iconeCategoria = (slug: string) => {
-  const icons: Record<string, JSX.Element> = {
+  const icons: Record<string, React.ReactNode> = {
     motor: <svg className="w-9 h-9 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 3h4v4H4V3zm8 14h4v4h-4v-4zM4 13h4v4H4v-4zm8-10h4v4h-4V3zm-2 4V3m0 18v-4M3 7h4m-4 4h4m10-2h4m-4 4h4M6 17v-2m12-8v2M6 7v2m12 10v-2M12 7v10"/></svg>,
     freios: <svg className="w-9 h-9 text-rose-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" strokeWidth={1.5}/><circle cx="12" cy="12" r="4" strokeWidth={1.5}/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 3v2m0 14v2M3 12h2m14 0h2"/></svg>,
     eletrica: <svg className="w-9 h-9 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 2h10l-2 8h4l-8 12 2-8H7L9 2z"/></svg>,
