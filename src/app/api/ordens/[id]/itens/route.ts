@@ -16,8 +16,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: `Estoque insuficiente. Disponivel: ${peca.quantidade}` }, { status: 400 });
   }
   // Verificar compatibilidade
-  const ordem = await prisma.ordemServico.findUnique({ where: { id }, select: { modeloMoto: true } });
-  const modelo = ordem?.modeloMoto?.toLowerCase() || '';
+  const ordemExistente = await prisma.ordemServico.findUnique({ where: { id }, select: { modeloMoto: true } });
+  const modelo = ordemExistente?.modeloMoto?.toLowerCase() || '';
   const comp = (peca.compatibilidade || '').toLowerCase();
   const isUniversal = comp.includes('universal');
   const isCompativel = comp.includes(modelo) || isUniversal;
@@ -28,16 +28,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     include: { peca: true },
   });
   await prisma.peca.update({ where: { id: pecaId }, data: { quantidade: { decrement: quantidade } } });
-  const items = await prisma.itemOS.findMany({ where: { ordemServicoId: id }, include: { peca: true } });
-  const valorPecas = items.reduce((sum, i) => sum + Number(i.precoUnitario) * i.quantidade, 0);
-  const os = await prisma.ordemServico.findUnique({ where: { id } });
-  const valorTotal = valorPecas + Number(os?.valorMaoDeObra || 0);
+  const itensOS = await prisma.itemOS.findMany({ where: { ordemServicoId: id }, include: { peca: true } });
+  const valorPecas = itensOS.reduce((sum, i) => sum + Number(i.precoUnitario) * i.quantidade, 0);
+  const ordemAtual = await prisma.ordemServico.findUnique({ where: { id } });
+  const valorTotal = valorPecas + Number(ordemAtual?.valorMaoDeObra || 0);
   await prisma.ordemServico.update({ where: { id }, data: { valorTotal } });
-  const updated = await prisma.ordemServico.findUnique({
+  const ordemAtualizada = await prisma.ordemServico.findUnique({
     where: { id },
     include: { mecanico: { select: { name: true } }, balcao: { select: { name: true } }, itens: { include: { peca: true } } },
   });
-  return NextResponse.json(updated, { status: 201 });
+  return NextResponse.json(ordemAtualizada, { status: 201 });
 }
 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -49,14 +49,14 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   if (!item) return NextResponse.json({ error: 'Item nao encontrado' }, { status: 404 });
   await prisma.peca.update({ where: { id: item.pecaId }, data: { quantidade: { increment: item.quantidade } } });
   await prisma.itemOS.delete({ where: { id: itemId } });
-  const items = await prisma.itemOS.findMany({ where: { ordemServicoId: id }, include: { peca: true } });
-  const valorPecas = items.reduce((sum, i) => sum + Number(i.precoUnitario) * i.quantidade, 0);
-  const os = await prisma.ordemServico.findUnique({ where: { id } });
-  const valorTotal = valorPecas + Number(os?.valorMaoDeObra || 0);
+  const itensRestantes = await prisma.itemOS.findMany({ where: { ordemServicoId: id }, include: { peca: true } });
+  const valorPecas = itensRestantes.reduce((sum, i) => sum + Number(i.precoUnitario) * i.quantidade, 0);
+  const ordemServico = await prisma.ordemServico.findUnique({ where: { id } });
+  const valorTotal = valorPecas + Number(ordemServico?.valorMaoDeObra || 0);
   await prisma.ordemServico.update({ where: { id }, data: { valorTotal } });
-  const updated = await prisma.ordemServico.findUnique({
+  const ordemServicoAtualizada = await prisma.ordemServico.findUnique({
     where: { id },
     include: { mecanico: { select: { name: true } }, balcao: { select: { name: true } }, itens: { include: { peca: true } } },
   });
-  return NextResponse.json(updated);
+  return NextResponse.json(ordemServicoAtualizada);
 }
