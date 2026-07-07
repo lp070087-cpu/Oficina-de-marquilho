@@ -16,8 +16,8 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     return NextResponse.json({ error: `Estoque insuficiente. Disponivel: ${peca.quantidade}` }, { status: 400 });
   }
   // Verificar compatibilidade
-  const os = await prisma.ordemServico.findUnique({ where: { id }, select: { modeloMoto: true } });
-  const modelo = os?.modeloMoto?.toLowerCase() || '';
+  const ordem = await prisma.ordemServico.findUnique({ where: { id }, select: { modeloMoto: true } });
+  const modelo = ordem?.modeloMoto?.toLowerCase() || '';
   const comp = (peca.compatibilidade || '').toLowerCase();
   const isUniversal = comp.includes('universal');
   const isCompativel = comp.includes(modelo) || isUniversal;
