@@ -1,0 +1,40 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
+}
+
+body {
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica Neue, Arial, sans-serif;
+  background-color: #F3F6FB;
+  color: #0f172a;
+  -webkit-font-smoothing: antialiased;
+}
+
+@layer components {
+  .btn-primary {
+    @apply bg-brand-600 hover:bg-brand-700 text-white font-semibold py-2.5 px-5 rounded-lg text-[13px] transition-all shadow-sm shadow-brand-600/20 disabled:opacity-40 disabled:cursor-not-allowed;
+  }
+
+  .btn-secondary {
+    @apply bg-white hover:bg-slate-50 text-slate-600 font-medium py-2.5 px-5 rounded-lg border border-slate-200 text-[13px] transition-all disabled:opacity-40;
+  }
+
+  .input-field {
+    @apply w-full border border-slate-200 rounded-lg px-3 py-2.5 text-[13px] focus:ring-2 focus:ring-brand-500/20 focus:border-brand-500 outline-none transition-all bg-white placeholder:text-slate-400;
+  }
+
+  .card {
+    @apply bg-white rounded-xl border border-slate-200/60 shadow-sm p-6;
+  }
+
+  .card-stat {
+    @apply bg-white rounded-xl border border-slate-200/60 shadow-sm p-5 border-l-[3px] border-l-brand-600 hover:shadow-md transition-shadow;
+  }
+
+  .card-table {
+    @apply bg-white rounded-xl border border-slate-200/60 shadow-sm overflow-hidden;
+  }
+}

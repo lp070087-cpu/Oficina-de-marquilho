@@ -1,0 +1,168 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  DONO
+  BALCAO
+  MECANICO
+  ESTOQUE
+}
+
+enum StatusOS {
+  ABERTA
+  EM_ANDAMENTO
+  AGUARDANDO_PECAS
+  CONCLUIDA
+  ENTREGUE
+  CANCELADA
+}
+
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  password  String
+  role      Role
+  active    Boolean  @default(true)
+  emAlmoco  Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  ordensServicoMecanico OrdemServico[] @relation("Mecanico")
+  ordensServicoBalcao   OrdemServico[] @relation("Balcao")
+}
+
+model Categoria {
+  id     String @id @default(cuid())
+  nome   String @unique
+  slug   String @unique
+  pecas  Peca[]
+
+  createdAt DateTime @default(now())
+}
+
+model Peca {
+  id            String   @id @default(cuid())
+  nome          String
+  descricao     String?
+  codigo        String   @unique
+  precoVenda    Decimal  @default(0)
+  precoCusto    Decimal  @default(0)
+  quantidade    Int      @default(0)
+  estoqueMinimo Int      @default(5)
+  ativo         Boolean  @default(true)
+  vitrine       Boolean  @default(false)
+  destaque      Boolean  @default(false)
+  oferta        Boolean  @default(false)
+  precoOferta   Decimal?
+  descricaoCurta String?
+  subcategoria  String?
+  marca         String?
+  compatibilidade String?
+  imagemUrl     String?
+  categoriaId   String
+  categoria     Categoria @relation(fields: [categoriaId], references: [id])
+  itensOS       ItemOS[]
+  orcamentosItens OrcamentoItem[]
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model OrdemServico {
+  id                 String    @id @default(cuid())
+  numero             Int       @unique @default(autoincrement())
+  nomeCliente        String
+  telefoneCliente    String
+  modeloMoto         String
+  placaMoto          String?
+  anoMoto            String?
+  descricaoProblema  String
+  diagnostico        String?
+  status             StatusOS  @default(ABERTA)
+  tipoServico        String?
+  valorTotal         Decimal   @default(0)
+  valorMaoDeObra     Decimal   @default(0)
+  mecanicoId         String?
+  mecanico           User?     @relation("Mecanico", fields: [mecanicoId], references: [id])
+  balcaoId           String?
+  balcao             User?     @relation("Balcao", fields: [balcaoId], references: [id])
+  itens              ItemOS[]
+  notaFiscal         NotaFiscal?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+}
+
+model ItemOS {
+  id             String       @id @default(cuid())
+  ordemServicoId String
+  ordemServico   OrdemServico @relation(fields: [ordemServicoId], references: [id], onDelete: Cascade)
+  pecaId         String
+  peca           Peca         @relation(fields: [pecaId], references: [id])
+  quantidade     Int          @default(1)
+  precoUnitario  Decimal      @default(0)
+  adaptado       Boolean      @default(false)
+}
+
+model NotaFiscal {
+  id             String       @id @default(cuid())
+  ordemServicoId String       @unique
+  ordemServico   OrdemServico @relation(fields: [ordemServicoId], references: [id], onDelete: Cascade)
+  numero         String       @unique
+  chaveAcesso    String?
+  pdfUrl         String?
+  emitidaEm      DateTime     @default(now())
+  createdAt      DateTime     @default(now())
+}
+
+model Cliente {
+  id        String   @id @default(cuid())
+  nome      String
+  telefone  String   @unique
+  email     String?
+  password  String
+  modeloMoto String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  orcamentos Orcamento[]
+}
+
+model Orcamento {
+  id         String   @id @default(cuid())
+  numero     Int      @unique @default(autoincrement())
+  clienteId  String
+  cliente    Cliente  @relation(fields: [clienteId], references: [id])
+  modeloMoto String?
+  observacao String?
+  status     String   @default("PENDENTE")
+  total      Decimal  @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  itens OrcamentoItem[]
+}
+
+model OrcamentoItem {
+  id           String    @id @default(cuid())
+  orcamentoId  String
+  orcamento    Orcamento @relation(fields: [orcamentoId], references: [id], onDelete: Cascade)
+  pecaId       String
+  peca         Peca      @relation(fields: [pecaId], references: [id])
+  quantidade   Int       @default(1)
+  precoUnitario Decimal  @default(0)
+}
+
+model ConfigVitrine {
+  id            String  @id @default(cuid())
+  whatsappNumero String  @default("")
+  bannerTexto   String?
+  bannerAtivo   Boolean @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+}

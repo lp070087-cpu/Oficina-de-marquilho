@@ -1,0 +1,26 @@
+import { NextRequest, NextResponse } from 'next/server';
+import prisma from '@/lib/prisma';
+import { getSession } from '@/lib/auth';
+
+export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const session = await getSession();
+  if (!session || !['DONO', 'BALCAO'].includes(session.role)) {
+    return NextResponse.json({ error: 'Nao autorizado' }, { status: 403 });
+  }
+  const { id } = await params;
+  const body = await req.json();
+  const peca = await prisma.peca.update({
+    where: { id },
+    data: { nome: body.nome, descricao: body.descricao, codigo: body.codigo, precoVenda: body.precoVenda, precoCusto: body.precoCusto, quantidade: body.quantidade, estoqueMinimo: body.estoqueMinimo, subcategoria: body.subcategoria || null, marca: body.marca || null, compatibilidade: body.compatibilidade || null, categoriaId: body.categoriaId },
+    include: { categoria: { select: { nome: true } } },
+  });
+  return NextResponse.json(peca);
+}
+
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const session = await getSession();
+  if (!session) return NextResponse.json({ error: 'Nao autorizado' }, { status: 403 });
+  const { id } = await params;
+  await prisma.peca.update({ where: { id }, data: { ativo: false } });
+  return NextResponse.json({ ok: true });
+}
