@@ -13,12 +13,24 @@ const roleRoutes: Record<string, string[]> = {
   '/estoque': ['ESTOQUE'],
 };
 
-const publicPaths = ['/', '/api/auth/login', '/vitrine', '/api/vitrine', '/api/categorias'];
+const publicPaths = ['/api/auth/login', '/api/vitrine', '/api/categorias', '/vitrine', '/uploads', '/icon-192.png', '/icon-512.png', '/manifest.json', '/sw.js'];
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  if (publicPaths.some(p => pathname === p || pathname.startsWith(p + '/') || pathname.startsWith('/_next'))) {
+  // Allow static files and public paths
+  if (
+    pathname === '/' ||
+    pathname.startsWith('/_next') ||
+    pathname.startsWith('/api/auth/login') ||
+    pathname.startsWith('/api/vitrine') ||
+    pathname.startsWith('/api/categorias') ||
+    pathname.startsWith('/vitrine') ||
+    pathname === '/icon-192.png' ||
+    pathname === '/icon-512.png' ||
+    pathname === '/manifest.json' ||
+    pathname === '/sw.js'
+  ) {
     return NextResponse.next();
   }
 
