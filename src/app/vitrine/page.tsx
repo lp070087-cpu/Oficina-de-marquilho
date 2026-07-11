@@ -4,7 +4,7 @@ import VitrineProdutoCard from '@/components/vitrine/ProdutoCard';
 interface Categoria { id: string; nome: string; slug: string; }
 interface Peca {
   id: string; nome: string; codigo: string; precoVenda: number; precoOferta?: number;
-  quantidade: number; estoqueMinimo: number; destaque: boolean; oferta: boolean;
+  quantidade: number; estoqueMinimo: number; vitrine: boolean; destaque: boolean; oferta: boolean;
   marca?: string; compatibilidade?: string; imagemUrl?: string; descricaoCurta?: string;
   categoria: { nome: string; slug: string };
 }

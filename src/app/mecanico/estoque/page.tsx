@@ -1,5 +1,6 @@
 'use client';
 
+import { useState, useEffect } from 'react';
 import React from 'react';
 
 interface Categoria { id: string; nome: string; slug: string; }
