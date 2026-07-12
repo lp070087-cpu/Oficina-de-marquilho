@@ -11,7 +11,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   const body = await req.json();
   const peca = await prisma.peca.update({
     where: { id },
-    data: { nome: body.nome, descricao: body.descricao, codigo: body.codigo, precoVenda: body.precoVenda, precoCusto: body.precoCusto, quantidade: body.quantidade, estoqueMinimo: body.estoqueMinimo, subcategoria: body.subcategoria || null, marca: body.marca || null, compatibilidade: body.compatibilidade || null, categoriaId: body.categoriaId },
+    data: { nome: body.nome, descricao: body.descricao, codigo: body.codigo, codigoBarras: body.codigoBarras || null, precoVenda: body.precoVenda, precoCusto: body.precoCusto, quantidade: body.quantidade, estoqueMinimo: body.estoqueMinimo, subcategoria: body.subcategoria || null, marca: body.marca || null, compatibilidade: body.compatibilidade || null, categoriaId: body.categoriaId },
     include: { categoria: { select: { nome: true } } },
   });
   return NextResponse.json(peca);

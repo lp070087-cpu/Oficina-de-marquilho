@@ -52,6 +52,7 @@ model Peca {
   nome          String
   descricao     String?
   codigo        String   @unique
+  codigoBarras  String?  @unique
   precoVenda    Decimal  @default(0)
   precoCusto    Decimal  @default(0)
   quantidade    Int      @default(0)

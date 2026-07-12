@@ -4,7 +4,7 @@ import { getSession } from '@/lib/auth';
 
 export async function GET(req: NextRequest) {
   const session = await getSession();
-  if (!session || !['DONO', 'BALCAO', 'MECANICO'].includes(session.role)) {
+  if (!session || !['DONO', 'BALCAO', 'MECANICO', 'ESTOQUE'].includes(session.role)) {
     return NextResponse.json({ error: 'Nao autorizado' }, { status: 403 });
   }
   const q = req.nextUrl.searchParams.get('q') || '';
@@ -12,10 +12,12 @@ export async function GET(req: NextRequest) {
   const baixo = req.nextUrl.searchParams.get('baixo') === '1';
   const modelo = req.nextUrl.searchParams.get('modelo') || '';
   const todas = req.nextUrl.searchParams.get('todas') === '1';
+  const barcode = req.nextUrl.searchParams.get('barcode') || '';
 
   const where: any = { ativo: true };
   if (q) where.nome = { contains: q, mode: 'insensitive' };
   if (cat) where.categoriaId = cat;
+  if (barcode) where.codigoBarras = barcode;
   if (baixo) {
     const baixas = await prisma.$queryRaw<[{ id: string }]>`SELECT id FROM "Peca" WHERE ativo = true AND quantidade <= "estoqueMinimo"`;
     where.id = { in: baixas.map((b: { id: string }) => b.id) };
@@ -55,6 +57,7 @@ export async function POST(req: NextRequest) {
       subcategoria: body.subcategoria || null,
       marca: body.marca || null,
       compatibilidade: body.compatibilidade || null,
+      codigoBarras: body.codigoBarras || null,
       categoriaId: body.categoriaId,
     },
     include: { categoria: { select: { nome: true } } },

@@ -14,7 +14,7 @@ const pageTitles: Record<string, string> = {
   '/dono/notas': 'Nota Fiscal', '/dono/balcoes': 'Balcoes', '/dono/vitrine': 'Vitrine', '/dono/importar': 'Importar',
   '/dono/assistente': 'Assistente IA', '/balcao': 'Painel', '/balcao/estoque': 'Estoque', '/balcao/ordens': 'Ordens de Servico',
   '/balcao/notas': 'Nota Fiscal', '/mecanico': 'Minhas OS', '/mecanico/estoque': 'Estoque',
-  '/estoque': 'Relatorios de Saida',
+  '/estoque': 'Relatorios de Saida', '/dono/scanner': 'Scanner - Codigo de Barras',
 };
 
 export default function Header({ userName, totalItens = 4187, maxItens = 10000, onMenuToggle }: HeaderProps) {
