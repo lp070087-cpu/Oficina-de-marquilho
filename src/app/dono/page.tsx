@@ -8,14 +8,14 @@ export default async function DonoDashboard() {
       prisma.$queryRaw<[{ count: bigint }]>`SELECT COUNT(*)::int as count FROM "Peca" WHERE ativo = true AND quantidade <= "estoqueMinimo"`,
       prisma.ordemServico.count({ where: { status: 'ABERTA' } }),
       prisma.ordemServico.count({ where: { status: { in: ['EM_ANDAMENTO', 'AGUARDANDO_PECAS'] } } }),
-      prisma.ordemServico.count({ where: { status: { in: ['CONCLUIDA', 'ENTREGUE'] }, updatedAt: { gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1) } } }),
+      prisma.ordemServico.count({ where: { status: { in: ['PRONTA', 'CONCLUIDA'] }, updatedAt: { gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1) } } }),
       prisma.notaFiscal.count(),
       prisma.user.count({ where: { role: 'MECANICO', active: true } }),
     ]);
 
   const faturamentoMes = await prisma.ordemServico.aggregate({
     _sum: { valorTotal: true },
-    where: { status: { in: ['CONCLUIDA', 'ENTREGUE'] }, updatedAt: { gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1) } },
+    where: { status: { in: ['PRONTA', 'CONCLUIDA'] }, updatedAt: { gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1) } },
   });
 
   const pecasBaixoEstoque = await prisma.peca.findMany({
@@ -33,7 +33,7 @@ export default async function DonoDashboard() {
 
   // Serviços finalizados recentemente
   const servicosFinalizados = await prisma.ordemServico.findMany({
-    where: { status: { in: ['CONCLUIDA', 'ENTREGUE'] } },
+    where: { status: { in: ['PRONTA', 'CONCLUIDA'] } },
     orderBy: { updatedAt: 'desc' },
     take: 5,
     include: { mecanico: { select: { name: true } }, itens: { include: { peca: { select: { nome: true } } } }, notaFiscal: { select: { numero: true } } },
@@ -49,17 +49,17 @@ export default async function DonoDashboard() {
 
   const statusLabel: Record<string, string> = {
     ABERTA: 'Aberta', EM_ANDAMENTO: 'Em andamento', AGUARDANDO_PECAS: 'Aguard. pecas',
-    CONCLUIDA: 'Concluida', ENTREGUE: 'Entregue', CANCELADA: 'Cancelada',
+    PRONTA: 'Pronta', CONCLUIDA: 'Concluida', CANCELADA: 'Cancelada',
   };
   const statusColor: Record<string, string> = {
     ABERTA: 'bg-sky-50 text-sky-700', EM_ANDAMENTO: 'bg-amber-50 text-amber-700',
-    AGUARDANDO_PECAS: 'bg-orange-50 text-orange-700', CONCLUIDA: 'bg-emerald-50 text-emerald-700',
-    ENTREGUE: 'bg-slate-100 text-slate-600', CANCELADA: 'bg-red-50 text-red-700',
+    AGUARDANDO_PECAS: 'bg-orange-50 text-orange-700', PRONTA: 'bg-violet-50 text-violet-700',
+    CONCLUIDA: 'bg-emerald-50 text-emerald-700', CANCELADA: 'bg-red-50 text-red-700',
   };
   const statusDot: Record<string, string> = {
     ABERTA: 'bg-sky-500', EM_ANDAMENTO: 'bg-amber-500',
-    AGUARDANDO_PECAS: 'bg-orange-500', CONCLUIDA: 'bg-emerald-500',
-    ENTREGUE: 'bg-slate-400', CANCELADA: 'bg-red-500',
+    AGUARDANDO_PECAS: 'bg-orange-500', PRONTA: 'bg-violet-500',
+    CONCLUIDA: 'bg-emerald-500', CANCELADA: 'bg-red-500',
   };
 
   return (

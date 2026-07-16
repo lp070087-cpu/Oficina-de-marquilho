@@ -14,20 +14,20 @@ export default async function MecanicoDashboard() {
   });
 
   const emAndamento = minhasOS.filter(os => ['ABERTA', 'EM_ANDAMENTO', 'AGUARDANDO_PECAS'].includes(os.status)).length;
-  const concluidas = minhasOS.filter(os => ['CONCLUIDA', 'ENTREGUE'].includes(os.status)).length;
+  const concluidas = minhasOS.filter(os => ['PRONTA', 'CONCLUIDA'].includes(os.status)).length;
   const formatMoney = (val: number) => val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   const statusColor: Record<string, string> = {
     ABERTA: 'bg-sky-50 text-sky-700', EM_ANDAMENTO: 'bg-amber-50 text-amber-700',
-    AGUARDANDO_PECAS: 'bg-orange-50 text-orange-700', CONCLUIDA: 'bg-emerald-50 text-emerald-700',
-    ENTREGUE: 'bg-slate-100 text-slate-600', CANCELADA: 'bg-red-50 text-red-700',
+    AGUARDANDO_PECAS: 'bg-orange-50 text-orange-700', PRONTA: 'bg-violet-50 text-violet-700',
+    CONCLUIDA: 'bg-emerald-50 text-emerald-700', CANCELADA: 'bg-red-50 text-red-700',
   };
   const statusDot: Record<string, string> = {
     ABERTA: 'bg-sky-500', EM_ANDAMENTO: 'bg-amber-500', AGUARDANDO_PECAS: 'bg-orange-500',
-    CONCLUIDA: 'bg-emerald-500', ENTREGUE: 'bg-slate-400', CANCELADA: 'bg-red-500',
+    PRONTA: 'bg-violet-500', CONCLUIDA: 'bg-emerald-500', CANCELADA: 'bg-red-500',
   };
   const statusLabel: Record<string, string> = {
     ABERTA: 'Aberta', EM_ANDAMENTO: 'Em andamento', AGUARDANDO_PECAS: 'Aguard. pecas',
-    CONCLUIDA: 'Concluida', ENTREGUE: 'Entregue', CANCELADA: 'Cancelada',
+    PRONTA: 'Pronta', CONCLUIDA: 'Concluida', CANCELADA: 'Cancelada',
   };
 
   return (

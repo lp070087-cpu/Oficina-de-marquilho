@@ -14,89 +14,133 @@ enum Role {
   ESTOQUE
 }
 
+enum TipoBalcao {
+  SERVICOS
+  ESTOQUE_CENTRAL
+  VENDA_LOJA
+}
+
 enum StatusOS {
   ABERTA
   EM_ANDAMENTO
   AGUARDANDO_PECAS
+  PRONTA
   CONCLUIDA
-  ENTREGUE
   CANCELADA
 }
 
 model User {
-  id        String   @id @default(cuid())
-  name      String
-  email     String   @unique
-  password  String
-  role      Role
-  active    Boolean  @default(true)
-  emAlmoco  Boolean  @default(false)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  id                  String      @id @default(cuid())
+  name                String
+  username            String?     @unique
+  email               String      @unique
+  password            String
+  role                Role
+  active              Boolean     @default(true)
+  emAlmoco            Boolean     @default(false)
+  tipoBalcao          TipoBalcao?
+  mustChangePassword  Boolean     @default(false)
+  passwordUpdatedAt   DateTime?
+  lastLoginAt         DateTime?
+  failedLoginAttempts Int         @default(0)
+  lockedUntil         DateTime?
+  deletedAt           DateTime?
+  createdBy           String?
+  createdAt           DateTime    @default(now())
+  updatedAt           DateTime    @updatedAt
 
   ordensServicoMecanico OrdemServico[] @relation("Mecanico")
   ordensServicoBalcao   OrdemServico[] @relation("Balcao")
+
+  @@index([role])
+  @@index([tipoBalcao])
+  @@index([active])
+  @@index([username])
+  @@index([deletedAt])
 }
 
 model Categoria {
-  id     String @id @default(cuid())
-  nome   String @unique
-  slug   String @unique
-  pecas  Peca[]
-
+  id        String   @id @default(cuid())
+  nome      String   @unique
+  slug      String   @unique
+  pecas     Peca[]
   createdAt DateTime @default(now())
 }
 
 model Peca {
-  id            String   @id @default(cuid())
-  nome          String
-  descricao     String?
-  codigo        String   @unique
-  codigoBarras  String?  @unique
-  precoVenda    Decimal  @default(0)
-  precoCusto    Decimal  @default(0)
-  quantidade    Int      @default(0)
-  estoqueMinimo Int      @default(5)
-  ativo         Boolean  @default(true)
-  vitrine       Boolean  @default(false)
-  destaque      Boolean  @default(false)
-  oferta        Boolean  @default(false)
-  precoOferta   Decimal?
-  descricaoCurta String?
-  subcategoria  String?
-  marca         String?
-  compatibilidade String?
-  imagemUrl     String?
-  categoriaId   String
-  categoria     Categoria @relation(fields: [categoriaId], references: [id])
-  itensOS       ItemOS[]
-  orcamentosItens OrcamentoItem[]
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id                    String                 @id @default(cuid())
+  nome                  String
+  descricao             String?
+  codigo                String                 @unique
+  codigoBarras          String?                @unique
+  precoVenda            Decimal                @default(0)
+  precoCusto            Decimal                @default(0)
+  custoMedio            Decimal                @default(0)
+  quantidade            Int                    @default(0)
+  quantidadeLoja        Int                    @default(0)
+  estoqueMinimo         Int                    @default(5)
+  ativo                 Boolean                @default(true)
+  vitrine               Boolean                @default(false)
+  destaque              Boolean                @default(false)
+  oferta                Boolean                @default(false)
+  precoOferta           Decimal?
+  precoVitrine          Decimal?
+  dataInicioOferta      String?
+  dataFimOferta         String?
+  descricaoCurta        String?
+  localizacao           String?
+  subcategoria          String?
+  marca                 String?
+  compatibilidade       String?
+  imagemUrl             String?
+  categoriaId           String
+  categoria             Categoria              @relation(fields: [categoriaId], references: [id])
+  itensOS               ItemOS[]
+  orcamentosItens       OrcamentoItem[]
+  movimentacoes         MovimentacaoEstoque[]
+  transferenciasEstoque TransferenciaEstoque[]
+  createdAt             DateTime               @default(now())
+  updatedAt             DateTime               @updatedAt
+
+  @@index([codigo])
+  @@index([codigoBarras])
+  @@index([quantidade])
+  @@index([quantidadeLoja])
 }
 
 model OrdemServico {
-  id                 String    @id @default(cuid())
-  numero             Int       @unique @default(autoincrement())
-  nomeCliente        String
-  telefoneCliente    String
-  modeloMoto         String
-  placaMoto          String?
-  anoMoto            String?
-  descricaoProblema  String
-  diagnostico        String?
-  status             StatusOS  @default(ABERTA)
-  tipoServico        String?
-  valorTotal         Decimal   @default(0)
-  valorMaoDeObra     Decimal   @default(0)
-  mecanicoId         String?
-  mecanico           User?     @relation("Mecanico", fields: [mecanicoId], references: [id])
-  balcaoId           String?
-  balcao             User?     @relation("Balcao", fields: [balcaoId], references: [id])
-  itens              ItemOS[]
-  notaFiscal         NotaFiscal?
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
+  id                String         @id @default(cuid())
+  numero            Int            @unique @default(autoincrement())
+  nomeCliente       String
+  telefoneCliente   String
+  modeloMoto        String
+  placaMoto         String?
+  anoMoto           String?
+  descricaoProblema String?
+  diagnostico       String?
+  status            StatusOS       @default(ABERTA)
+  tipoServico       String?
+  valorTotal        Decimal        @default(0)
+  valorMaoDeObra    Decimal        @default(0)
+  desconto          Decimal        @default(0)
+  formaPagamento    String?
+  observacoes       String?
+  finalizadoEm      DateTime?
+  finalizadoPor     String?
+  mecanicoId        String?
+  mecanico          User?          @relation("Mecanico", fields: [mecanicoId], references: [id])
+  balcaoId          String?
+  balcao            User?          @relation("Balcao", fields: [balcaoId], references: [id])
+  itens             ItemOS[]
+  servicos          ServicoOrdem[]
+  notaFiscal        NotaFiscal?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  @@index([status])
+  @@index([createdAt])
+  @@index([balcaoId])
+  @@index([mecanicoId])
 }
 
 model ItemOS {
@@ -110,6 +154,14 @@ model ItemOS {
   adaptado       Boolean      @default(false)
 }
 
+model ServicoOrdem {
+  id             String       @id @default(cuid())
+  ordemServicoId String
+  ordemServico   OrdemServico @relation(fields: [ordemServicoId], references: [id], onDelete: Cascade)
+  nome           String
+  valor          Decimal      @default(0)
+}
+
 model NotaFiscal {
   id             String       @id @default(cuid())
   ordemServicoId String       @unique
@@ -121,49 +173,191 @@ model NotaFiscal {
   createdAt      DateTime     @default(now())
 }
 
-model Cliente {
-  id        String   @id @default(cuid())
-  nome      String
-  telefone  String   @unique
-  email     String?
-  password  String
-  modeloMoto String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+model NotaManual {
+  id             String   @id @default(cuid())
+  numero         Int      @unique @default(autoincrement())
+  cliente        String?
+  cpfCnpj        String?
+  endereco       String?
+  observacoes    String?
+  valorTotal     Decimal  @default(0)
+  formaPagamento String?
+  status         String   @default("EMITIDA")
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 
+  itens NotaManualItem[]
+}
+
+model NotaManualItem {
+  id            String     @id @default(cuid())
+  notaManualId  String
+  notaManual    NotaManual @relation(fields: [notaManualId], references: [id], onDelete: Cascade)
+  produto       String
+  codigo        String?
+  quantidade    Int        @default(1)
+  valorUnitario Decimal    @default(0)
+}
+
+model MovimentacaoEstoque {
+  id         String   @id @default(cuid())
+  pecaId     String
+  peca       Peca     @relation(fields: [pecaId], references: [id])
+  tipo       String // ENTRADA, SAIDA, TRANSFERENCIA, VENDA, USO_OS, AJUSTE, DEVOLUCAO
+  quantidade Int      @default(1)
+  origem     String? // CENTRAL, LOJA
+  destino    String? // CENTRAL, LOJA
+  usuario    String?
+  observacao String?
+  createdAt  DateTime @default(now())
+
+  @@index([pecaId])
+  @@index([tipo])
+  @@index([createdAt])
+}
+
+model TransferenciaEstoque {
+  id         String   @id @default(cuid())
+  pecaId     String
+  peca       Peca     @relation(fields: [pecaId], references: [id])
+  quantidade Int      @default(1)
+  de         String // CENTRAL ou LOJA
+  para       String // CENTRAL ou LOJA
+  usuario    String?
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+}
+
+model Cliente {
+  id         String      @id @default(cuid())
+  nome       String
+  telefone   String      @unique
+  email      String?
+  password   String
+  modeloMoto String?
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
   orcamentos Orcamento[]
 }
 
 model Orcamento {
-  id         String   @id @default(cuid())
-  numero     Int      @unique @default(autoincrement())
+  id         String          @id @default(cuid())
+  numero     Int             @unique @default(autoincrement())
   clienteId  String
-  cliente    Cliente  @relation(fields: [clienteId], references: [id])
+  cliente    Cliente         @relation(fields: [clienteId], references: [id])
   modeloMoto String?
   observacao String?
-  status     String   @default("PENDENTE")
-  total      Decimal  @default(0)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-
-  itens OrcamentoItem[]
+  status     String          @default("PENDENTE")
+  total      Decimal         @default(0)
+  createdAt  DateTime        @default(now())
+  updatedAt  DateTime        @updatedAt
+  itens      OrcamentoItem[]
 }
 
 model OrcamentoItem {
-  id           String    @id @default(cuid())
-  orcamentoId  String
-  orcamento    Orcamento @relation(fields: [orcamentoId], references: [id], onDelete: Cascade)
-  pecaId       String
-  peca         Peca      @relation(fields: [pecaId], references: [id])
-  quantidade   Int       @default(1)
-  precoUnitario Decimal  @default(0)
+  id            String    @id @default(cuid())
+  orcamentoId   String
+  orcamento     Orcamento @relation(fields: [orcamentoId], references: [id], onDelete: Cascade)
+  pecaId        String
+  peca          Peca      @relation(fields: [pecaId], references: [id])
+  quantidade    Int       @default(1)
+  precoUnitario Decimal   @default(0)
 }
 
 model ConfigVitrine {
-  id            String  @id @default(cuid())
-  whatsappNumero String  @default("")
-  bannerTexto   String?
-  bannerAtivo   Boolean @default(true)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  id                    String   @id @default(cuid())
+  whatsappNumero        String   @default("")
+  bannerTexto           String?
+  bannerSubtitulo       String?
+  bannerImagem          String?
+  bannerMobileImagem    String?
+  bannerCorOverlay      String?
+  bannerOpacidade       String?
+  bannerCorTexto        String?
+  bannerCtaTexto        String?
+  bannerCtaLink         String?
+  bannerPosicaoConteudo String?
+  bannerAtivo           Boolean  @default(true)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@index([bannerAtivo])
+}
+
+model Fornecedor {
+  id                String             @id @default(cuid())
+  nome              String
+  nomeFantasia      String?
+  cnpj              String?
+  telefone          String?
+  whatsapp          String?
+  email             String?
+  vendedor          String?
+  prazoMedioEntrega String?
+  formaPagamento    String?
+  observacoes       String?
+  ativo             Boolean            @default(true)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  pedidos           PedidoFornecedor[]
+
+  @@index([nome])
+  @@index([ativo])
+}
+
+model PedidoFornecedor {
+  id              String                 @id @default(cuid())
+  fornecedorId    String
+  fornecedor      Fornecedor             @relation(fields: [fornecedorId], references: [id])
+  numero          String?
+  dataPedido      DateTime               @default(now())
+  previsaoEntrega DateTime?
+  status          String                 @default("RASCUNHO")
+  valorTotal      Decimal                @default(0)
+  observacoes     String?
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+  itens           ItemPedidoFornecedor[]
+
+  @@index([fornecedorId])
+  @@index([status])
+  @@index([dataPedido])
+}
+
+model ItemPedidoFornecedor {
+  id            String           @id @default(cuid())
+  pedidoId      String
+  pedido        PedidoFornecedor @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  produto       String
+  codigo        String?
+  quantidade    Int              @default(1)
+  valorUnitario Decimal          @default(0)
+  valorTotal    Decimal          @default(0)
+  observacoes   String?
+}
+
+model RegraClassificacao {
+  id           String   @id @default(cuid())
+  palavraChave String
+  categoria    String
+  subcategoria String?
+  peso         Int      @default(1)
+  createdAt    DateTime @default(now())
+
+  @@unique([palavraChave, categoria])
+  @@index([palavraChave])
+  @@index([categoria])
+}
+
+model CorrecaoClassificacao {
+  id                  String   @id @default(cuid())
+  pecaNome            String
+  categoriaAntiga     String?
+  categoriaNova       String
+  palavrasEncontradas String?
+  criadoPor           String?
+  createdAt           DateTime @default(now())
+
+  @@index([pecaNome])
 }

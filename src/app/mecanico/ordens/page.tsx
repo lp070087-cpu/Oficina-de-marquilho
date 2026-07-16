@@ -26,8 +26,8 @@ export default function MecanicoOrdens() {
 
   function abrirOS(os: OS) { setSelecionada(os); setNovoStatus(os.status); setDiagnostico(os.diagnostico || ''); setMsg(''); }
   const formatMoney = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-  const statusColor: Record<string, string> = { ABERTA: 'bg-sky-50 text-sky-700 border-sky-200', EM_ANDAMENTO: 'bg-amber-50 text-amber-700 border-amber-200', AGUARDANDO_PECAS: 'bg-orange-50 text-orange-700 border-orange-200', CONCLUIDA: 'bg-emerald-50 text-emerald-700 border-emerald-200', ENTREGUE: 'bg-slate-50 text-slate-600 border-slate-200', CANCELADA: 'bg-red-50 text-red-700 border-red-200' };
-  const statusLabel: Record<string, string> = { ABERTA: 'Aberta', EM_ANDAMENTO: 'Em andamento', AGUARDANDO_PECAS: 'Aguard. pecas', CONCLUIDA: 'Concluida', ENTREGUE: 'Entregue', CANCELADA: 'Cancelada' };
+  const statusColor: Record<string, string> = { ABERTA: 'bg-sky-50 text-sky-700 border-sky-200', EM_ANDAMENTO: 'bg-amber-50 text-amber-700 border-amber-200', AGUARDANDO_PECAS: 'bg-orange-50 text-orange-700 border-orange-200', PRONTA: 'bg-violet-50 text-violet-700 border-violet-200', CONCLUIDA: 'bg-emerald-50 text-emerald-700 border-emerald-200', CANCELADA: 'bg-red-50 text-red-700 border-red-200' };
+  const statusLabel: Record<string, string> = { ABERTA: 'Aberta', EM_ANDAMENTO: 'Em andamento', AGUARDANDO_PECAS: 'Aguard. pecas', PRONTA: 'Pronta', CONCLUIDA: 'Concluida', CANCELADA: 'Cancelada' };
 
   return (
     <div className="p-6">

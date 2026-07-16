@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
 
 export async function POST(req: NextRequest) {
   const session = await getSession();
-  if (!session || !['DONO', 'BALCAO'].includes(session.role)) {
+  if (!session || !['DONO', 'BALCAO', 'ESTOQUE'].includes(session.role)) {
     return NextResponse.json({ error: 'Nao autorizado' }, { status: 403 });
   }
   const body = await req.json();
@@ -58,6 +58,8 @@ export async function POST(req: NextRequest) {
       marca: body.marca || null,
       compatibilidade: body.compatibilidade || null,
       codigoBarras: body.codigoBarras || null,
+      custoMedio: body.custoMedio || 0,
+      localizacao: body.localizacao || null,
       categoriaId: body.categoriaId,
     },
     include: { categoria: { select: { nome: true } } },

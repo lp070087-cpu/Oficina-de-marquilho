@@ -11,6 +11,7 @@ export interface SessionUser {
   name: string;
   email: string;
   role: 'DONO' | 'BALCAO' | 'MECANICO' | 'ESTOQUE';
+  tipoBalcao?: string | null;
   emAlmoco?: boolean;
 }
 

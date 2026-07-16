@@ -5,7 +5,7 @@ export default async function BalcaoDashboard() {
     prisma.peca.count({ where: { ativo: true } }),
     prisma.ordemServico.count({ where: { status: 'ABERTA' } }),
     prisma.ordemServico.count({ where: { status: { in: ['EM_ANDAMENTO', 'AGUARDANDO_PECAS'] } } }),
-    prisma.ordemServico.count({ where: { status: { in: ['CONCLUIDA', 'ENTREGUE'] }, updatedAt: { gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1) } } }),
+    prisma.ordemServico.count({ where: { status: { in: ['PRONTA', 'CONCLUIDA'] }, updatedAt: { gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1) } } }),
   ]);
 
   const ordens = await prisma.ordemServico.findMany({
@@ -15,9 +15,9 @@ export default async function BalcaoDashboard() {
   });
 
   const formatMoney = (val: number) => val.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-  const statusColor: Record<string, string> = { ABERTA: 'bg-sky-50 text-sky-700', EM_ANDAMENTO: 'bg-amber-50 text-amber-700', AGUARDANDO_PECAS: 'bg-orange-50 text-orange-700', CONCLUIDA: 'bg-emerald-50 text-emerald-700', ENTREGUE: 'bg-slate-100 text-slate-600', CANCELADA: 'bg-red-50 text-red-700' };
-  const statusDot: Record<string, string> = { ABERTA: 'bg-sky-500', EM_ANDAMENTO: 'bg-amber-500', AGUARDANDO_PECAS: 'bg-orange-500', CONCLUIDA: 'bg-emerald-500', ENTREGUE: 'bg-slate-400', CANCELADA: 'bg-red-500' };
-  const statusLabel: Record<string, string> = { ABERTA: 'Aberta', EM_ANDAMENTO: 'Em andamento', AGUARDANDO_PECAS: 'Aguard. pecas', CONCLUIDA: 'Concluida', ENTREGUE: 'Entregue', CANCELADA: 'Cancelada' };
+  const statusColor: Record<string, string> = { ABERTA: 'bg-sky-50 text-sky-700', EM_ANDAMENTO: 'bg-amber-50 text-amber-700', AGUARDANDO_PECAS: 'bg-orange-50 text-orange-700', PRONTA: 'bg-violet-50 text-violet-700', CONCLUIDA: 'bg-emerald-50 text-emerald-700', CANCELADA: 'bg-red-50 text-red-700' };
+  const statusDot: Record<string, string> = { ABERTA: 'bg-sky-500', EM_ANDAMENTO: 'bg-amber-500', AGUARDANDO_PECAS: 'bg-orange-500', PRONTA: 'bg-violet-500', CONCLUIDA: 'bg-emerald-500', CANCELADA: 'bg-red-500' };
+  const statusLabel: Record<string, string> = { ABERTA: 'Aberta', EM_ANDAMENTO: 'Em andamento', AGUARDANDO_PECAS: 'Aguard. pecas', PRONTA: 'Pronta', CONCLUIDA: 'Concluida', CANCELADA: 'Cancelada' };
 
   return (
     <div className="p-6 space-y-6">
