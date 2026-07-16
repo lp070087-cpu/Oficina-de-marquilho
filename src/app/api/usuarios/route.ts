@@ -9,8 +9,8 @@ export async function GET() {
     return NextResponse.json({ error: 'Nao autorizado' }, { status: 403 });
   }
   const users = await prisma.user.findMany({
-    where: { role: { in: ['MECANICO', 'BALCAO'] } },
-    select: { id: true, name: true, email: true, role: true, active: true, emAlmoco: true },
+    where: { role: { in: ['MECANICO', 'BALCAO', 'ESTOQUE'] } },
+    select: { id: true, name: true, email: true, username: true, role: true, active: true, emAlmoco: true, tipoBalcao: true, mustChangePassword: true, lastLoginAt: true, lockedUntil: true, failedLoginAttempts: true },
     orderBy: { name: 'asc' },
   });
   return NextResponse.json(users);
@@ -22,10 +22,25 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Nao autorizado' }, { status: 403 });
   }
   const body = await req.json();
-  const hash = await bcrypt.hash(body.password || 'marquinho123', 10);
+  if (!body.email) return NextResponse.json({ error: 'Email obrigatorio' }, { status: 400 });
+  if (!body.password) return NextResponse.json({ error: 'Senha obrigatoria' }, { status: 400 });
+
+  // Check duplicate email
+  const exists = await prisma.user.findUnique({ where: { email: body.email } });
+  if (exists) return NextResponse.json({ error: 'Este email ja esta cadastrado.' }, { status: 400 });
+
+  const hash = await bcrypt.hash(body.password, 10);
   const user = await prisma.user.create({
-    data: { name: body.name, email: body.email, password: hash, role: body.role },
-    select: { id: true, name: true, email: true, role: true, active: true },
+    data: {
+      name: body.name,
+      email: body.email,
+      username: body.username || null,
+      password: hash,
+      role: body.role || 'BALCAO',
+      tipoBalcao: body.tipoBalcao || null,
+      createdBy: 'DONO',
+    },
+    select: { id: true, name: true, email: true, username: true, role: true, active: true, tipoBalcao: true },
   });
   return NextResponse.json(user, { status: 201 });
 }

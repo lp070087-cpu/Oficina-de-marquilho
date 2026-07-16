@@ -11,18 +11,21 @@ async function main() {
   await prisma.user.upsert({ where: { email: 'lp070087@gmail.com' }, update: {}, create: { name: 'Dono', email: 'lp070087@gmail.com', password: passwordHash, role: 'DONO' } });
   console.log('Dono: lp070087@gmail.com / marquinho123');
 
-  for (const b of [{ name: 'Balcao 1', email: 'balcao1@marquinho.com.br' }, { name: 'Balcao 2', email: 'balcao2@marquinho.com.br' }, { name: 'Balcao 3', email: 'balcao3@marquinho.com.br' }]) {
-    await prisma.user.upsert({ where: { email: b.email }, update: {}, create: { name: b.name, email: b.email, password: passwordHash, role: 'BALCAO' } });
-  }
-  console.log('3 Balcoes criados.');
+  // Balcao de Servicos
+  await prisma.user.upsert({ where: { email: 'servicos@marquinho.com.br' }, update: { tipoBalcao: 'SERVICOS' }, create: { name: 'Balcao Servicos', email: 'servicos@marquinho.com.br', password: passwordHash, role: 'BALCAO', tipoBalcao: 'SERVICOS' } });
+  console.log('Balcao Servicos: servicos@marquinho.com.br / marquinho123');
+
+  // Balcao de Venda
+  await prisma.user.upsert({ where: { email: 'venda@marquinho.com.br' }, update: { tipoBalcao: 'VENDA_LOJA' }, create: { name: 'Balcao Venda', email: 'venda@marquinho.com.br', password: passwordHash, role: 'BALCAO', tipoBalcao: 'VENDA_LOJA' } });
+  console.log('Balcao Venda: venda@marquinho.com.br / marquinho123');
 
   const mp = await bcrypt.hash('mecanico123', 10);
   await prisma.user.upsert({ where: { email: 'mecanico@marquinho.com.br' }, update: {}, create: { name: 'Mecanico Exemplo', email: 'mecanico@marquinho.com.br', password: mp, role: 'MECANICO' } });
   console.log('Mecanico: mecanico@marquinho.com.br / mecanico123');
 
   const es = await bcrypt.hash('estoque123', 10);
-  await prisma.user.upsert({ where: { email: 'estoque@marquinho.com.br' }, update: {}, create: { name: 'Estoque', email: 'estoque@marquinho.com.br', password: es, role: 'ESTOQUE' } });
-  console.log('Estoque: estoque@marquinho.com.br / estoque123');
+  await prisma.user.upsert({ where: { email: 'estoque@marquinho.com.br' }, update: { tipoBalcao: 'ESTOQUE_CENTRAL' }, create: { name: 'Estoque Central', email: 'estoque@marquinho.com.br', password: es, role: 'ESTOQUE', tipoBalcao: 'ESTOQUE_CENTRAL' } });
+  console.log('Estoque Central: estoque@marquinho.com.br / estoque123');
 
   // Categorias
   const categorias = [

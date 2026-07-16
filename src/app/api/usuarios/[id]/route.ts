@@ -15,19 +15,35 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   const body = await req.json();
   const data: any = {};
 
+  // Name
+  if (body.name !== undefined) data.name = body.name;
+  // Username
+  if (body.username !== undefined) data.username = body.username || null;
+  // tipoBalcao
+  if (body.tipoBalcao !== undefined) data.tipoBalcao = body.tipoBalcao || null;
+  // Active toggle
   if (typeof body.active === 'boolean') data.active = body.active;
-  else if (Object.keys(body).length === 1 && body.name === undefined && body.password === undefined) {
-    // compatibilidade: requisição antiga só com toggle
+  // Password
+  if (body.password) data.password = await bcrypt.hash(body.password, 10);
+  // mustChangePassword
+  if (typeof body.mustChangePassword === 'boolean') data.mustChangePassword = body.mustChangePassword;
+  // Lock/unlock
+  if (body.lockedUntil !== undefined) data.lockedUntil = body.lockedUntil;
+  if (typeof body.failedLoginAttempts === 'number') data.failedLoginAttempts = body.failedLoginAttempts;
+
+  // Compatibilidade: toggle antigo vazio
+  if (Object.keys(data).length === 0 && Object.keys(body).length === 0) {
     data.active = !user.active;
   }
-
-  if (body.name) data.name = body.name;
-  if (body.password) data.password = await bcrypt.hash(body.password, 10);
 
   if (Object.keys(data).length === 0) {
     return NextResponse.json({ error: 'Nenhum campo para atualizar' }, { status: 400 });
   }
 
-  const updated = await prisma.user.update({ where: { id }, data, select: { id:true, name:true, email:true, active:true } });
+  const updated = await prisma.user.update({
+    where: { id },
+    data,
+    select: { id: true, name: true, email: true, username: true, role: true, active: true, tipoBalcao: true, mustChangePassword: true, lockedUntil: true },
+  });
   return NextResponse.json(updated);
 }
