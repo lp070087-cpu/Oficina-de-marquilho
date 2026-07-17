@@ -1,5 +1,5 @@
 'use client';
-
+// VERSÃO IMPORTAR 2026
 import { useState } from 'react';
 
 export default function EstoqueImportarPage() {

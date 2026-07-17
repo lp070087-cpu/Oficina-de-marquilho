@@ -1,5 +1,5 @@
 'use client';
-
+// VERSÃO SCANNER 2026
 import { useState, useRef } from 'react';
 import BarcodeScanner from '@/components/scanner/BarcodeScanner';
 

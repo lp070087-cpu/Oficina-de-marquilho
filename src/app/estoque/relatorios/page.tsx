@@ -1,5 +1,5 @@
 'use client';
-
+// VERSÃO RELATÓRIOS 2026
 import { useState, useEffect } from 'react';
 
 interface PecaSaida { peca: string; codigo: string; quantidade: number; preco: number; os: number; cliente: string; data: string; balcao: string; }

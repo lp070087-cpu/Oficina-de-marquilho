@@ -1,5 +1,5 @@
 'use client';
-
+// VERSÃO IA 2026
 import { useState, useRef, useEffect } from 'react';
 
 interface Message { id:string; role:'user'|'assistant'; content:string; data?:any; }

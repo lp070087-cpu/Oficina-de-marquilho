@@ -1,5 +1,5 @@
 'use client';
-
+// VERSÃO CENTRAL 2026
 import { useState, useEffect, useCallback } from 'react';
 import EstoqueCategorias from '@/components/estoque/EstoqueCategorias';
 

@@ -1,5 +1,5 @@
 'use client';
-
+// VERSÃO PAINEL 2026
 import { useState, useEffect } from 'react';
 
 interface Stats { totalProdutos:number; totalUnidades:number; estoqueMinimo:number; semEstoque:number; entradasHoje:number; transferenciasHoje:number; ultimasMovimentacoes:any[]; }
