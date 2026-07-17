@@ -30,7 +30,7 @@ export default function AssistenteIAPage() {
     const match = texto.match(/([A-Z0-9\-]{3,})\s+([\w\sÀ-Ú\.\,\-\/\(\)]{5,})\s+(\d+[\.,]?\d*)\s+(\d+[\.,]\d{2})/i);
     if (match) {
       const produto = { codigo: match[1], nome: match[2].trim(), quantidade: match[3], precoVenda: match[4] };
-      addMsg(`Encontrei um possivel produto:\n\nCodigo: ${produto.codigo}\nNome: ${produto.nome}\nQuantidade: ${produto.quantidade}\nPreco: ${produto.preco}\n\nQuer cadastrar no estoque?`, 'assistant', [produto]);
+      addMsg(`Encontrei um possivel produto:\n\nCodigo: ${produto.codigo}\nNome: ${produto.nome}\nQuantidade: ${produto.quantidade}\nPreco: ${produto.precoVenda}\n\nQuer cadastrar no estoque?`, 'assistant', [produto]);
       setShowConfirm({ produtos: [produto] });
       setLoading(false);
       return;
