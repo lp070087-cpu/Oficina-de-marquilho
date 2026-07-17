@@ -20,23 +20,30 @@ export default function EstoqueCentralPage() {
   const PER_PAGE = 20;
 
   const fetchData = useCallback(async () => {
+    let catId = '';
+    if (catSlug) {
+      const catsRes = await fetch('/api/categorias').then(r=>r.json());
+      const cats = Array.isArray(catsRes) ? catsRes : [];
+      setCategorias(cats);
+      const found = cats.find((c:any)=>c.slug===catSlug);
+      if (found) catId = found.id;
+    } else {
+      const catsRes = await fetch('/api/categorias').then(r=>r.json());
+      setCategorias(Array.isArray(catsRes) ? catsRes : []);
+    }
     const p = new URLSearchParams();
     if (busca) p.set('q',busca);
-    if (catSlug) p.set('categoria', categorias.find(c=>c.slug===catSlug)?.id||'');
-    const [pecasRes, catsRes] = await Promise.all([
-      fetch(`/api/pecas?${p}`).then(r=>r.json()),
-      fetch('/api/categorias').then(r=>r.json()),
-    ]);
+    if (catId) p.set('categoria', catId);
+    const pecasRes = await fetch(`/api/pecas?${p}`).then(r=>r.json());
     setPecas(Array.isArray(pecasRes) ? pecasRes : []);
-    setCategorias(catsRes);
     setLoading(false);
-  }, [busca, catSlug, categorias]);
+  }, [busca, catSlug]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
-  const filterCat = !catSlug ? pecas : pecas.filter(p => p.categoria.slug === catSlug);
-  const totalPages = Math.ceil(filterCat.length / PER_PAGE);
-  const paginated = filterCat.slice((page-1)*PER_PAGE, page*PER_PAGE);
+  // O filtro por categoria já é feito pela API (catId). O array `pecas` já vem filtrado.
+  const totalPages = Math.ceil(pecas.length / PER_PAGE);
+  const paginated = pecas.slice((page-1)*PER_PAGE, page*PER_PAGE);
 
   function abrirForm(peca?:Peca) {
     if (peca) { setForm({ nome:peca.nome, codigo:peca.codigo, codigoBarras:peca.codigoBarras||'', precoVenda:String(peca.precoVenda), precoCusto:String(peca.precoCusto), quantidade:String(peca.quantidade), quantidadeLoja:String(peca.quantidadeLoja||0), estoqueMinimo:String(peca.estoqueMinimo), marca:peca.marca||'', compatibilidade:peca.compatibilidade||'', localizacao:peca.localizacao||'', subcategoria:peca.subcategoria||'', categoriaId:peca.categoria.id, descricao:'' }); setModal({open:true,peca}); }
@@ -71,7 +78,7 @@ export default function EstoqueCentralPage() {
 
       <EstoqueCategorias active={catSlug} onChange={(s)=>{setCatSlug(s);setPage(1);}} />
 
-      {loading ? <p className="text-sm text-slate-400">Carregando...</p> : filterCat.length===0 ? (
+      {loading ? <p className="text-sm text-slate-400">Carregando...</p> : pecas.length===0 ? (
         <div className="card text-center py-16"><p className="text-sm text-slate-400">Nenhum produto encontrado.</p></div>
       ) : (
         <>
