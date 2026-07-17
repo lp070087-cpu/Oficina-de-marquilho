@@ -1,13 +1,16 @@
 import { requireAuth } from '@/lib/auth';
 import prisma from '@/lib/prisma';
 import AppShell from '@/components/AppShell';
+import { EstoqueProvider } from '@/lib/estoque-events';
 
 export default async function EstoqueLayout({ children }: { children: React.ReactNode }) {
   const session = await requireAuth(['ESTOQUE']);
   const user = await prisma.user.findUnique({ where: { id: session.id }, select: { name: true } });
   return (
     <div className="flex h-screen overflow-hidden bg-[#F3F6FB]">
-      <AppShell user={session} userName={user?.name || session.name}>{children}</AppShell>
+      <AppShell user={session} userName={user?.name || session.name}>
+        <EstoqueProvider>{children}</EstoqueProvider>
+      </AppShell>
     </div>
   );
 }

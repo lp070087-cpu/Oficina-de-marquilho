@@ -53,6 +53,7 @@ export async function POST(req: NextRequest) {
       precoVenda: body.precoVenda || 0,
       precoCusto: body.precoCusto || 0,
       quantidade: body.quantidade || 0,
+      quantidadeLoja: body.quantidadeLoja || 0,
       estoqueMinimo: body.estoqueMinimo || 5,
       subcategoria: body.subcategoria || null,
       marca: body.marca || null,

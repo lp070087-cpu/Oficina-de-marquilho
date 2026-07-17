@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import BarcodeScanner from '@/components/scanner/BarcodeScanner';
 import EstoqueCategorias from '@/components/estoque/EstoqueCategorias';
+import { useEstoqueRefresh } from '@/lib/estoque-events';
 
 interface Categoria { id:string; nome:string; slug:string; }
 interface Peca { id:string; nome:string; codigo:string; codigoBarras?:string; imagemUrl?:string; quantidade:number; quantidadeLoja:number; estoqueMinimo:number; marca?:string; compatibilidade?:string; categoria:{nome:string;id:string;slug:string}; }
@@ -22,6 +23,7 @@ export default function TransferenciaPage() {
   const [msg, setMsg] = useState('');
   const [msgOk, setMsgOk] = useState('');
   const [historico, setHistorico] = useState<any[]>([]);
+  const { triggerRefresh } = useEstoqueRefresh();
 
   useEffect(() => {
     fetch('/api/pecas').then(r=>r.json()).then(setPecas);
@@ -60,6 +62,7 @@ export default function TransferenciaPage() {
       setMsgOk(`${qv} un. de "${selected.nome}" transferidas.`);
       fetch('/api/pecas').then(r=>r.json()).then(setPecas);
       fetch('/api/relatorios/movimentacao?tipo=TRANSFERENCIA').then(r=>r.json()).then(setHistorico);
+      triggerRefresh();
     } else { const e = await res.json(); setMsg(e.error||'Erro.'); }
     setLoading(false);
   }
