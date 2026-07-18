@@ -73,25 +73,67 @@ export default function ImportarPage() {
       if (linhas.length===0) { setMsg('Nenhum dado encontrado no arquivo.'); setLoading(false); return; }
       await processarLinhas(linhas);
     } else if (tipo==='excel') {
-      // Parse Excel via text (basic CSV fallback)
-      const text = await file.text();
-      const linhas = parseCSV(text);
-      if (linhas.length===0) { setMsg('Nao foi possivel ler o Excel. Salve como CSV e tente novamente.'); setLoading(false); return; }
-      await processarLinhas(linhas);
+      try {
+        const XLSX = await import('xlsx');
+        const buffer = await file.arrayBuffer();
+        const wb = XLSX.read(buffer, { type:'array' });
+        const sheetName = wb.SheetNames[0];
+        const sheet = wb.Sheets[sheetName];
+        const jsonData = XLSX.utils.sheet_to_json<any>(sheet, { header:1 });
+        if (!jsonData||jsonData.length<2) { setMsg('Planilha vazia ou sem dados.'); setLoading(false); return; }
+        const headers = (jsonData[0] as string[]).map((h:string)=>String(h||'').toLowerCase().trim());
+        const findCol = (...keys:string[])=>headers.findIndex((h:string)=>keys.some(k=>h.includes(k)));
+        const ci=findCol('codigo','sku','cod'); const ni=findCol('nome','descricao','produto','desc');
+        const qi=findCol('quantidade','qtd','estoque','saldo'); const pi=findCol('preco','venda','valor');
+        const ci2=findCol('custo'); const bi=findCol('barras','barcode');
+        const mar=findCol('marca'); const cat=findCol('categoria');
+        const linhas: Partial<ProdutoEntrada>[] = jsonData.slice(1).filter((row:any)=>row&&row.length>0).map((row:any,i:number)=>({
+          idx:i, codigoBarras:bi>=0?String(row[bi]||'').trim():'', codigoInterno:'', oem:'',
+          sku:ci>=0?String(row[ci]||'').trim():'', nome:ni>=0?String(row[ni]||'').trim():'',
+          marca:mar>=0?String(row[mar]||'').trim():'', categoria:cat>=0?String(row[cat]||'').trim():'',
+          fornecedor:'', quantidade:qi>=0?String(row[qi]||'1').trim():'1',
+          precoCusto:ci2>=0?String(row[ci2]||'').replace(/[R$\s]/g,'').trim():'',
+          precoVenda:pi>=0?String(row[pi]||'').replace(/[R$\s]/g,'').trim():'',
+          qtdLoja:'0', qtdCentral:qi>=0?String(row[qi]||'1').trim():'1', existe:false,
+        }));
+        await processarLinhas(linhas);
+      } catch(e) { setMsg('Erro ao ler Excel. Verifique o formato do arquivo.'); }
     } else if (tipo==='pdf') {
-      setMsg('PDF recebido. Extraindo texto... (em producao, use API de OCR)');
-      // Simulate extraction - in production would use a real PDF parser
-      const linhas: Partial<ProdutoEntrada>[] = [
-        { idx:0, codigoBarras:'', codigoInterno:'', oem:'', sku:'PDF-001', nome:'Produto extraido do PDF', marca:'', categoria:'', fornecedor:'', quantidade:'1', precoCusto:'', precoVenda:'', qtdLoja:'0', qtdCentral:'1' },
-      ];
-      await processarLinhas(linhas);
+      try {
+        const pdfjsLib = await import('pdfjs-dist');
+        pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.6.82/pdf.worker.min.mjs`;
+        const buffer = await file.arrayBuffer();
+        const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
+        const linhas: Partial<ProdutoEntrada>[] = [];
+        for (let pIdx=1; pIdx<=pdf.numPages; pIdx++) {
+          const page = await pdf.getPage(pIdx);
+          const content = await page.getTextContent();
+          const text = content.items.map((item:any)=>item.str).join(' ');
+          const lines = text.split('\n').filter((l:string)=>l.trim().length>5);
+          for (const line of lines) {
+            const match = line.match(/([A-Z0-9\-]{3,})\s+([\w\sÀ-Ú\.\,\-\/\(\)]{5,})/i);
+            if (match) linhas.push({ idx:linhas.length, codigoBarras:'', codigoInterno:'', oem:'', sku:match[1].trim(), nome:match[2].trim(), marca:'', categoria:'', fornecedor:'', quantidade:'1', precoCusto:'', precoVenda:'', qtdLoja:'0', qtdCentral:'1', existe:false });
+          }
+        }
+        if (linhas.length===0) { setMsg('Nenhum produto encontrado no PDF.'); setLoading(false); return; }
+        await processarLinhas(linhas);
+      } catch(e) { setMsg('Erro ao ler PDF. Verifique o arquivo.'); }
     } else if (tipo==='imagem') {
-      setMsg('Imagem recebida. Analisando... Confira os dados extraidos antes de abastecer.');
-      // Simulate OCR extraction
-      const linhas: Partial<ProdutoEntrada>[] = [
-        { idx:0, codigoBarras:'IMG-001', codigoInterno:'', oem:'', sku:'', nome:file.name.replace(/\.[^.]+$/,'').replace(/[_-]/g,' '), marca:'', categoria:'', fornecedor:'', quantidade:'1', precoCusto:'', precoVenda:'', qtdLoja:'0', qtdCentral:'1' },
-      ];
-      await processarLinhas(linhas);
+      try {
+        const Tesseract = await import('tesseract.js');
+        const imgUrl = URL.createObjectURL(file);
+        const { data: { text } } = await Tesseract.recognize(imgUrl, 'por+eng', { logger: (m:any) => { if (m.status==='recognizing text') setMsg(`OCR: ${Math.round(m.progress*100)}%`); } });
+        URL.revokeObjectURL(imgUrl);
+        setMsg('Imagem analisada. Confira os dados extraidos antes de abastecer.');
+        const linhas: Partial<ProdutoEntrada>[] = [];
+        const lines = text.split('\n').filter((l:string)=>l.trim().length>3);
+        for (const line of lines) {
+          const match = line.match(/([A-Z0-9\-]{3,})\s+([\w\sÀ-Ú\.\,\-\/\(\)]{5,})/i);
+          if (match) linhas.push({ idx:linhas.length, codigoBarras:'', codigoInterno:'', oem:'', sku:match[1].trim(), nome:match[2].trim(), marca:'', categoria:'', fornecedor:'', quantidade:'1', precoCusto:'', precoVenda:'', qtdLoja:'0', qtdCentral:'1', existe:false });
+        }
+        if (linhas.length===0) { setMsg('Nao foi possivel identificar produtos na imagem. Digite manualmente.'); setLoading(false); return; }
+        await processarLinhas(linhas);
+      } catch(e) { setMsg('Erro no OCR. Tente uma imagem mais nitida.'); }
     }
     setLoading(false);
   }
