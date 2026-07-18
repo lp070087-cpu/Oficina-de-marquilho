@@ -12,9 +12,19 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const { pecaId, quantidade, adaptado } = body;
   const peca = await prisma.peca.findUnique({ where: { id: pecaId } });
   if (!peca) return NextResponse.json({ error: 'Peca nao encontrada' }, { status: 404 });
-  if (peca.quantidade < quantidade) {
-    return NextResponse.json({ error: `Estoque insuficiente. Disponivel: ${peca.quantidade}` }, { status: 400 });
+
+  const qtdLoja = peca.quantidadeLoja || 0;
+  const qtdCentral = peca.quantidade || 0;
+  const qtdNecessaria = quantidade;
+
+  if (qtdLoja + qtdCentral < qtdNecessaria) {
+    return NextResponse.json({ error: `Estoque insuficiente. Loja: ${qtdLoja}, Central: ${qtdCentral}` }, { status: 400 });
   }
+
+  // Baixa primeiro da Loja, depois do Central
+  const baixaLoja = Math.min(qtdLoja, qtdNecessaria);
+  const baixaCentral = qtdNecessaria - baixaLoja;
+
   // Verificar compatibilidade
   const ordemExistente = await prisma.ordemServico.findUnique({ where: { id }, select: { modeloMoto: true } });
   const modelo = ordemExistente?.modeloMoto?.toLowerCase() || '';
@@ -27,7 +37,28 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     data: { ordemServicoId: id, pecaId, quantidade, precoUnitario: peca.precoVenda, adaptado: isAdaptado },
     include: { peca: true },
   });
-  await prisma.peca.update({ where: { id: pecaId }, data: { quantidade: { decrement: quantidade } } });
+
+  // Update stock
+  await prisma.peca.update({
+    where: { id: pecaId },
+    data: {
+      quantidadeLoja: qtdLoja - baixaLoja,
+      quantidade: baixaCentral > 0 ? qtdCentral - baixaCentral : undefined,
+    },
+  });
+
+  // Register movement
+  if (baixaLoja > 0) {
+    await prisma.movimentacaoEstoque.create({
+      data: { pecaId, tipo: 'USO_OS', quantidade: baixaLoja, origem: 'LOJA', usuario: session.name, observacao: `OS #${id} - usado em servico` },
+    });
+  }
+  if (baixaCentral > 0) {
+    await prisma.movimentacaoEstoque.create({
+      data: { pecaId, tipo: 'USO_OS', quantidade: baixaCentral, origem: 'CENTRAL', usuario: session.name, observacao: `OS #${id} - usado em servico` },
+    });
+  }
+
   const itensOS = await prisma.itemOS.findMany({ where: { ordemServicoId: id }, include: { peca: true } });
   const valorPecas = itensOS.reduce((sum, i) => sum + Number(i.precoUnitario) * i.quantidade, 0);
   const ordemAtual = await prisma.ordemServico.findUnique({ where: { id } });
@@ -47,7 +78,7 @@ export async function DELETE(req: NextRequest, { params }: { params: Promise<{ i
   const { itemId } = await req.json();
   const item = await prisma.itemOS.findUnique({ where: { id: itemId } });
   if (!item) return NextResponse.json({ error: 'Item nao encontrado' }, { status: 404 });
-  await prisma.peca.update({ where: { id: item.pecaId }, data: { quantidade: { increment: item.quantidade } } });
+  await prisma.peca.update({ where: { id: item.pecaId }, data: { quantidadeLoja: { increment: item.quantidade } } });
   await prisma.itemOS.delete({ where: { id: itemId } });
   const itensRestantes = await prisma.itemOS.findMany({ where: { ordemServicoId: id }, include: { peca: true } });
   const valorPecas = itensRestantes.reduce((sum, i) => sum + Number(i.precoUnitario) * i.quantidade, 0);

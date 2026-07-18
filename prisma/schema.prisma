@@ -127,6 +127,10 @@ model OrdemServico {
   observacoes       String?
   finalizadoEm      DateTime?
   finalizadoPor     String?
+  statusPagamento   String?
+  valorPago         Decimal?
+  dataPagamento     DateTime?
+  usuarioPagamento  String?
   mecanicoId        String?
   mecanico          User?          @relation("Mecanico", fields: [mecanicoId], references: [id])
   balcaoId          String?
