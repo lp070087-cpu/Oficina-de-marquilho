@@ -11,6 +11,8 @@ interface OS {
   descricaoProblema: string; diagnostico?: string; status: string; valorTotal: number; valorMaoDeObra: number;
   mecanico?: Mecanico; mecanicoId?: string; balcao?: { name: string }; itens: ItemOS[];
   notaFiscal?: { id: string; numero: string; emitidaEm: string };
+  statusPagamento?: string | null; formaPagamento?: string | null;
+  valorPago?: number | null; dataPagamento?: string | null; usuarioPagamento?: string | null;
 }
 
 const CATALOGO_MOTOS = [
@@ -130,7 +132,7 @@ function DetalheOSBalcao({os,onClose}:{os:OS;onClose:()=>void}) {
 
   // Cobranca
   const [showCobranca,setShowCobranca]=useState(false);
-  const [cobranca,setCobranca]=useState({pagamento:'PIX',obs:'',pago:false,entregue:false});
+  const [cobranca,setCobranca]=useState({pagamento:'PIX',obs:'',entregue:false});
 
   const carregarPecas=async(todas:boolean)=>{
     const p=new URLSearchParams();
@@ -193,15 +195,14 @@ function DetalheOSBalcao({os,onClose}:{os:OS;onClose:()=>void}) {
         </div>
 
         <div className="flex border-b border-slate-100 flex-shrink-0">
-          <button onClick={()=>setTab('itens')} className={`px-4 py-2 text-xs font-medium border-b-2 transition-colors ${tab==='itens'?'border-brand-600 text-brand-600':'border-transparent text-slate-500'}`}>Peças e Valores</button>
-          <button onClick={()=>setTab('status')} className={`px-4 py-2 text-xs font-medium border-b-2 transition-colors ${tab==='status'?'border-brand-600 text-brand-600':'border-transparent text-slate-500'}`}>Status</button>
+          <button className="px-4 py-2 text-xs font-medium border-b-2 border-brand-600 text-brand-600">Peças e Valores</button>
         </div>
 
         <div className="p-5 overflow-y-auto flex-1">
           {msg&&<div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded text-xs mb-3">{msg}</div>}
           {msgOk&&<div className="bg-emerald-50 border border-emerald-200 text-emerald-700 px-3 py-2 rounded text-xs mb-3 font-bold">{msgOk}</div>}
 
-          {tab==='itens'&&(<div>
+          <div>
             <div className="flex items-center justify-between mb-3 p-2.5 bg-slate-50 rounded-lg text-xs">
               <span>{qtdCompativeis} pecas compativeis com <strong className="text-brand-600">{dados.modeloMoto}</strong></span>
               <button onClick={toggleMostrarTodas} className={`text-xs font-medium px-3 py-1 rounded transition-colors ${mostrarTodas?'bg-amber-100 text-amber-700':'bg-white border border-slate-200 text-slate-600'}`}>{mostrarTodas?'So compativeis':'Mostrar todas'}</button>
@@ -234,28 +235,21 @@ function DetalheOSBalcao({os,onClose}:{os:OS;onClose:()=>void}) {
                 </tfoot>
               </table>
             )}
-          </div>)}
+          </div>
 
-          {tab==='status'&&(<div className="space-y-3">
-            <div><label className="text-xs font-medium text-slate-600">Status atual: <strong className="text-brand-600">{sl[dados.status]||dados.status}</strong></label>
-              <select value={novoStatus} onChange={e=>setNovoStatus(e.target.value)} className="input-field mt-1 text-xs">{['ABERTA','EM_ANDAMENTO','AGUARDANDO_PECAS','PRONTA','CONCLUIDA','CANCELADA'].map(s=>(<option key={s} value={s}>{sl[s]||s}</option>))}</select></div>
-            <div><label className="text-xs font-medium text-slate-600">Mecanico</label><select value={mecId} onChange={e=>setMecId(e.target.value)} className="input-field mt-1 text-xs"><option value="">Nao atribuido</option>{mecanicos.map(m=>(<option key={m.id} value={m.id}>{m.name}{m.emAlmoco?' (Almoco)':''}</option>))}</select></div>
-            <div><label className="text-xs font-medium text-slate-600">Diagnostico</label><textarea value={diagnostico} onChange={e=>setDiagnostico(e.target.value)} className="input-field mt-1 text-xs" rows={3}/></div>
-            <button onClick={atualizarStatus} className="btn-primary text-xs">Atualizar Status</button>
-          </div>)}
         </div>
 
         {/* Rodapé: Finalizar / Cobrança */}
         <div className="p-4 border-t border-slate-100 space-y-3 flex-shrink-0">
-          {(cobranca.pago && cobranca.entregue) ? (
+          {(cobranca.entregue) ? (
             <div className="flex items-center justify-between">
               <span className="inline-block px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-600 text-white">Moto Entregue ✓</span>
               <button onClick={onClose} className="btn-secondary text-xs">Fechar</button>
             </div>
-          ) : cobranca.pago ? (
+          ) : dados.statusPagamento==='PAGO' ? (
             <div className="flex items-center justify-between">
-              <span className="inline-block px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-50 text-emerald-700">Pago ✓</span>
-              <button onClick={()=>{setCobranca({...cobranca,entregue:true});setMsgOk('Moto entregue!');}} className="btn-primary text-xs">🏍️ Moto Entregue</button>
+              <span className="inline-block px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-50 text-emerald-700">🟢 Pagamento confirmado</span>
+              <button onClick={()=>{setCobranca({...cobranca,entregue:true});setMsgOk('Moto entregue!');}} className="btn-primary text-xs">🏍️ Liberar Moto</button>
             </div>
           ) : showCobranca ? (
             <div className="space-y-3 bg-slate-50 rounded-lg p-3 text-xs">
@@ -263,8 +257,8 @@ function DetalheOSBalcao({os,onClose}:{os:OS;onClose:()=>void}) {
               <div className="grid grid-cols-4 gap-2"><div><span className="text-slate-400">Total:</span> <strong>{fm(totalGeral)}</strong></div><div><span className="text-slate-400">Cliente:</span> <strong>{dados.nomeCliente}</strong></div><div><span className="text-slate-400">Moto:</span> <strong>{dados.modeloMoto}</strong></div><div><span className="text-slate-400">Placa:</span> <strong>{dados.placaMoto||'-'}</strong></div></div>
               <div><label className="text-[10px] font-semibold text-slate-500 uppercase">Pagamento</label><select value={cobranca.pagamento} onChange={e=>setCobranca({...cobranca,pagamento:e.target.value})} className="input-field mt-0.5 text-xs"><option>PIX</option><option>Dinheiro</option><option>Debito</option><option>Credito</option><option>Parcelado</option></select></div>
               <div><label className="text-[10px] font-semibold text-slate-500 uppercase">Observacoes</label><input value={cobranca.obs} onChange={e=>setCobranca({...cobranca,obs:e.target.value})} className="input-field mt-0.5 text-xs"/></div>
-              <label className="flex items-center gap-2 cursor-pointer text-xs"><input type="checkbox" checked={cobranca.pago} onChange={e=>setCobranca({...cobranca,pago:e.target.checked})}/>🔴 Pendente — Marcar como PAGO</label>
-              <div className="flex gap-2"><button onClick={()=>{if(cobranca.pago)setMsgOk('Pagamento confirmado!');setShowCobranca(false);}} className="btn-primary text-xs">Confirmar</button><button onClick={()=>setShowCobranca(false)} className="btn-secondary text-xs">Fechar</button></div>
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-red-50 text-red-700">🔴 Aguardando pagamento da Dona</span>
+              <div className="flex gap-2"><button onClick={()=>{window.print();}} className="btn-secondary text-xs">🖨️ Imprimir Nota Fiscal</button><button onClick={()=>setShowCobranca(false)} className="btn-secondary text-xs">Fechar</button></div>
             </div>
           ) : dados.status==='CONCLUIDA' ? (
             <div className="flex items-center justify-between">
