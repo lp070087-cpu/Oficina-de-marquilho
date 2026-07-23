@@ -13,7 +13,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   if (mecanicoId !== undefined) data.mecanicoId = mecanicoId;
   if (diagnostico !== undefined) data.diagnostico = diagnostico;
 
-  // Pagamento: apenas DONO pode alterar para PAGO
+  // Pagamento: apenas DONO pode marcar como PAGO
+  // BALCAO pode marcar como AGUARDANDO_PAGAMENTO (finalizar servico) e ENTREGUE (liberar moto)
   if (statusPagamento === 'PAGO' && session.role !== 'DONO') {
     return NextResponse.json({ error: 'Apenas o Dono pode marcar como PAGO.' }, { status: 403 });
   }
@@ -22,6 +23,15 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     if (statusPagamento === 'PAGO') {
       data.dataPagamento = new Date();
       data.usuarioPagamento = session.name;
+    }
+    // Quando Balcao finaliza servico, registrar data e responsavel
+    if (statusPagamento === 'AGUARDANDO_PAGAMENTO') {
+      data.finalizadoEm = new Date();
+      data.finalizadoPor = session.name;
+    }
+    // Quando Balcao (ou qualquer um) entrega a moto
+    if (statusPagamento === 'ENTREGUE') {
+      data.finalizadoEm = data.finalizadoEm || new Date();
     }
   }
   if (valorPago !== undefined) data.valorPago = valorPago;

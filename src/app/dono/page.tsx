@@ -1,7 +1,7 @@
 import prisma from '@/lib/prisma';
 
 export default async function DonoDashboard() {
-  const [totalPecas, unidadesEstoque, estoqueBaixoRaw, osAbertas, osEmAndamento, osConcluidasMes, notasEmitidas, mecanicosAtivos] =
+  const [totalPecas, unidadesEstoque, estoqueBaixoRaw, osAbertas, osEmAndamento, osConcluidasMes, osAguardandoPagamento, notasEmitidas, mecanicosAtivos] =
     await Promise.all([
       prisma.peca.count({ where: { ativo: true } }),
       prisma.peca.aggregate({ _sum: { quantidade: true }, where: { ativo: true } }),
@@ -9,6 +9,7 @@ export default async function DonoDashboard() {
       prisma.ordemServico.count({ where: { status: 'ABERTA' } }),
       prisma.ordemServico.count({ where: { status: { in: ['EM_ANDAMENTO', 'AGUARDANDO_PECAS'] } } }),
       prisma.ordemServico.count({ where: { status: { in: ['PRONTA', 'CONCLUIDA'] }, updatedAt: { gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1) } } }),
+      prisma.ordemServico.count({ where: { statusPagamento: 'AGUARDANDO_PAGAMENTO' } }),
       prisma.notaFiscal.count(),
       prisma.user.count({ where: { role: 'MECANICO', active: true } }),
     ]);
@@ -65,7 +66,7 @@ export default async function DonoDashboard() {
   return (
     <div className="p-6 space-y-6">
       {/* Cards estatisticos */}
-      <div className="grid grid-cols-5 gap-4">
+      <div className="grid grid-cols-6 gap-4">
         <div className="card-stat">
           <p className="text-[11px] text-slate-500 font-medium uppercase tracking-wider mb-2">Pecas cadastradas</p>
           <p className="text-2xl font-bold text-slate-800">{totalPecas}</p>
@@ -80,6 +81,11 @@ export default async function DonoDashboard() {
           <p className="text-[11px] text-slate-500 font-medium uppercase tracking-wider mb-2">OS em andamento</p>
           <p className="text-2xl font-bold text-amber-600">{osEmAndamento}</p>
           <p className="text-[11px] text-slate-400 mt-1">{osAbertas} abertas no momento</p>
+        </div>
+        <div className="card-stat">
+          <p className="text-[11px] text-slate-500 font-medium uppercase tracking-wider mb-2">Aguard. Pagamento</p>
+          <p className="text-2xl font-bold text-amber-600">{osAguardandoPagamento}</p>
+          <p className="text-[11px] text-slate-400 mt-1">OS aguardando cobranca</p>
         </div>
         <div className="card-stat">
           <p className="text-[11px] text-slate-500 font-medium uppercase tracking-wider mb-2">Notas emitidas</p>

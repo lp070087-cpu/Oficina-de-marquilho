@@ -12,6 +12,7 @@ interface OS {
   status: string; valorTotal: number; valorMaoDeObra: number;
   mecanico?: Mecanico; mecanicoId?: string; balcao?: { name: string };
   itens: ItemOS[]; notaFiscal?: { id: string; numero: string; emitidaEm: string };
+  statusPagamento?: string | null; formaPagamento?: string | null;
 }
 
 const TIPOS_SERVICO = ['Revisao', 'Troca de oleo', 'Eletrica', 'Suspensao', 'Freios', 'Motor', 'Transmissao', 'Pneus', 'Geral'];
@@ -29,7 +30,15 @@ export default function OrdensPage() {
   const [msg, setMsg] = useState('');
 
   const fetchOrdens = useCallback(async () => {
-    const statusMap: Record<string, string> = { ABERTAS: '', ABERTA: 'ABERTA', EM_ANDAMENTO: 'EM_ANDAMENTO', AGUARDANDO_PECAS: 'AGUARDANDO_PECAS', CONCLUIDAS: 'CONCLUIDA' };
+    const statusMap: Record<string, string> = { ABERTAS: '', ABERTA: 'ABERTA', EM_ANDAMENTO: 'EM_ANDAMENTO', AGUARDANDO_PECAS: 'AGUARDANDO_PECAS', CONCLUIDAS: 'CONCLUIDA', AGUARDANDO_PAGAMENTO: 'AGUARDANDO_PAGAMENTO' };
+    setLoading(true);
+    if (filtro === 'AGUARDANDO_PAGAMENTO') {
+      const res = await fetch('/api/ordens');
+      const data = await res.json();
+      setOrdens(data.filter((o: OS) => o.statusPagamento === 'AGUARDANDO_PAGAMENTO'));
+      setLoading(false);
+      return;
+    }
     const p = new URLSearchParams();
     if (statusMap[filtro]) p.set('status', statusMap[filtro]);
     const res = await fetch(`/api/ordens?${p}`); setOrdens(await res.json()); setLoading(false);
@@ -54,8 +63,15 @@ export default function OrdensPage() {
   function abrirVer(os: OS) { setModal({ open: true, tipo: 'ver', os }); }
 
   const formatMoney = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-  const statusColor: Record<string, string> = { ABERTA:'bg-sky-50 text-sky-700 border-sky-200',EM_ANDAMENTO:'bg-amber-50 text-amber-700 border-amber-200',AGUARDANDO_PECAS:'bg-orange-50 text-orange-700 border-orange-200',PRONTA:'bg-violet-50 text-violet-700 border-violet-200',CONCLUIDA:'bg-emerald-50 text-emerald-700 border-emerald-200',CANCELADA:'bg-red-50 text-red-700 border-red-200' };
-  const statusLabel: Record<string, string> = { ABERTA:'Aberta',EM_ANDAMENTO:'Em andamento',AGUARDANDO_PECAS:'Aguard. pecas',PRONTA:'Pronta',CONCLUIDA:'Concluida',CANCELADA:'Cancelada' };
+  const statusColor: Record<string, string> = { ABERTA:'bg-sky-50 text-sky-700 border-sky-200',EM_ANDAMENTO:'bg-amber-50 text-amber-700 border-amber-200',AGUARDANDO_PECAS:'bg-orange-50 text-orange-700 border-orange-200',PRONTA:'bg-violet-50 text-violet-700 border-violet-200',CONCLUIDA:'bg-emerald-50 text-emerald-700 border-emerald-200',CANCELADA:'bg-red-50 text-red-700 border-red-200',AGUARDANDO_PAGAMENTO:'bg-amber-50 text-amber-700 border-amber-200',ENTREGUE:'bg-emerald-50 text-emerald-700 border-emerald-200' };
+  const statusLabel: Record<string, string> = { ABERTA:'Aberta',EM_ANDAMENTO:'Em andamento',AGUARDANDO_PECAS:'Aguard. pecas',PRONTA:'Pronta',CONCLUIDA:'Concluida',CANCELADA:'Cancelada',AGUARDANDO_PAGAMENTO:'Aguard. Pagamento',ENTREGUE:'Entregue' };
+
+  function getStatusDisplay(os: OS) {
+    if (os.statusPagamento === 'AGUARDANDO_PAGAMENTO') return { label: statusLabel.AGUARDANDO_PAGAMENTO, color: statusColor.AGUARDANDO_PAGAMENTO };
+    if (os.statusPagamento === 'ENTREGUE') return { label: statusLabel.ENTREGUE, color: statusColor.ENTREGUE };
+    if (os.statusPagamento === 'PAGO') return { label: 'Pago', color: 'bg-emerald-50 text-emerald-700 border-emerald-200' };
+    return { label: statusLabel[os.status] || os.status, color: statusColor[os.status] || 'bg-slate-50 text-slate-500 border-slate-200' };
+  }
 
   return (
     <div className="p-6">
@@ -65,24 +81,26 @@ export default function OrdensPage() {
       </div>
 
       <div className="flex gap-2 mb-4 flex-wrap">
-        {['ABERTAS','ABERTA','EM_ANDAMENTO','AGUARDANDO_PECAS','CONCLUIDAS'].map(f => (<button key={f} onClick={()=>setFiltro(f)} className={`px-3 py-1.5 rounded text-xs font-medium border transition-colors ${filtro===f?'bg-brand-600 text-white border-brand-600':'bg-white text-slate-600 border-slate-200 hover:border-slate-300'}`}>{statusLabel[f]||'Todas'}</button>))}
+        {['ABERTAS','ABERTA','EM_ANDAMENTO','AGUARDANDO_PECAS','CONCLUIDAS','AGUARDANDO_PAGAMENTO'].map(f => (<button key={f} onClick={()=>setFiltro(f)} className={`px-3 py-1.5 rounded text-xs font-medium border transition-colors ${filtro===f?'bg-brand-600 text-white border-brand-600':'bg-white text-slate-600 border-slate-200 hover:border-slate-300'}`}>{f==='AGUARDANDO_PAGAMENTO'?'Aguard. Pagamento':statusLabel[f]||'Todas'}</button>))}
       </div>
 
       {loading ? <p className="text-sm text-slate-400">Carregando...</p> : ordens.length===0 ? (<div className="card text-center py-12"><p className="text-sm text-slate-400">Nenhuma OS encontrada.</p></div>) : (
         <div className="card overflow-x-auto"><table className="w-full text-sm">
           <thead><tr className="border-b border-slate-100"><th className="text-left py-2.5 px-3 text-xs font-medium text-slate-500 uppercase">OS</th><th className="text-left py-2.5 px-3 text-xs font-medium text-slate-500 uppercase">Cliente</th><th className="text-left py-2.5 px-3 text-xs font-medium text-slate-500 uppercase">Moto</th><th className="text-left py-2.5 px-3 text-xs font-medium text-slate-500 uppercase">Servico</th><th className="text-left py-2.5 px-3 text-xs font-medium text-slate-500 uppercase">Mecanico</th><th className="text-left py-2.5 px-3 text-xs font-medium text-slate-500 uppercase">Status</th><th className="text-right py-2.5 px-3 text-xs font-medium text-slate-500 uppercase">Valor</th><th className="text-right py-2.5 px-3 text-xs font-medium text-slate-500 uppercase">NF</th></tr></thead>
-          <tbody>{ordens.map(os => (
+          <tbody>{ordens.map(os => {
+            const st = getStatusDisplay(os);
+            return (
             <tr key={os.id} onClick={()=>abrirVer(os)} className="border-b border-slate-50 hover:bg-slate-50/50 cursor-pointer">
               <td className="py-2 px-3 font-medium text-brand-600">#{os.numero}</td>
               <td className="py-2 px-3 text-slate-700">{os.nomeCliente}</td>
               <td className="py-2 px-3 text-slate-500">{os.modeloMoto}</td>
               <td className="py-2 px-3 text-xs text-slate-500">{os.tipoServico||'-'}</td>
               <td className="py-2 px-3 text-slate-500 text-xs">{os.mecanico?.name||'-'}</td>
-              <td className="py-2 px-3"><span className={`inline-block px-2 py-0.5 rounded text-[11px] font-medium border ${statusColor[os.status]}`}>{statusLabel[os.status]}</span></td>
+              <td className="py-2 px-3"><span className={`inline-block px-2 py-0.5 rounded text-[11px] font-medium border ${st.color}`}>{st.label}</span></td>
               <td className="py-2 px-3 text-right font-medium text-slate-700">{formatMoney(Number(os.valorTotal))}</td>
               <td className="py-2 px-3 text-right text-xs">{os.notaFiscal?<span className="text-emerald-600 font-medium">#{os.notaFiscal.numero}</span>:<span className="text-slate-300">-</span>}</td>
             </tr>
-          ))}</tbody>
+          )})}</tbody>
         </table></div>
       )}
 
