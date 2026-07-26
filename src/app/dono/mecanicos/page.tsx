@@ -47,8 +47,9 @@ export default function MecanicosPage() {
       else { const e = await res.json(); setMsg(e.error||'Erro.'); }
     } else {
       const email = `mecanico-${Date.now()}@off.local`;
-      const res = await fetch('/api/usuarios', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ ...body, email, password:'mecanico123', role:'MECANICO' }) });
-      if (res.ok) { setModal(false); setForm({ nome:'', sobrenome:'', telefone:'' }); fetchUsers(); }
+      const senhaTemporaria = Math.random().toString(36).slice(-10) + Math.random().toString(36).slice(-2).toUpperCase();
+      const res = await fetch('/api/usuarios', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ ...body, email, password: senhaTemporaria, role:'MECANICO' }) });
+      if (res.ok) { setModal(false); setForm({ nome:'', sobrenome:'', telefone:'' }); fetchUsers(); setMsg(`Mecânico criado! Senha temporária: ${senhaTemporaria}`); }
       else { const e = await res.json(); setMsg(e.error||'Erro.'); }
     }
   }

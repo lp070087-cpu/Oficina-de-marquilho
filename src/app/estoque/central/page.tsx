@@ -93,7 +93,7 @@ export default function EstoqueCentralPage() {
       const p = new URLSearchParams();
       if (debouncedBusca) p.set('q', debouncedBusca);
       if (catId) p.set('categoria', catId);
-      const res = await fetch(`/api/pecas?$${p}`);
+      const res = await fetch(`/api/pecas?${p}`);
       const data = await res.json();
       setPecas(Array.isArray(data) ? data : []);
     } catch { setPecas([]); }
@@ -178,7 +178,7 @@ export default function EstoqueCentralPage() {
 
     if (form.codigoBarras && !modal.peca) {
       try {
-        const check = await fetch(`/api/pecas?barcode=$${encodeURIComponent(form.codigoBarras)}`);
+        const check = await fetch(`/api/pecas?barcode=${encodeURIComponent(form.codigoBarras)}`);
         const exist = await check.json();
         if (Array.isArray(exist) && exist.length > 0) {
           setToast({ type: 'error', message: 'Ja existe um produto com esse codigo de barras.' });
@@ -196,7 +196,7 @@ export default function EstoqueCentralPage() {
       estoqueMinimo: Number(form.estoqueMinimo) || 5,
     };
 
-    const url = modal.peca ? `/api/pecas/$${modal.peca.id}` : '/api/pecas';
+    const url = modal.peca ? `/api/pecas/${modal.peca.id}` : '/api/pecas';
     const method = modal.peca ? 'PUT' : 'POST';
 
     try {
@@ -216,11 +216,11 @@ export default function EstoqueCentralPage() {
   }
 
   async function remover(peca: Peca) {
-    await fetch(`/api/pecas/$${peca.id}`, { method: 'DELETE' });
+    await fetch(`/api/pecas/${peca.id}`, { method: 'DELETE' });
     setDeleteConfirm(null);
     fetchData();
     triggerRefresh();
-    setToast({ type: 'success', message: `"$${peca.nome}" removido.` });
+    setToast({ type: 'success', message: `"${peca.nome}" removido.` });
   }
 
   function exportar(tipo: 'todos' | 'baixo') {
@@ -230,15 +230,15 @@ export default function EstoqueCentralPage() {
     if (!w) return;
     const rows = data.map(p => `
       <tr>
-        <td>$${p.categoria?.nome || ''}</td>
-        <td>$${p.codigo}</td>
-        <td>$${p.codigoBarras || ''}</td>
-        <td>$${p.nome}</td>
-        <td>$${p.marca || ''}</td>
-        <td style="text-align:center">$${p.quantidade}</td>
-        <td style="text-align:center">$${p.estoqueMinimo}</td>
+        <td>${p.categoria?.nome || ''}</td>
+        <td>${p.codigo}</td>
+        <td>${p.codigoBarras || ''}</td>
+        <td>${p.nome}</td>
+        <td>${p.marca || ''}</td>
+        <td style="text-align:center">${p.quantidade}</td>
+        <td style="text-align:center">${p.estoqueMinimo}</td>
         <td></td><td></td><td></td><td></td>
-        <td>$${p.localizacao || ''}</td>
+        <td>${p.localizacao || ''}</td>
       </tr>`).join('');
     w.document.write('<!DOCTYPE html><html><head><title>' + titulo + ' - Marquinho</title>' +
       '<style>body{font-family:Arial;padding:20px;font-size:11px}h1{text-align:center;font-size:16px;margin-bottom:5px}' +
@@ -259,8 +259,8 @@ export default function EstoqueCentralPage() {
     const desc = sortField === field && sortDir === 'desc';
     return (
       <span className="ml-1 inline-flex flex-col leading-none">
-        <svg className={`w-2.5 h-2.5 $${asc ? 'text-brand-600' : 'text-slate-300'}`} fill="currentColor" viewBox="0 0 10 6"><path d="M5 0L0 6h10z"/></svg>
-        <svg className={`w-2.5 h-2.5 $${desc ? 'text-brand-600' : 'text-slate-300'}`} fill="currentColor" viewBox="0 0 10 6"><path d="M5 6L0 0h10z"/></svg>
+        <svg className={`w-2.5 h-2.5 ${asc ? 'text-brand-600' : 'text-slate-300'}`} fill="currentColor" viewBox="0 0 10 6"><path d="M5 0L0 6h10z"/></svg>
+        <svg className={`w-2.5 h-2.5 ${desc ? 'text-brand-600' : 'text-slate-300'}`} fill="currentColor" viewBox="0 0 10 6"><path d="M5 6L0 0h10z"/></svg>
       </span>
     );
   }
@@ -314,8 +314,8 @@ export default function EstoqueCentralPage() {
           { label: 'Sem estoque', value: stats.zerado, icon: 'M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636', color: stats.zerado > 0 ? 'text-red-600 bg-red-50' : 'text-slate-500 bg-slate-50', urgent: stats.zerado > 0 },
           { label: 'Na loja', value: stats.naLoja, icon: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4', color: 'text-violet-600 bg-violet-50' },
         ].map((s, i) => (
-          <div key={i} className={`card-stat flex items-center gap-3 p-4 $${s.urgent ? 'ring-1 ring-amber-200' : ''}`}>
-            <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 $${s.color}`}>
+          <div key={i} className={`card-stat flex items-center gap-3 p-4 ${s.urgent ? 'ring-1 ring-amber-200' : ''}`}>
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${s.color}`}>
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d={s.icon}/></svg>
             </div>
             <div>
@@ -416,9 +416,9 @@ export default function EstoqueCentralPage() {
                     return (
                       <tr
                         key={p.id}
-                        className={`border-b border-slate-50 hover:bg-slate-50/70 transition-colors duration-150 $${
+                        className={`border-b border-slate-50 hover:bg-slate-50/70 transition-colors duration-150 ${
                           i % 2 === 0 ? 'bg-white' : 'bg-slate-50/20'
-                        } $${isZerado ? 'bg-red-50/20' : isBaixo ? 'bg-amber-50/20' : ''}`}
+                        } ${isZerado ? 'bg-red-50/20' : isBaixo ? 'bg-amber-50/20' : ''}`}
                       >
                         <td className="py-2.5 px-3 font-mono text-slate-500">{p.codigo}</td>
                         <td className="py-2.5 px-3">
@@ -430,7 +430,7 @@ export default function EstoqueCentralPage() {
                         <td className="py-2.5 px-3 text-slate-500 text-xs hidden md:table-cell">{p.marca || '—'}</td>
                         <td className="py-2.5 px-3 text-slate-500 text-xs hidden lg:table-cell">{p.categoria?.nome || '—'}</td>
                         <td className="py-2.5 px-3 text-center">
-                          <span className={`inline-flex items-center justify-center min-w-[36px] px-2 py-0.5 rounded-md text-xs font-bold $${
+                          <span className={`inline-flex items-center justify-center min-w-[36px] px-2 py-0.5 rounded-md text-xs font-bold ${
                             isZerado ? 'bg-red-100 text-red-700' : isBaixo ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-700'
                           }`}>
                             {p.quantidade}
@@ -486,7 +486,7 @@ export default function EstoqueCentralPage() {
                     <button
                       key={pageNum}
                       onClick={() => setPage(pageNum)}
-                      className={`w-8 h-8 rounded-lg text-xs font-bold transition-colors $${
+                      className={`w-8 h-8 rounded-lg text-xs font-bold transition-colors ${
                         page === pageNum
                           ? 'bg-brand-600 text-white shadow-sm shadow-brand-600/20'
                           : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
@@ -562,7 +562,7 @@ export default function EstoqueCentralPage() {
         <div className="fixed inset-0 bg-black/30 flex items-start justify-center z-50 p-4 pt-8 overflow-y-auto" onClick={() => setModal({ open: false })}>
           <div className="bg-white rounded-2xl border border-slate-200 shadow-xl w-full max-w-xl p-6 my-4" onClick={e => e.stopPropagation()} style={{animation: 'scaleIn 0.2s ease-out'}}>
             <div className="flex items-center gap-3 mb-5">
-              <div className={`w-10 h-10 rounded-xl flex items-center justify-center $${modal.peca ? 'bg-brand-50' : 'bg-emerald-50'}`}>
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${modal.peca ? 'bg-brand-50' : 'bg-emerald-50'}`}>
                 {modal.peca ? (
                   <svg className="w-5 h-5 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
                 ) : (
@@ -571,7 +571,7 @@ export default function EstoqueCentralPage() {
               </div>
               <div>
                 <h2 className="text-base font-bold text-slate-800">{modal.peca ? 'Editar Produto' : 'Novo Produto'}</h2>
-                <p className="text-xs text-slate-400">{modal.peca ? `SKU: $${modal.peca.codigo}` : 'Preencha os dados do produto'}</p>
+                <p className="text-xs text-slate-400">{modal.peca ? `SKU: ${modal.peca.codigo}` : 'Preencha os dados do produto'}</p>
               </div>
             </div>
 
@@ -581,7 +581,7 @@ export default function EstoqueCentralPage() {
                 <input
                   value={form.nome}
                   onChange={e => setForm({ ...form, nome: e.target.value })}
-                  className={`input-field mt-1.5 text-xs $${formErrors.nome ? 'border-red-300 bg-red-50' : ''}`}
+                  className={`input-field mt-1.5 text-xs ${formErrors.nome ? 'border-red-300 bg-red-50' : ''}`}
                   placeholder="Nome do produto"
                   autoFocus
                 />
@@ -590,7 +590,7 @@ export default function EstoqueCentralPage() {
 
               <div>
                 <label className="text-xs font-semibold text-slate-600 uppercase">SKU *</label>
-                <input value={form.codigo} onChange={e => setForm({ ...form, codigo: e.target.value })} className={`input-field mt-1.5 text-xs $${formErrors.codigo ? 'border-red-300 bg-red-50' : ''}`} placeholder="Codigo interno"/>
+                <input value={form.codigo} onChange={e => setForm({ ...form, codigo: e.target.value })} className={`input-field mt-1.5 text-xs ${formErrors.codigo ? 'border-red-300 bg-red-50' : ''}`} placeholder="Codigo interno"/>
                 {formErrors.codigo && <p className="text-[10px] text-red-500 mt-1">{formErrors.codigo}</p>}
               </div>
 
@@ -601,7 +601,7 @@ export default function EstoqueCentralPage() {
 
               <div>
                 <label className="text-xs font-semibold text-slate-600 uppercase">Categoria *</label>
-                <select value={form.categoriaId} onChange={e => setForm({ ...form, categoriaId: e.target.value })} className={`input-field mt-1.5 text-xs $${formErrors.categoriaId ? 'border-red-300 bg-red-50' : ''}`}>
+                <select value={form.categoriaId} onChange={e => setForm({ ...form, categoriaId: e.target.value })} className={`input-field mt-1.5 text-xs ${formErrors.categoriaId ? 'border-red-300 bg-red-50' : ''}`}>
                   <option value="">Selecionar</option>
                   {categorias.map(c => <option key={c.id} value={c.id}>{c.nome}</option>)}
                 </select>

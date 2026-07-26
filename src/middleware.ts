@@ -2,8 +2,16 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { jwtVerify } from 'jose';
 
+// ⚠️ Em produção, JWT_SECRET DEVE estar definido no ambiente.
+const JWT_SECRET_RAW = process.env.JWT_SECRET;
+if (!JWT_SECRET_RAW) {
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('JWT_SECRET não definido no ambiente de produção.');
+  }
+  console.warn('⚠️ JWT_SECRET não definido. Usando fallback de desenvolvimento (NÃO usar em produção).');
+}
 const JWT_SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || 'marquinho-motopecas-jwt-secret-key-2026-super-segura'
+  JWT_SECRET_RAW || crypto.randomUUID()
 );
 
 // Domain configuration
@@ -13,12 +21,11 @@ const PANEL_DOMAIN = process.env.NEXT_PUBLIC_PANEL_DOMAIN || '';
 // Routes that are only allowed on the main store domain
 const STORE_ONLY_ROUTES = ['/vitrine', '/api/vitrine/clientes', '/api/vitrine/orcamentos'];
 // Routes that require admin panel domain
-const PANEL_REQUIRED_ROUTES = ['/dono', '/balcao', '/mecanico', '/estoque'];
+const PANEL_REQUIRED_ROUTES = ['/dono', '/balcao', '/estoque'];
 
 const roleRoutes: Record<string, string[]> = {
   '/dono': ['DONO'],
   '/balcao': ['BALCAO'],
-  '/mecanico': ['MECANICO'],
   '/estoque': ['ESTOQUE'],
 };
 
@@ -90,7 +97,7 @@ export async function middleware(request: NextRequest) {
     for (const [prefix, roles] of Object.entries(roleRoutes)) {
       if (pathname.startsWith(prefix) && !roles.includes(role)) {
         const redirectMap: Record<string, string> = {
-          DONO: '/dono', BALCAO: '/balcao', MECANICO: '/mecanico', ESTOQUE: '/estoque',
+          DONO: '/dono', BALCAO: '/balcao', ESTOQUE: '/estoque',
         };
         return NextResponse.redirect(new URL(redirectMap[role] || '/', request.url));
       }

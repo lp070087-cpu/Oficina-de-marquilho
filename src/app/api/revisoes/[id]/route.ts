@@ -10,6 +10,9 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   }
   const { id } = await params;
   const body = await req.json();
+  if (!body.nome) return NextResponse.json({ error: 'Nome é obrigatório' }, { status: 400 });
+  const existing = await prisma.revisao.findUnique({ where: { id } });
+  if (!existing) return NextResponse.json({ error: 'Revisão não encontrada' }, { status: 404 });
   const revisao = await prisma.revisao.update({
     where: { id },
     data: {

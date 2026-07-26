@@ -14,7 +14,7 @@ export default function VitrineLogin() {
     try{
       const body=isCadastro?{nome:form.nome,telefone:form.telefone,email:form.email||null,password:form.password,modeloMoto:form.modeloMoto||null}:{nome:'',telefone:form.telefone,password:form.password};
       const r=await fetch('/api/vitrine/clientes',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
-      if(r.ok){const{cliente}=await r.json();sessionStorage.setItem('marquinho-cliente',JSON.stringify({id:cliente.id,nome:cliente.nome,telefone:cliente.telefone,modeloMoto:cliente.modeloMoto}));router.push('/vitrine/carrinho');}
+      if(r.ok){const{token, cliente}=await r.json();sessionStorage.setItem('marquinho-cliente',JSON.stringify({id:cliente.id,nome:cliente.nome,telefone:cliente.telefone,modeloMoto:cliente.modeloMoto,token}));router.push('/vitrine/carrinho');}
       else{const e=await r.json();setMsg(e.error||'Erro.');}
     }catch{setMsg('Erro de conexao.');}
     setLoading(false);

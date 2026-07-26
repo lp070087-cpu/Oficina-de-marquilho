@@ -12,10 +12,18 @@ export async function POST(req: NextRequest) {
   if (!linhas || !Array.isArray(linhas) || linhas.length === 0) {
     return NextResponse.json({ error: 'Nenhum dado para importar' }, { status: 400 });
   }
+  if (!categoriaDefaultId) {
+    return NextResponse.json({ error: 'categoriaDefaultId é obrigatório' }, { status: 400 });
+  }
 
   let criados = 0;
   let atualizados = 0;
   const erros: string[] = [];
+
+  // Buscar todos os códigos existentes em uma única query
+  const codigos = linhas.map((l: any) => l.codigo?.trim()).filter(Boolean);
+  const existentes = await prisma.peca.findMany({ where: { codigo: { in: codigos } }, select: { codigo: true } });
+  const codigosExistentes = new Set(existentes.map(e => e.codigo));
 
   for (let i = 0; i < linhas.length; i++) {
     const l = linhas[i];
@@ -35,8 +43,7 @@ export async function POST(req: NextRequest) {
     };
 
     try {
-      const existente = await prisma.peca.findUnique({ where: { codigo } });
-      if (existente) {
+      if (codigosExistentes.has(codigo)) {
         await prisma.peca.update({ where: { codigo }, data });
         atualizados++;
       } else {
@@ -44,7 +51,8 @@ export async function POST(req: NextRequest) {
         criados++;
       }
     } catch (e: any) {
-      erros.push(`Linha ${i + 2} (${codigo}): ${e.message}`);
+      console.error(`[importar] Erro na linha ${i + 2} (${codigo}):`, e);
+      erros.push(`Linha ${i + 2} (${codigo}): erro ao processar`);
     }
   }
 

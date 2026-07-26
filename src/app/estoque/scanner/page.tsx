@@ -1,6 +1,6 @@
 'use client';
 // VERSÃO SCANNER 2026
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import BarcodeScanner from '@/components/scanner/BarcodeScanner';
 
 interface Categoria { id:string; nome:string; slug:string; }
@@ -29,7 +29,7 @@ export default function EstoqueScannerPage() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Carrega categorias ao montar
-  useState(() => { fetch('/api/categorias').then(r=>r.json()).then(setCategorias); });
+  useEffect(() => { fetch('/api/categorias').then(r => r.json()).then(setCategorias).catch(() => {}); }, []);
 
   async function buscar(code:string) {
     if (!code.trim()) return;

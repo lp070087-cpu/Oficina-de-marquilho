@@ -9,14 +9,17 @@ const FALLBACK_CATEGORIAS = [
   { slug: 'freios', label: 'Freios' },
   { slug: 'suspensao', label: 'Suspensão' },
   { slug: 'eletrica', label: 'Elétrica' },
-  { slug: 'oleos-e-fluidos', label: 'Lubrificantes' },
-  { slug: 'filtros', label: 'Filtros' },
   { slug: 'transmissao', label: 'Transmissão' },
   { slug: 'escapamento', label: 'Escapamento' },
-  { slug: 'rodas-e-pneus', label: 'Pneus/Rodas' },
-  { slug: 'cabos-e-comandos', label: 'Cabos' },
-  { slug: 'carroceria', label: 'Carroceria' },
+  { slug: 'carenagem', label: 'Carenagem' },
+  { slug: 'lubrificantes', label: 'Lubrificantes' },
   { slug: 'acessorios', label: 'Acessórios' },
+  { slug: 'capacetes', label: 'Capacetes' },
+  { slug: 'pneus', label: 'Pneus' },
+  { slug: 'rolamentos', label: 'Rolamentos' },
+  { slug: 'cabos', label: 'Cabos' },
+  { slug: 'filtros', label: 'Filtros' },
+  { slug: 'outros', label: 'Outros' },
 ];
 
 export default function EstoqueCategorias({ active, onChange }: { active: string; onChange: (s: string) => void }) {

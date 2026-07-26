@@ -31,7 +31,9 @@ export default function CarrinhoPage() {
     if(!clienteId){setMsg('Faca login antes de finalizar.');return;} if(cart.length===0){setMsg('Adicione pelo menos uma peca.');return;}
     setLoading(true);setMsg('');
     try{
-      const r=await fetch('/api/vitrine/orcamentos',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({clienteId,modeloMoto:modeloMoto||null,observacao:observacao||null,itens:cart.map(i=>({pecaId:i.peca.id,quantidade:i.quantidade}))})});
+      const clientData = JSON.parse(sessionStorage.getItem('marquinho-cliente')||'{}');
+      const token = clientData.token || '';
+      const r=await fetch('/api/vitrine/orcamentos',{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${token}`},body:JSON.stringify({modeloMoto:modeloMoto||null,observacao:observacao||null,itens:cart.map(i=>({pecaId:i.peca.id,quantidade:i.quantidade}))})});
       if(r.ok){sessionStorage.removeItem('marquinho-cart');setCart([]);const o=await r.json();setSucesso(`Orcamento #${o.numero} enviado! Entraremos em contato pelo WhatsApp.`);}
       else{const e=await r.json();setMsg(e.error||'Erro.');}
     }catch{setMsg('Erro de conexao.');}

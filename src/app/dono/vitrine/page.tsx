@@ -42,7 +42,7 @@ export default function VitrineManagePage() {
   }, [catAtiva]);
 
   const fetchCats = async () => { const r = await fetch('/api/categorias'); setCategorias(await r.json()); };
-  const fetchOrcamentos = async () => { const r = await fetch('/api/vitrine/orcamentos?clienteId=ALL'); if (r.ok) setOrcamentos(await r.json()); };
+  const fetchOrcamentos = async () => { const r = await fetch('/api/vitrine/orcamentos'); if (r.ok) setOrcamentos(await r.json()); };
   const fetchConfig = async () => { const r = await fetch('/api/vitrine/config'); if (r.ok) { const d = await r.json(); setConfig(d); setBannerTexto(d.bannerTexto||'Pecas para sua moto com precos de atacado'); setBannerAtivo(d.bannerAtivo); } };
 
   useEffect(() => { fetchPecas(); fetchCats(); fetchOrcamentos(); fetchConfig(); }, [fetchPecas]);

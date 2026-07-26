@@ -26,9 +26,9 @@ export default function TransferenciaPage() {
   const { triggerRefresh } = useEstoqueRefresh();
 
   useEffect(() => {
-    fetch('/api/pecas').then(r=>r.json()).then(setPecas);
-    fetch('/api/categorias').then(r=>r.json()).then(setCategorias);
-    fetch('/api/relatorios/movimentacao?tipo=TRANSFERENCIA').then(r=>r.json()).then(setHistorico);
+    fetch('/api/pecas').then(r=>r.json()).then(setPecas).catch(()=>{});
+    fetch('/api/categorias').then(r=>r.json()).then(setCategorias).catch(()=>{});
+    fetch('/api/relatorios/movimentacao?tipo=TRANSFERENCIA').then(r=>r.json()).then(setHistorico).catch(()=>{});
   }, []);
 
   function buscarPor(codigo:string) {

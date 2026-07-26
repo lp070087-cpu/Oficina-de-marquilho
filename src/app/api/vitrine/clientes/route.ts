@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-
+import { createVitrineToken } from '@/lib/auth';
 import bcrypt from 'bcryptjs';
 
 export async function POST(req: NextRequest) {
@@ -13,11 +13,13 @@ export async function POST(req: NextRequest) {
   if (existe) {
     const valid = await bcrypt.compare(password, existe.password);
     if (!valid) return NextResponse.json({ error: 'Telefone ja cadastrado. Senha incorreta.' }, { status: 401 });
-    return NextResponse.json({ token: String(existe.id), cliente: { id: existe.id, nome: existe.nome, telefone: existe.telefone, modeloMoto: existe.modeloMoto } });
+    const token = await createVitrineToken({ id: existe.id, nome: existe.nome, telefone: existe.telefone });
+    return NextResponse.json({ token, cliente: { id: existe.id, nome: existe.nome, telefone: existe.telefone, modeloMoto: existe.modeloMoto } });
   }
   const hash = await bcrypt.hash(password, 10);
   const cliente = await prisma.cliente.create({
     data: { nome, telefone, email: email || null, password: hash, modeloMoto: modeloMoto || null },
   });
-  return NextResponse.json({ token: String(cliente.id), cliente: { id: cliente.id, nome: cliente.nome, telefone: cliente.telefone, modeloMoto: cliente.modeloMoto } }, { status: 201 });
+  const token = await createVitrineToken({ id: cliente.id, nome: cliente.nome, telefone: cliente.telefone });
+  return NextResponse.json({ token, cliente: { id: cliente.id, nome: cliente.nome, telefone: cliente.telefone, modeloMoto: cliente.modeloMoto } }, { status: 201 });
 }

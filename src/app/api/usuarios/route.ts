@@ -11,7 +11,7 @@ export async function GET() {
   const users = await prisma.user.findMany({
     where: { role: { in: ['MECANICO', 'BALCAO', 'ESTOQUE'] } },
     select: { id: true, name: true, email: true, username: true, role: true, active: true, emAlmoco: true, tipoBalcao: true, mustChangePassword: true, lastLoginAt: true, lockedUntil: true, failedLoginAttempts: true },
-    orderBy: { name: 'asc' },
+    take: 200, orderBy: { name: 'asc' },
   });
   return NextResponse.json(users);
 }
@@ -22,6 +22,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Nao autorizado' }, { status: 403 });
   }
   const body = await req.json();
+  if (!body.name) return NextResponse.json({ error: 'Nome obrigatorio' }, { status: 400 });
   if (!body.email) return NextResponse.json({ error: 'Email obrigatorio' }, { status: 400 });
   if (!body.password) return NextResponse.json({ error: 'Senha obrigatoria' }, { status: 400 });
 

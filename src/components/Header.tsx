@@ -13,7 +13,7 @@ const pageTitles: Record<string, string> = {
   '/dono': 'Painel', '/dono/estoque': 'Estoque', '/dono/ordens': 'Ordens de Servico', '/dono/mecanicos': 'Mecanicos',
   '/dono/notas': 'Nota Fiscal', '/dono/balcoes': 'Balcoes', '/dono/vitrine': 'Vitrine', '/dono/importar': 'Importar',
   '/dono/assistente': 'Assistente IA', '/balcao': 'Painel', '/balcao/estoque': 'Estoque', '/balcao/ordens': 'Ordens de Servico',
-  '/balcao/notas': 'Nota Fiscal', '/mecanico': 'Minhas OS', '/mecanico/estoque': 'Estoque',
+  '/balcao/notas': 'Nota Fiscal',
   '/estoque': 'Relatorios de Saida', '/dono/scanner': 'Scanner', '/dono/fornecedores': 'Fornecedores',
   '/dono/nf-manual': 'Nota Fiscal Manual',
 };

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 
 interface Peca {
   id: string; nome: string; codigo: string; precoVenda: number;
@@ -94,12 +94,12 @@ export default function DetalheOSBalcao({ os: initialOS, onClose }: { os: OS; on
 
   function toggleMostrarTodas() { const n = !mostrarTodas; setMostrarTodas(n); carregarPecas(n); }
 
-  const pecasOrdenadas = [...pecas].sort((a, b) => {
+  const pecasOrdenadas = useMemo(() => [...pecas].sort((a, b) => {
     const ba = getCompatBadge(a, dados.modeloMoto);
     const bb = getCompatBadge(b, dados.modeloMoto);
     const o: Record<string, number> = { 'Compativel': 0, 'Universal': 1, 'Adaptada': 2 };
     return (o[ba.label] ?? 3) - (o[bb.label] ?? 3);
-  });
+  }), [pecas, dados.modeloMoto]);
 
   // Filtrar conforme busca no autocomplete
   const pecasFiltradas = pecaBusca

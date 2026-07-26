@@ -4,7 +4,7 @@ import { getSession } from '@/lib/auth';
 
 export async function GET(req: NextRequest) {
   const session = await getSession();
-  if (!session || !['DONO', 'BALCAO', 'MECANICO', 'ESTOQUE'].includes(session.role)) {
+  if (!session || !['DONO', 'BALCAO', 'ESTOQUE'].includes(session.role)) {
     return NextResponse.json({ error: 'Nao autorizado' }, { status: 403 });
   }
   const q = req.nextUrl.searchParams.get('q') || '';
@@ -35,16 +35,21 @@ export async function GET(req: NextRequest) {
     where,
     include: { categoria: { select: { nome: true } } },
     orderBy: { nome: 'asc' },
+    take: 500,
   });
   return NextResponse.json(pecas);
 }
 
 export async function POST(req: NextRequest) {
+  try {
   const session = await getSession();
   if (!session || !['DONO', 'BALCAO', 'ESTOQUE'].includes(session.role)) {
     return NextResponse.json({ error: 'Nao autorizado' }, { status: 403 });
   }
   const body = await req.json();
+  if (!body.nome || !body.codigo || !body.categoriaId) {
+    return NextResponse.json({ error: 'Nome, código e categoria são obrigatórios' }, { status: 400 });
+  }
   const peca = await prisma.peca.create({
     data: {
       nome: body.nome,
@@ -66,4 +71,8 @@ export async function POST(req: NextRequest) {
     include: { categoria: { select: { nome: true } } },
   });
   return NextResponse.json(peca, { status: 201 });
+  } catch (error) {
+    console.error('Erro ao criar peça:', error);
+    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
+  }
 }

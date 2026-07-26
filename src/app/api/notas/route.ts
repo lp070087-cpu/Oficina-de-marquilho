@@ -8,6 +8,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Nao autorizado' }, { status: 403 });
   }
   const body = await req.json();
+  if (!body.ordemServicoId || !body.numero) return NextResponse.json({ error: 'OS e número da nota são obrigatórios' }, { status: 400 });
   const { ordemServicoId, numero, chaveAcesso } = body;
   const existente = await prisma.notaFiscal.findUnique({ where: { ordemServicoId } });
   if (existente) {
@@ -26,6 +27,7 @@ export async function GET(req: NextRequest) {
   const notas = await prisma.notaFiscal.findMany({
     include: { ordemServico: { select: { numero: true, nomeCliente: true, telefoneCliente: true, valorTotal: true } } },
     orderBy: { emitidaEm: 'desc' },
+    take: 100,
   });
   return NextResponse.json(notas);
 }

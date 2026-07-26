@@ -4,7 +4,7 @@ import { getSession } from '@/lib/auth';
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
-  if (!session) return NextResponse.json({ error: 'Nao autorizado' }, { status: 403 });
+  if (!session || !['DONO', 'BALCAO'].includes(session.role)) return NextResponse.json({ error: 'Nao autorizado' }, { status: 403 });
   const { id } = await params;
   const body = await req.json();
   const { status, mecanicoId, diagnostico, valorMaoDeObra, statusPagamento, valorPago } = body;
@@ -36,20 +36,30 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   }
   if (valorPago !== undefined) data.valorPago = valorPago;
 
-  if (valorMaoDeObra !== undefined) {
-    data.valorMaoDeObra = valorMaoDeObra;
-    const itens = await prisma.itemOS.findMany({ where: { ordemServicoId: id }, include: { peca: true } });
-    const valorPecas = itens.reduce((sum, i) => sum + Number(i.precoUnitario) * i.quantidade, 0);
-    data.valorTotal = valorPecas + Number(valorMaoDeObra);
-  }
-
-  if (Object.keys(data).length === 0) {
+  if (Object.keys(data).length === 0 && !valorMaoDeObra) {
     return NextResponse.json({ error: 'Nada para atualizar' }, { status: 400 });
   }
 
-  const os = await prisma.ordemServico.update({
-    where: { id }, data,
-    include: { mecanico: { select: { name: true } }, balcao: { select: { name: true } }, itens: { include: { peca: true } } },
-  });
-  return NextResponse.json(os);
+  try {
+    // Transação atômica: ler itens + atualizar OS (evita race condition no valorTotal)
+    const os = await prisma.$transaction(async (tx) => {
+      if (valorMaoDeObra !== undefined) {
+        const itens = await tx.itemOS.findMany({ where: { ordemServicoId: id }, include: { peca: true } });
+        const valorPecas = itens.reduce((sum, i) => sum + Number(i.precoUnitario) * i.quantidade, 0);
+        data.valorMaoDeObra = valorMaoDeObra;
+        data.valorTotal = valorPecas + Number(valorMaoDeObra);
+      }
+      if (Object.keys(data).length === 0) throw new Error('Nada para atualizar');
+
+      return tx.ordemServico.update({
+        where: { id }, data,
+        include: { mecanico: { select: { name: true } }, balcao: { select: { name: true } }, itens: { include: { peca: true } } },
+      });
+    });
+
+    return NextResponse.json(os);
+  } catch (e: any) {
+    if (e?.message === 'Nada para atualizar') return NextResponse.json({ error: e.message }, { status: 400 });
+    return NextResponse.json({ error: 'Erro ao atualizar status' }, { status: 500 });
+  }
 }

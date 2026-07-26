@@ -10,16 +10,17 @@ interface BarcodeScannerProps {
 export default function BarcodeScanner({ onDetected, onClose }: BarcodeScannerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [stream, setStream] = useState<MediaStream | null>(null);
   const [error, setError] = useState('');
   const [scanning, setScanning] = useState(false);
+  const streamRef = useRef<MediaStream | null>(null);
   const intervalRef = useRef<any>(null);
+  const detectorRef = useRef<any>(null);
 
   useEffect(() => {
     async function start() {
       try {
         const s = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment', width: 640, height: 480 } });
-        setStream(s);
+        streamRef.current = s;
         if (videoRef.current) {
           videoRef.current.srcObject = s;
           await videoRef.current.play();
@@ -31,7 +32,7 @@ export default function BarcodeScanner({ onDetected, onClose }: BarcodeScannerPr
     }
     start();
     return () => {
-      if (stream) stream.getTracks().forEach(t => t.stop());
+      if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
       if (intervalRef.current) clearInterval(intervalRef.current);
     };
   }, []);
@@ -54,15 +55,17 @@ export default function BarcodeScanner({ onDetected, onClose }: BarcodeScannerPr
     canvas.height = video.videoHeight;
     ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-    // Try the BarcodeDetector API
+    // Try the BarcodeDetector API (reuse instance)
     if ('BarcodeDetector' in window) {
       try {
-        const detector = new (window as any).BarcodeDetector({ formats: ['ean_13', 'ean_8', 'code_128', 'code_39', 'upc_a', 'upc_e', 'codabar', 'itf'] });
-        detector.detect(canvas).then((barcodes: any[]) => {
+        if (!detectorRef.current) {
+          detectorRef.current = new (window as any).BarcodeDetector({ formats: ['ean_13', 'ean_8', 'code_128', 'code_39', 'upc_a', 'upc_e', 'codabar', 'itf'] });
+        }
+        detectorRef.current.detect(canvas).then((barcodes: any[]) => {
           if (barcodes.length > 0) {
             setScanning(false);
             onDetected(barcodes[0].rawValue);
-            if (stream) stream.getTracks().forEach(t => t.stop());
+            if (streamRef.current) streamRef.current.getTracks().forEach(t => t.stop());
           }
         }).catch(() => {});
       } catch {

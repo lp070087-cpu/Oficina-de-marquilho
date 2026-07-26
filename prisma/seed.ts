@@ -19,10 +19,6 @@ async function main() {
   await prisma.user.upsert({ where: { email: 'venda@marquinho.com.br' }, update: { tipoBalcao: 'VENDA_LOJA' }, create: { name: 'Balcao Venda', email: 'venda@marquinho.com.br', password: passwordHash, role: 'BALCAO', tipoBalcao: 'VENDA_LOJA' } });
   console.log('Balcao Venda: venda@marquinho.com.br / marquinho123');
 
-  const mp = await bcrypt.hash('mecanico123', 10);
-  await prisma.user.upsert({ where: { email: 'mecanico@marquinho.com.br' }, update: {}, create: { name: 'Mecanico Exemplo', email: 'mecanico@marquinho.com.br', password: mp, role: 'MECANICO' } });
-  console.log('Mecanico: mecanico@marquinho.com.br / mecanico123');
-
   const es = await bcrypt.hash('estoque123', 10);
   await prisma.user.upsert({ where: { email: 'estoque@marquinho.com.br' }, update: { tipoBalcao: 'ESTOQUE_CENTRAL' }, create: { name: 'Estoque Central', email: 'estoque@marquinho.com.br', password: es, role: 'ESTOQUE', tipoBalcao: 'ESTOQUE_CENTRAL' } });
   console.log('Estoque Central: estoque@marquinho.com.br / estoque123');
@@ -473,8 +469,8 @@ async function main() {
   console.log('Logins:');
   console.log('  Dono:     lp070087@gmail.com / marquinho123');
   console.log('  Balcao:   balcao1@marquinho.com.br / marquinho123');
-  console.log('  Mecanico: mecanico@marquinho.com.br / mecanico123');
   console.log('  Estoque:  estoque@marquinho.com.br / estoque123');
+  console.log('  Mecanicos: cadastro interno (criado pela Dona via painel)');
 }
 
 main().catch(e => { console.error('Erro no seed:', e); process.exit(1); }).finally(async () => { await prisma.$disconnect(); });

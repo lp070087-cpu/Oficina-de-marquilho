@@ -11,7 +11,7 @@ export default function MinhaContaPage() {
   const [orcamentos, setOrcamentos] = useState<Orcamento[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(()=>{const c=sessionStorage.getItem('marquinho-cliente');if(!c){router.push('/vitrine/login');return;}const d=JSON.parse(c);setCliente(d);fetch(`/api/vitrine/orcamentos?clienteId=${d.id}`).then(r=>r.json()).then(data=>{setOrcamentos(data);setLoading(false);});},[router]);
+  useEffect(()=>{const c=sessionStorage.getItem('marquinho-cliente');if(!c){router.push('/vitrine/login');return;}const d=JSON.parse(c);setCliente(d);fetch('/api/vitrine/orcamentos',{headers:{Authorization:`Bearer ${d.token}`}}).then(r=>r.json()).then(data=>{setOrcamentos(data);setLoading(false);}).catch(()=>setLoading(false));},[router]);
 
   function sair(){sessionStorage.removeItem('marquinho-cliente');router.push('/vitrine');}
   const fm=(v:number)=>v.toLocaleString('pt-BR',{style:'currency',currency:'BRL'});

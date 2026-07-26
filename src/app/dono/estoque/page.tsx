@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import React from 'react';
 
 interface Categoria { id: string; nome: string; slug: string; _count?: { pecas: number }; }
@@ -47,7 +47,8 @@ export default function EstoquePage() {
 
   useEffect(() => {
     Promise.all([fetch('/api/categorias').then(r=>r.json()), fetch('/api/pecas').then(r=>r.json())])
-      .then(([cats,pecasData])=>{setCategorias(cats);setPecas(pecasData);setLoading(false);});
+      .then(([cats,pecasData])=>{setCategorias(cats);setPecas(pecasData);setLoading(false);})
+      .catch(()=>setLoading(false));
   }, []);
 
   const fetchPecas = async () => { const res = await fetch('/api/pecas'); setPecas(await res.json()); };
@@ -57,8 +58,20 @@ export default function EstoquePage() {
   const estoqueBaixo = pecas.filter(p=>p.quantidade<=p.estoqueMinimo).length;
   const valorTotalEstoque = pecas.reduce((acc,p)=>acc+Number(p.precoCusto)*p.quantidade,0);
 
-  const categoriasComContagem = categorias.map(c=>({...c,_count:{pecas:pecas.filter(p=>p.categoriaId===c.id).length}})).filter(c=>(c._count?.pecas??0)>0);
+  const categoriasComContagem = useMemo(() => categorias.map(c=>({...c,_count:{pecas:pecas.filter(p=>p.categoriaId===c.id).length}})).filter(c=>(c._count?.pecas??0)>0), [categorias, pecas]);
   const subcategorias = categoriaSelecionada ? [...new Set(pecas.filter(p=>p.categoriaId===categoriaSelecionada.id&&p.subcategoria).map(p=>p.subcategoria!))].sort() : [];
+  const subcategoriasContagem = useMemo(() => {
+    if (!categoriaSelecionada) return new Map();
+    const map = new Map<string, { count: number; baixas: number }>();
+    for (const p of pecas) {
+      if (p.categoriaId !== categoriaSelecionada.id || !p.subcategoria) continue;
+      const entry = map.get(p.subcategoria) || { count: 0, baixas: 0 };
+      entry.count++;
+      if (p.quantidade <= p.estoqueMinimo) entry.baixas++;
+      map.set(p.subcategoria, entry);
+    }
+    return map;
+  }, [pecas, categoriaSelecionada]);
   const pecasNivel = view==='pecas'&&categoriaSelecionada&&subcategoriaSelecionada ? pecasFiltradas.filter(p=>p.categoriaId===categoriaSelecionada.id&&p.subcategoria===subcategoriaSelecionada) : [];
 
   function selecionarCategoria(cat:Categoria){setCategoriaSelecionada(cat);setSubcategoriaSelecionada(null);setView('subcategorias');setBusca('');}
@@ -129,7 +142,7 @@ export default function EstoquePage() {
             <div>
               <button onClick={voltarNivel} className="inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-brand-600 mb-4 transition-colors"><svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7"/></svg>Voltar para categorias</button>
               <div className="grid grid-cols-4 gap-3">
-                {subcategorias.map(sub=>{const count=pecas.filter(p=>p.categoriaId===categoriaSelecionada!.id&&p.subcategoria===sub).length;const baixas=pecas.filter(p=>p.categoriaId===categoriaSelecionada!.id&&p.subcategoria===sub&&p.quantidade<=p.estoqueMinimo).length;return(
+                {subcategorias.map(sub=>{const s = subcategoriasContagem.get(sub) || { count: 0, baixas: 0 }; const count = s.count; const baixas = s.baixas; return(
                   <button key={sub} onClick={()=>selecionarSubcategoria(sub)} className="card p-5 hover:border-brand-300 hover:shadow-md transition-all group cursor-pointer text-left">
                     <div className="flex items-start justify-between mb-3">
                       <div className="w-12 h-12 rounded-xl bg-brand-50 flex items-center justify-center group-hover:bg-brand-100 group-hover:scale-105 duration-200 transition-all">

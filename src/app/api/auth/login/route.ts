@@ -19,6 +19,16 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Usuario, senha ou perfil invalido.' }, { status: 401 });
     }
 
+    // Mecanico nao possui login — apenas cadastro interno
+    if (user.role === 'MECANICO') {
+      return NextResponse.json({ error: 'Este perfil nao tem permissao de login.' }, { status: 403 });
+    }
+
+    // Verifica se a conta está bloqueada
+    if (user.lockedUntil && new Date(user.lockedUntil) > new Date()) {
+      return NextResponse.json({ error: 'Conta temporariamente bloqueada. Tente novamente mais tarde.' }, { status: 423 });
+    }
+
     // Validate perfil match
     if (perfil) {
       const profileRoleMap: Record<string, { role: string; tipoBalcao?: string }> = {
@@ -35,13 +45,22 @@ export async function POST(request: Request) {
 
     const valid = await bcrypt.compare(password, user.password);
     if (!valid) {
+      // Incrementa tentativas de login falhas e bloqueia após 5 tentativas
+      const novasTentativas = (user.failedLoginAttempts || 0) + 1;
+      const bloqueado = novasTentativas >= 5
+        ? new Date(Date.now() + 15 * 60 * 1000) // bloqueia por 15 minutos
+        : null;
+      await prisma.user.update({
+        where: { id: user.id },
+        data: { failedLoginAttempts: novasTentativas, lockedUntil: bloqueado },
+      });
       return NextResponse.json({ error: 'Usuario, senha ou perfil invalido.' }, { status: 401 });
     }
 
-    // Update last login (safe update only)
+    // Login bem-sucedido: reseta tentativas falhas e trava
     await prisma.user.update({
       where: { id: user.id },
-      data: { lastLoginAt: new Date() },
+      data: { lastLoginAt: new Date(), failedLoginAttempts: 0, lockedUntil: null },
     });
 
     const token = await createToken({
@@ -61,7 +80,7 @@ export async function POST(request: Request) {
 
     response.cookies.set('token', token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
+      secure: process.env.NODE_ENV !== 'development',
       sameSite: 'lax',
       maxAge: 60 * 60 * 24,
     });

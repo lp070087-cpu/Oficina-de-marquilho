@@ -7,6 +7,7 @@ export async function GET() {
     where: { ativo: true, vitrine: true },
     include: { categoria: { select: { nome: true, slug: true } } },
     orderBy: { nome: 'asc' },
+    take: 200,
   });
   return NextResponse.json(pecas);
 }
@@ -18,6 +19,7 @@ export async function PUT(req: NextRequest) {
   }
   const body = await req.json();
   const { pecaId, vitrine, destaque, oferta, precoOferta, descricaoCurta } = body;
+  if (!pecaId) return NextResponse.json({ error: 'pecaId é obrigatório' }, { status: 400 });
   const data: any = {};
   if (typeof vitrine === 'boolean') data.vitrine = vitrine;
   if (typeof destaque === 'boolean') data.destaque = destaque;

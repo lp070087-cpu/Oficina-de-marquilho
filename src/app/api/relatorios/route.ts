@@ -8,20 +8,32 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Nao autorizado' }, { status: 403 });
   }
 
-  const inicio = req.nextUrl.searchParams.get('inicio') || new Date(0).toISOString();
+  const inicio = req.nextUrl.searchParams.get('inicio') || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
   const fim = req.nextUrl.searchParams.get('fim') || new Date().toISOString();
 
-  const ordens = await prisma.ordemServico.findMany({
-    where: {
-      createdAt: { gte: new Date(inicio), lte: new Date(fim) },
-      status: { not: 'CANCELADA' },
-    },
-    include: {
-      itens: { include: { peca: true } },
-      balcao: { select: { name: true } },
-    },
-    orderBy: { createdAt: 'desc' },
-  });
+  // Valida range máximo de 365 dias para evitar queries pesadas
+  const dias = (new Date(fim).getTime() - new Date(inicio).getTime()) / (1000 * 60 * 60 * 24);
+  if (dias > 365) {
+    return NextResponse.json({ error: 'Intervalo máximo permitido é de 365 dias' }, { status: 400 });
+  }
+
+  let ordens;
+  try {
+    ordens = await prisma.ordemServico.findMany({
+      where: {
+        createdAt: { gte: new Date(inicio), lte: new Date(fim) },
+        status: { not: 'CANCELADA' },
+      },
+      include: {
+        itens: { include: { peca: true } },
+        balcao: { select: { name: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 500,
+    });
+  } catch {
+    return NextResponse.json({ error: 'Erro ao consultar relatório' }, { status: 500 });
+  }
 
   const saidas: any[] = [];
   for (const os of ordens) {

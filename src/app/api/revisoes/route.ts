@@ -11,6 +11,7 @@ export async function GET() {
   const revisoes = await prisma.revisao.findMany({
     where: { ativa: true },
     orderBy: { ordem: 'asc' },
+    take: 100,
   });
   return NextResponse.json(revisoes);
 }
@@ -22,6 +23,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Nao autorizado' }, { status: 403 });
   }
   const body = await req.json();
+  if (!body.nome) return NextResponse.json({ error: 'Nome é obrigatório' }, { status: 400 });
   const revisao = await prisma.revisao.create({
     data: {
       nome: body.nome,

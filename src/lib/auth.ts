@@ -2,8 +2,18 @@ import { SignJWT, jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 
+// ⚠️ Em produção, JWT_SECRET DEVE estar definido no ambiente.
+// O fallback abaixo existe apenas para desenvolvimento local.
+// Em produção, a ausência de JWT_SECRET causará erro de inicialização.
+const JWT_SECRET_RAW = process.env.JWT_SECRET;
+if (!JWT_SECRET_RAW) {
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error('JWT_SECRET não definido no ambiente de produção.');
+  }
+  console.warn('⚠️ JWT_SECRET não definido. Usando fallback de desenvolvimento (NÃO usar em produção).');
+}
 const JWT_SECRET = new TextEncoder().encode(
-  process.env.JWT_SECRET || 'marquinho-motopecas-jwt-secret-key-2026-super-segura'
+  JWT_SECRET_RAW || crypto.randomUUID()
 );
 
 export interface SessionUser {
@@ -52,8 +62,47 @@ export function roleToPath(role: string): string {
   switch (role) {
     case 'DONO': return '/dono';
     case 'BALCAO': return '/balcao';
-    case 'MECANICO': return '/mecanico';
     case 'ESTOQUE': return '/estoque';
     default: return '/';
+  }
+}
+
+// --- Vitrine (cliente) Auth ---
+
+export interface VitrineSession {
+  clienteId: string;
+  nome: string;
+  telefone: string;
+}
+
+export async function createVitrineToken(cliente: { id: string; nome: string; telefone: string }): Promise<string> {
+  const token = await new SignJWT({
+    clienteId: cliente.id,
+    nome: cliente.nome,
+    telefone: cliente.telefone,
+    role: 'CLIENTE',
+  })
+    .setProtectedHeader({ alg: 'HS256' })
+    .setExpirationTime('30d')
+    .sign(JWT_SECRET);
+  return token;
+}
+
+export async function getVitrineSession(reqOrToken: string): Promise<VitrineSession | null> {
+  try {
+    // Aceita token diretamente ou extrai do header Authorization
+    let token = reqOrToken;
+    if (reqOrToken.startsWith('Bearer ')) {
+      token = reqOrToken.slice(7);
+    }
+    const { payload } = await jwtVerify(token, JWT_SECRET);
+    if (payload.role !== 'CLIENTE') return null;
+    return {
+      clienteId: payload.clienteId as string,
+      nome: payload.nome as string,
+      telefone: payload.telefone as string,
+    };
+  } catch {
+    return null;
   }
 }
