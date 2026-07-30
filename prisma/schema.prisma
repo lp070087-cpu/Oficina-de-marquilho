@@ -27,6 +27,12 @@ enum StatusOS {
   PRONTA
   CONCLUIDA
   CANCELADA
+  // FASE 15-F.1: Novo fluxo operacional
+  AGUARDANDO_MECANICO
+  EM_SERVICO
+  TESTE
+  LAVAGEM
+  ENTREGUE
 }
 
 model User {
@@ -40,6 +46,9 @@ model User {
   emAlmoco            Boolean     @default(false)
   tipoBalcao          TipoBalcao?
   mustChangePassword  Boolean     @default(false)
+  cargo               String?
+  telefone            String?
+  observacoes         String?
   passwordUpdatedAt   DateTime?
   lastLoginAt         DateTime?
   failedLoginAttempts Int         @default(0)
@@ -49,8 +58,14 @@ model User {
   createdAt           DateTime    @default(now())
   updatedAt           DateTime    @updatedAt
 
-  ordensServicoMecanico OrdemServico[] @relation("Mecanico")
-  ordensServicoBalcao   OrdemServico[] @relation("Balcao")
+  ordensServicoMecanico OrdemServico[]           @relation("Mecanico")
+  ordensServicoBalcao   OrdemServico[]           @relation("Balcao")
+  notificacoes          Notificacao[]
+  eventos               EventoSistema[]
+  mensagensEnviadas     MensagemInterna[]        @relation("Remetente")
+  mensagensRecebidas    MensagemInterna[]        @relation("Destinatario")
+  configNotificacoes    ConfiguracaoNotificacao?
+  lembretes             LembreteSistema[]
 
   @@index([role])
   @@index([tipoBalcao])
@@ -60,29 +75,39 @@ model User {
 }
 
 model Categoria {
-  id        String   @id @default(cuid())
-  nome      String   @unique
-  slug      String   @unique
-  pecas     Peca[]
-  createdAt DateTime @default(now())
+  id               String      @id @default(cuid())
+  nome             String      @unique
+  slug             String      @unique
+  descricao        String?
+  descricaoIa      String?
+  icone            String?
+  ordem            Int         @default(0)
+  ativa            Boolean     @default(true)
+  mostrarNaVitrine Boolean     @default(true)
+  permiteCadastro  Boolean     @default(true)
+  parentId         String?
+  parent           Categoria?  @relation("Subcategorias", fields: [parentId], references: [id])
+  subcategorias    Categoria[] @relation("Subcategorias")
+  pecas            Peca[]
+  createdAt        DateTime    @default(now())
 }
 
 model Peca {
-  id                    String                 @id @default(cuid())
+  id                    String                   @id @default(cuid())
   nome                  String
   descricao             String?
-  codigo                String                 @unique
-  codigoBarras          String?                @unique
-  precoVenda            Decimal                @default(0)
-  precoCusto            Decimal                @default(0)
-  custoMedio            Decimal                @default(0)
-  quantidade            Int                    @default(0)
-  quantidadeLoja        Int                    @default(0)
-  estoqueMinimo         Int                    @default(5)
-  ativo                 Boolean                @default(true)
-  vitrine               Boolean                @default(false)
-  destaque              Boolean                @default(false)
-  oferta                Boolean                @default(false)
+  codigo                String                   @unique
+  codigoBarras          String?                  @unique
+  precoVenda            Decimal                  @default(0)
+  precoCusto            Decimal                  @default(0)
+  custoMedio            Decimal                  @default(0)
+  quantidade            Int                      @default(0)
+  quantidadeLoja        Int                      @default(0)
+  estoqueMinimo         Int                      @default(5)
+  ativo                 Boolean                  @default(true)
+  vitrine               Boolean                  @default(false)
+  destaque              Boolean                  @default(false)
+  oferta                Boolean                  @default(false)
   precoOferta           Decimal?
   precoVitrine          Decimal?
   dataInicioOferta      String?
@@ -94,13 +119,26 @@ model Peca {
   compatibilidade       String?
   imagemUrl             String?
   categoriaId           String
-  categoria             Categoria              @relation(fields: [categoriaId], references: [id])
+  categoria             Categoria                @relation(fields: [categoriaId], references: [id])
   itensOS               ItemOS[]
   orcamentosItens       OrcamentoItem[]
   movimentacoes         MovimentacaoEstoque[]
   transferenciasEstoque TransferenciaEstoque[]
-  createdAt             DateTime               @default(now())
-  updatedAt             DateTime               @updatedAt
+  imagens               PecaImagem[]
+  documentos            PecaDocumento[]
+  compatibilidades      CompatibilidadeVeiculo[]
+  pedidoItens           PedidoItem[]
+  vendaItens            VendaItem[]
+  garantiasCliente      GarantiaCliente[]
+  avaliacoes            Avaliacao[]
+  favoritos             Favorito[]
+  promocoesProduto      PromocaoProduto[]
+  pedidoVitrineItens    PedidoVitrineItem[]
+  visualizacoes         ProdutoVisualizacao[]
+  navegacoes            HistoricoNavegacao[]
+  perguntasProduto      Pergunta[]
+  createdAt             DateTime                 @default(now())
+  updatedAt             DateTime                 @updatedAt
 
   @@index([codigo])
   @@index([codigoBarras])
@@ -109,8 +147,8 @@ model Peca {
 }
 
 model OrdemServico {
-  id                String         @id @default(cuid())
-  numero            Int            @unique @default(autoincrement())
+  id                String    @id @default(cuid())
+  numero            Int       @unique @default(autoincrement())
   nomeCliente       String
   telefoneCliente   String
   modeloMoto        String
@@ -118,11 +156,11 @@ model OrdemServico {
   anoMoto           String?
   descricaoProblema String?
   diagnostico       String?
-  status            StatusOS       @default(ABERTA)
+  status            StatusOS  @default(ABERTA)
   tipoServico       String?
-  valorTotal        Decimal        @default(0)
-  valorMaoDeObra    Decimal        @default(0)
-  desconto          Decimal        @default(0)
+  valorTotal        Decimal   @default(0)
+  valorMaoDeObra    Decimal   @default(0)
+  desconto          Decimal   @default(0)
   formaPagamento    String?
   observacoes       String?
   finalizadoEm      DateTime?
@@ -132,19 +170,40 @@ model OrdemServico {
   dataPagamento     DateTime?
   usuarioPagamento  String?
   mecanicoId        String?
-  mecanico          User?          @relation("Mecanico", fields: [mecanicoId], references: [id])
+  mecanico          User?     @relation("Mecanico", fields: [mecanicoId], references: [id])
   balcaoId          String?
-  balcao            User?          @relation("Balcao", fields: [balcaoId], references: [id])
-  itens             ItemOS[]
-  servicos          ServicoOrdem[]
-  notaFiscal        NotaFiscal?
-  createdAt         DateTime       @default(now())
-  updatedAt         DateTime       @updatedAt
+  balcao            User?     @relation("Balcao", fields: [balcaoId], references: [id])
+
+  // FASE 15-F: Oficina Premium
+  dataAgendamento DateTime? // Data agendada
+  horaAgendamento String? // Hora (HH:mm)
+  previsaoEntrega DateTime? // Previsao de entrega
+  tempoEstimado   Int? // Minutos estimados
+  inicioServico   DateTime? // Quando o mecanico iniciou
+  fimServico      DateTime? // Quando o mecanico terminou
+  garantiaDias    Int? // 30, 60, 90, 180, 365
+  garantiaAte     DateTime? // Calculado: dataPagamento + garantiaDias
+  kmAtual         String? // Km da moto na entrada
+
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  itens                  ItemOS[]
+  servicos               ServicoOrdem[]
+  notaFiscal             NotaFiscal?
+  fotos                  FotoOS[]
+  checklist              ItemChecklistOS[]
+  assinatura             AssinaturaOS?
+  historico              HistoricoOS[]
+  revisoes               RevisaoAgendada[]
+  whatsappLogs           WhatsAppLog[]
+  lancamentosFinanceiros LancamentoFinanceiro[]
 
   @@index([status])
-  @@index([createdAt])
   @@index([balcaoId])
   @@index([mecanicoId])
+  @@index([dataAgendamento])
+  @@index([previsaoEntrega])
 }
 
 model ItemOS {
@@ -203,6 +262,152 @@ model NotaManualItem {
   valorUnitario Decimal    @default(0)
 }
 
+// ============================================================
+// FASE 15-F: OFICINA PREMIUM
+// FASE 15-F.1: Finalização — fluxo operacional + fotos obrigatórias + checklist inteligente
+// ============================================================
+
+// Servicos tabelados (cadastro de servicos)
+model ServicoTabelado {
+  id            String                     @id @default(cuid())
+  nome          String
+  descricao     String?
+  valor         Decimal                    @default(0)
+  tempoEstimado Int? // minutos estimados
+  garantiaDias  Int? // dias de garantia
+  categoria     String? // Ex: Motor, Freios, Suspensao, Eletrica, etc
+  ativo         Boolean                    @default(true)
+  templates     ChecklistServicoTemplate[]
+  createdAt     DateTime                   @default(now())
+  updatedAt     DateTime                   @updatedAt
+
+  @@index([categoria])
+  @@index([ativo])
+}
+
+// Checklist configurado por OS
+model ChecklistTemplate {
+  id        String                     @id @default(cuid())
+  nome      String
+  ordem     Int                        @default(0) // ordenacao
+  ativo     Boolean                    @default(true)
+  itens     ChecklistTemplateItem[]
+  servicos  ChecklistServicoTemplate[]
+  createdAt DateTime                   @default(now())
+}
+
+// FASE 15-F.1: Itens de cada modelo de checklist
+model ChecklistTemplateItem {
+  id          String            @id @default(cuid())
+  templateId  String
+  template    ChecklistTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  item        String // Nome do item
+  obrigatorio Boolean           @default(true) // FASE 15-F.1: obrigatório para finalizar
+  ordem       Int               @default(0)
+
+  @@index([templateId])
+}
+
+// FASE 15-F.1: Associação entre tipo de serviço e checklist template
+model ChecklistServicoTemplate {
+  id                String            @id @default(cuid())
+  servicoTabeladoId String
+  servicoTabelado   ServicoTabelado   @relation(fields: [servicoTabeladoId], references: [id], onDelete: Cascade)
+  templateId        String
+  template          ChecklistTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+
+  @@unique([servicoTabeladoId, templateId])
+}
+
+// Itens do checklist aplicados a uma OS especifica
+model ItemChecklistOS {
+  id             String       @id @default(cuid())
+  ordemServicoId String
+  ordemServico   OrdemServico @relation(fields: [ordemServicoId], references: [id], onDelete: Cascade)
+  item           String // Nome do item (ex: "Freio", "Oleo")
+  obrigatorio    Boolean      @default(false) // FASE 15-F.1: obrigatório para finalizar
+  concluido      Boolean      @default(false)
+  observacao     String?
+  usuario        String?
+  concluidoEm    DateTime?
+
+  @@index([ordemServicoId])
+}
+
+// Fotos vinculadas a OS (tipo: recepcao, antes, durante, depois, entrega)
+model FotoOS {
+  id             String       @id @default(cuid())
+  ordemServicoId String
+  ordemServico   OrdemServico @relation(fields: [ordemServicoId], references: [id], onDelete: Cascade)
+  tipo           String // RECEPCAO, ANTES, DURANTE, DEPOIS, ENTREGA, PECAS_DANIFICADAS, PECAS_TROCADAS, OBSERVACOES, CLIENTE
+  obrigatorio    Boolean      @default(false) // FASE 15-F.1: RECEPCAO, ANTES, DEPOIS = obrigatórias
+  url            String
+  descricao      String?
+  createdAt      DateTime     @default(now())
+
+  @@index([ordemServicoId])
+  @@index([tipo])
+}
+
+// Assinatura digital do cliente na retirada
+model AssinaturaOS {
+  id             String       @id @default(cuid())
+  ordemServicoId String       @unique
+  ordemServico   OrdemServico @relation(fields: [ordemServicoId], references: [id], onDelete: Cascade)
+  nome           String // Nome de quem assinou
+  assinatura     String // Base64 da assinatura (canvas)
+  ip             String?
+  data           DateTime     @default(now())
+}
+
+// Historico de alteracoes da OS (nunca apagar)
+model HistoricoOS {
+  id             String       @id @default(cuid())
+  ordemServicoId String
+  ordemServico   OrdemServico @relation(fields: [ordemServicoId], references: [id], onDelete: Cascade)
+  tipo           String // CRIACAO, MUDANCA_STATUS, TROCA_MECANICO, INCLUSAO_PECA, REMOCAO_PECA, PAGAMENTO, ENTREGA, FINALIZACAO
+  descricao      String?
+  usuario        String?
+  usuarioId      String?
+  createdAt      DateTime     @default(now())
+
+  @@index([ordemServicoId])
+  @@index([tipo])
+  @@index([createdAt])
+}
+
+// Revisoes agendadas
+model RevisaoAgendada {
+  id             String       @id @default(cuid())
+  ordemServicoId String
+  ordemServico   OrdemServico @relation(fields: [ordemServicoId], references: [id], onDelete: Cascade)
+  tipo           String // KM, DATA
+  valor          String // Ex: "1000", "5000", "2026-12-25"
+  descricao      String?
+  notificada     Boolean      @default(false)
+  createdAt      DateTime     @default(now())
+
+  @@index([ordemServicoId])
+}
+
+// Log de envios WhatsApp (estrutura, sem integracao API)
+model WhatsAppLog {
+  id             String        @id @default(cuid())
+  ordemServicoId String?
+  ordemServico   OrdemServico? @relation(fields: [ordemServicoId], references: [id], onDelete: SetNull)
+  telefone       String
+  tipo           String // OS_CRIADA, STATUS_ATUALIZADO, ORCAMENTO, LEMBRETE_REVISAO, ENTREGA
+  mensagem       String
+  status         String        @default("PENDENTE") // PENDENTE, ENVIADO, ERRO
+  resposta       String? // Resposta da API (se integrada no futuro)
+  enviadoEm      DateTime?
+  createdAt      DateTime      @default(now())
+
+  @@index([ordemServicoId])
+  @@index([status])
+  @@index([tipo])
+}
+
 model MovimentacaoEstoque {
   id         String   @id @default(cuid())
   pecaId     String
@@ -234,15 +439,90 @@ model TransferenciaEstoque {
 }
 
 model Cliente {
-  id         String      @id @default(cuid())
-  nome       String
-  telefone   String      @unique
-  email      String?
-  password   String
-  modeloMoto String?
-  createdAt  DateTime    @default(now())
-  updatedAt  DateTime    @updatedAt
-  orcamentos Orcamento[]
+  id             String    @id @default(cuid())
+  nome           String
+  cpf            String?
+  telefone       String    @unique
+  whatsapp       String?
+  email          String?
+  password       String
+  modeloMoto     String?
+  dataNascimento DateTime?
+  // Endereço
+  endereco       String?
+  cidade         String?
+  estado         String?
+  cep            String?
+  // Segurança
+  ultimoLogin    DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  orcamentos     Orcamento[]
+  pedidos        Pedido[]
+  favoritos      Favorito[]
+  avaliacoes     Avaliacao[]
+  perguntas      Pergunta[]
+  navegacao      HistoricoNavegacao[]
+  garantias      GarantiaCliente[]
+  notificacoes   NotificacaoCliente[]
+  sessoes        SessaoCliente[]
+  pedidosVitrine PedidoVitrine[]
+}
+
+// FASE 15-I: Garantia de produto comprado pelo cliente
+model GarantiaCliente {
+  id           String   @id @default(cuid())
+  clienteId    String
+  cliente      Cliente  @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  pedidoId     String
+  pedido       Pedido   @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  pecaId       String
+  peca         Peca     @relation(fields: [pecaId], references: [id])
+  dataCompra   DateTime @default(now())
+  diasGarantia Int      @default(90) // 3 meses padrão
+  expiraEm     DateTime
+  status       String   @default("ATIVA") // ATIVA, EXPIRADA, ACIONADA
+  observacao   String?
+  createdAt    DateTime @default(now())
+
+  @@index([clienteId])
+  @@index([pedidoId])
+  @@index([status])
+}
+
+// FASE 15-I: Central de notificações do cliente
+model NotificacaoCliente {
+  id        String   @id @default(cuid())
+  clienteId String
+  cliente   Cliente  @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  tipo      String // PEDIDO_RECEBIDO, PEDIDO_SEPARADO, PEDIDO_PRONTO, CUPOM_NOVO, PROMOCAO, FAVORITO_OFERTA
+  titulo    String
+  mensagem  String
+  link      String? // ex: /cliente/pedidos/123
+  lida      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([clienteId])
+  @@index([lida])
+  @@index([createdAt])
+}
+
+// FASE 15-I: Sessões ativas do cliente
+model SessaoCliente {
+  id        String   @id @default(cuid())
+  clienteId String
+  cliente   Cliente  @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  ip        String?
+  userAgent String?
+  ativo     Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([clienteId])
+  @@index([token])
+  @@index([ativo])
 }
 
 model Orcamento {
@@ -331,18 +611,19 @@ model Fornecedor {
 }
 
 model PedidoFornecedor {
-  id              String                 @id @default(cuid())
-  fornecedorId    String
-  fornecedor      Fornecedor             @relation(fields: [fornecedorId], references: [id])
-  numero          String?
-  dataPedido      DateTime               @default(now())
-  previsaoEntrega DateTime?
-  status          String                 @default("RASCUNHO")
-  valorTotal      Decimal                @default(0)
-  observacoes     String?
-  createdAt       DateTime               @default(now())
-  updatedAt       DateTime               @updatedAt
-  itens           ItemPedidoFornecedor[]
+  id                     String                 @id @default(cuid())
+  fornecedorId           String
+  fornecedor             Fornecedor             @relation(fields: [fornecedorId], references: [id])
+  numero                 String?
+  dataPedido             DateTime               @default(now())
+  previsaoEntrega        DateTime?
+  status                 String                 @default("RASCUNHO")
+  valorTotal             Decimal                @default(0)
+  observacoes            String?
+  createdAt              DateTime               @default(now())
+  updatedAt              DateTime               @updatedAt
+  itens                  ItemPedidoFornecedor[]
+  lancamentosFinanceiros LancamentoFinanceiro[]
 
   @@index([fornecedorId])
   @@index([status])
@@ -394,4 +675,952 @@ model Revisao {
   ativa     Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model PecaImagem {
+  id        String   @id @default(cuid())
+  pecaId    String
+  peca      Peca     @relation(fields: [pecaId], references: [id], onDelete: Cascade)
+  url       String
+  tipo      String   @default("PRINCIPAL") // PRINCIPAL, SECUNDARIA, TECNICA, EMBALAGEM, 360
+  ordem     Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([pecaId])
+}
+
+model PecaDocumento {
+  id        String   @id @default(cuid())
+  pecaId    String
+  peca      Peca     @relation(fields: [pecaId], references: [id], onDelete: Cascade)
+  nome      String
+  tipo      String // MANUAL, FICHA_TECNICA, GARANTIA, CATALOGO, VIDEO, OBSERVACAO_TECNICA
+  url       String
+  tamanho   Int?
+  createdAt DateTime @default(now())
+
+  @@index([pecaId])
+}
+
+model CompatibilidadeVeiculo {
+  id         String   @id @default(cuid())
+  pecaId     String
+  peca       Peca     @relation(fields: [pecaId], references: [id], onDelete: Cascade)
+  marca      String   @default("")
+  modelo     String   @default("")
+  anoInicial Int?
+  anoFinal   Int?
+  motor      String?
+  versao     String?
+  observacao String?
+  createdAt  DateTime @default(now())
+
+  @@index([pecaId])
+  @@index([marca])
+  @@index([modelo])
+}
+
+// ============================================================
+// FASE 15-E: PDV / BALCÃO DA LOJA PREMIUM
+// Fluxo: Pedido → Carrinho → Pagamento → Venda → Baixa Estoque
+// ============================================================
+
+// 1. PEDIDO (origem de toda venda, OS e orcamento)
+model Pedido {
+  id                String    @id @default(cuid())
+  numero            Int       @unique @default(autoincrement())
+  tipo              String    @default("VENDA") // VENDA, ORDEM_SERVICO, ORCAMENTO, VITRINE
+  status            String    @default("ABERTO") // ABERTO, RESERVADO, SEPARADO, AGUARDANDO_PAGAMENTO, PAGO, CANCELADO, PEDIDO_RECEBIDO, EM_SEPARACAO, PRONTO_PARA_RETIRADA, RETIRADO
+  origem            String? // PDV, SCANNER, ORDEM_SERVICO, ORCAMENTO, MANUAL, VITRINE
+  ordemServicoId    String? // Referencia a OS quando tipo=ORDEM_SERVICO
+  // FASE 15-H.2: Cliente da vitrine vinculado ao pedido
+  clienteId         String?
+  cliente           Cliente?  @relation(fields: [clienteId], references: [id])
+  clienteNome       String?
+  clienteTelefone   String? // Cliente rapido: telefone obrigatorio, nome opcional
+  clienteCpf        String?
+  // FASE 15-H.2: Retirada na loja
+  retiradaNome      String? // Quem vai retirar (pode ser diferente do cliente)
+  retiradaTelefone  String?
+  retiradaDocumento String?
+  retiradaEm        DateTime? // Data/hora da retirada
+  qrCode            String? // Codigo para QR Code da retirada
+  subtotal          Decimal   @default(0)
+  descontoTotal     Decimal   @default(0)
+  total             Decimal   @default(0)
+  formaPagamento    String?
+  criadoPor         String?
+  criadoPorId       String?
+  canceladoPor      String?
+  canceladoEm       DateTime?
+  observacoes       String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  itens            PedidoItem[]
+  venda            Venda? // 1-para-1: Pedido gera 1 Venda ao ser pago
+  historico        HistoricoPedido[]
+  garantiasCliente GarantiaCliente[]
+
+  @@index([numero])
+  @@index([tipo])
+  @@index([status])
+  @@index([createdAt])
+  @@index([criadoPor])
+  @@index([ordemServicoId])
+  @@index([clienteId])
+}
+
+model PedidoItem {
+  id              String  @id @default(cuid())
+  pedidoId        String
+  pedido          Pedido  @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  pecaId          String
+  peca            Peca    @relation(fields: [pecaId], references: [id])
+  quantidade      Int     @default(1)
+  precoOriginal   Decimal @default(0) // Preco de tabela no momento da adicao
+  descontoPercent Decimal @default(0) // Desconto %
+  descontoReais   Decimal @default(0) // Desconto R$
+  precoVendido    Decimal @default(0) // Preco apos desconto
+  subtotal        Decimal @default(0) // precoVendido * quantidade
+  reservado       Boolean @default(false) // Reserva de estoque
+  observacao      String?
+
+  @@index([pedidoId])
+  @@index([pecaId])
+}
+
+// Historico de alteracoes do Pedido (nunca apagar)
+model HistoricoPedido {
+  id        String   @id @default(cuid())
+  pedidoId  String
+  pedido    Pedido   @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  tipo      String // CRIADO, RESERVADO, SEPARADO, CANCELADO, PAGO, ENTREGUE, LIBERADO, BAIXA
+  descricao String?
+  usuario   String?
+  usuarioId String?
+  createdAt DateTime @default(now())
+
+  @@index([pedidoId])
+  @@index([tipo])
+  @@index([createdAt])
+}
+
+// 2. VENDA (nasce do Pedido pago)
+model Venda {
+  id              String   @id @default(cuid())
+  numero          Int      @unique @default(autoincrement())
+  pedidoId        String   @unique
+  pedido          Pedido   @relation(fields: [pedidoId], references: [id])
+  status          String   @default("PAGA") // PAGA, CANCELADA, ESTORNADA
+  origem          String? // VENDA_AVULSA, ORDEM_SERVICO, ORCAMENTO, PDV, SCANNER
+  operadorNome    String?
+  operadorId      String?
+  clienteNome     String?
+  clienteTelefone String?
+  clienteCpf      String?
+  subtotal        Decimal  @default(0)
+  descontoTotal   Decimal  @default(0)
+  total           Decimal  @default(0)
+  criadoPor       String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  itens                  VendaItem[]
+  pagamentos             PagamentoVenda[]
+  lancamentosFinanceiros LancamentoFinanceiro[]
+
+  @@index([numero])
+  @@index([pedidoId])
+  @@index([createdAt])
+  @@index([criadoPor])
+  @@index([operadorId])
+  @@index([origem])
+}
+
+model VendaItem {
+  id              String  @id @default(cuid())
+  vendaId         String
+  venda           Venda   @relation(fields: [vendaId], references: [id], onDelete: Cascade)
+  pecaId          String
+  peca            Peca    @relation(fields: [pecaId], references: [id])
+  quantidade      Int     @default(1)
+  precoOriginal   Decimal @default(0)
+  descontoPercent Decimal @default(0)
+  descontoReais   Decimal @default(0)
+  precoVendido    Decimal @default(0)
+  subtotal        Decimal @default(0)
+  precoCusto      Decimal @default(0) // Custo no momento da venda (para calcular lucro)
+  lucroUnitario   Decimal @default(0) // precoVendido - precoCusto
+  lucroTotal      Decimal @default(0) // lucroUnitario * quantidade
+  observacao      String?
+
+  @@index([vendaId])
+  @@index([pecaId])
+}
+
+model PagamentoVenda {
+  id         String  @id @default(cuid())
+  vendaId    String
+  venda      Venda   @relation(fields: [vendaId], references: [id], onDelete: Cascade)
+  tipo       String // DINHEIRO, PIX, CARTAO_DEBITO, CARTAO_CREDITO, TRANSFERENCIA
+  valor      Decimal @default(0)
+  troco      Decimal @default(0)
+  bandeira   String? // VISA, MASTERCARD, ELO, AMEX, etc
+  parcelas   Int?
+  observacao String?
+
+  @@index([vendaId])
+}
+
+// 3. CAIXA com SESSAO (operador)
+model Caixa {
+  id        String   @id @default(cuid())
+  status    String   @default("FECHADO") // ABERTO, FECHADO
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  sessoes SessaoCaixa[]
+
+  @@index([status])
+  @@index([createdAt])
+}
+
+model SessaoCaixa {
+  id               String    @id @default(cuid())
+  caixaId          String
+  caixa            Caixa     @relation(fields: [caixaId], references: [id], onDelete: Cascade)
+  status           String    @default("ABERTA") // ABERTA, FECHADA
+  operador         String // nome do usuario que abriu
+  saldoInicial     Decimal   @default(0)
+  saldoFinal       Decimal   @default(0)
+  saldoDinheiro    Decimal   @default(0)
+  abertoEm         DateTime  @default(now())
+  fechadoEm        DateTime?
+  totalEntradas    Decimal   @default(0)
+  totalSaidas      Decimal   @default(0)
+  totalVendas      Decimal   @default(0)
+  totalSangrias    Decimal   @default(0)
+  totalSuprimentos Decimal   @default(0)
+  observacoes      String?
+
+  movimentacoes MovimentacaoCaixa[]
+
+  @@index([caixaId])
+  @@index([status])
+  @@index([operador])
+  @@index([abertoEm])
+}
+
+model MovimentacaoCaixa {
+  id        String      @id @default(cuid())
+  sessaoId  String
+  sessao    SessaoCaixa @relation(fields: [sessaoId], references: [id], onDelete: Cascade)
+  tipo      String // ABERTURA, FECHAMENTO, SANGRIA, SUPRIMENTO, VENDA_DINHEIRO, VENDA_PIX, VENDA_CARTAO, OS_DINHEIRO, OS_PIX
+  valor     Decimal     @default(0)
+  descricao String?
+  usuario   String?
+  vendaId   String?
+  createdAt DateTime    @default(now())
+
+  @@index([sessaoId])
+  @@index([tipo])
+  @@index([createdAt])
+}
+
+// ============================================================
+// FASE 15-G: FINANCEIRO PREMIUM (ERP)
+// ============================================================
+
+// 1. CENTRO DE CUSTO — toda movimentação pertence a um centro
+model CentroCusto {
+  id        String   @id @default(cuid())
+  nome      String   @unique
+  tipo      String // LOJA, OFICINA, ESTOQUE, ADMINISTRATIVO, MARKETING, FUNCIONARIOS, FERRAMENTAS, VEICULOS, IMPOSTOS, OUTROS
+  descricao String?
+  ativo     Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  lancamentos LancamentoFinanceiro[]
+  contasPagar ContaPagar[]
+
+  @@index([tipo])
+  @@index([ativo])
+}
+
+// 2. LANÇAMENTO FINANCEIRO — registro central de toda movimentação
+model LancamentoFinanceiro {
+  id          String   @id @default(cuid())
+  tipo        String // RECEITA, DESPESA, TRANSFERENCIA, AJUSTE, ESTORNO
+  categoria   String // VENDA, OS, SERVICO, PRODUTO, COMPRA, SALARIO, IMPOSTO, ALUGUEL, ENERGIA, AGUA, INTERNET, MARKETING, FERRAMENTA, VEICULO, OUTROS
+  valor       Decimal  @default(0)
+  data        DateTime @default(now())
+  descricao   String?
+  comprovante String? // URL do comprovante
+
+  // Origem
+  origem             String? // PDV, OFICINA, ESTOQUE, COMPRA, MANUAL
+  vendaId            String?
+  venda              Venda?            @relation(fields: [vendaId], references: [id], onDelete: SetNull)
+  ordemServicoId     String?
+  ordemServico       OrdemServico?     @relation(fields: [ordemServicoId], references: [id], onDelete: SetNull)
+  pedidoFornecedorId String?
+  pedidoFornecedor   PedidoFornecedor? @relation(fields: [pedidoFornecedorId], references: [id], onDelete: SetNull)
+
+  // Centro de custo
+  centroCustoId String
+  centroCusto   CentroCusto @relation(fields: [centroCustoId], references: [id])
+
+  // Metadados
+  criadoPor       String?
+  criadoPorId     String?
+  formaPagamento  String? // DINHEIRO, PIX, CARTAO_DEBITO, CARTAO_CREDITO, TRANSFERENCIA, BOLETO
+  parcelas        Int?
+  status          String    @default("EFETIVADO") // EFETIVADO, PENDENTE, CANCELADO, ESTORNADO
+  conciliado      Boolean   @default(false)
+  dataConciliacao DateTime?
+  observacoes     String?
+
+  // Auditoria
+  canceladoPor String?
+  canceladoEm  DateTime?
+  estornadoPor String?
+  estornadoEm  DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  comissao Comissao?
+
+  @@index([tipo])
+  @@index([categoria])
+  @@index([data])
+  @@index([centroCustoId])
+  @@index([vendaId])
+  @@index([ordemServicoId])
+  @@index([status])
+  @@index([origem])
+  @@index([createdAt])
+}
+
+// 3. CONTAS A RECEBER
+model ContaReceber {
+  id              String    @id @default(cuid())
+  cliente         String
+  telefone        String?
+  documento       String? // CPF/CNPJ
+  descricao       String?
+  valor           Decimal   @default(0)
+  valorRecebido   Decimal   @default(0)
+  dataEmissao     DateTime  @default(now())
+  dataVencimento  DateTime
+  dataRecebimento DateTime?
+  status          String    @default("EM_ABERTO") // EM_ABERTO, PARCIAL, RECEBIDO, ATRASADO, CANCELADO
+
+  // Origem
+  origem         String? // OS, VENDA, MANUAL
+  ordemServicoId String?
+  vendaId        String?
+  parcela        Int? // Número da parcela
+  totalParcelas  Int?
+
+  // Pagamento
+  formaPagamento String? // DINHEIRO, PIX, CARTAO_DEBITO, CARTAO_CREDITO, TRANSFERENCIA, BOLETO
+  observacoes    String?
+  criadoPor      String?
+  recebidoPor    String?
+  canceladoPor   String?
+  canceladoEm    DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([cliente])
+  @@index([dataVencimento])
+  @@index([dataEmissao])
+  @@index([origem])
+}
+
+// 4. CONTAS A PAGAR
+model ContaPagar {
+  id             String    @id @default(cuid())
+  fornecedor     String?
+  fornecedorId   String?
+  descricao      String?
+  valor          Decimal   @default(0)
+  valorPago      Decimal   @default(0)
+  dataEmissao    DateTime  @default(now())
+  dataVencimento DateTime
+  dataPagamento  DateTime?
+  status         String    @default("EM_ABERTO") // EM_ABERTO, PAGO, VENCIDO, PARCELADO, AGENDADO, CANCELADO
+
+  // Categoria
+  categoria String? // FORNECEDOR, FUNCIONARIOS, ENERGIA, AGUA, INTERNET, ALUGUEL, IMPOSTOS, FERRAMENTAS, MARKETING, OUTROS
+
+  // Origem
+  origem             String? // COMPRA, MANUAL, RECORRENTE
+  pedidoFornecedorId String?
+  parcela            Int?
+  totalParcelas      Int?
+
+  // Centro de custo
+  centroCustoId String
+  centroCusto   CentroCusto @relation(fields: [centroCustoId], references: [id])
+
+  // Pagamento
+  formaPagamento String?
+  observacoes    String?
+  comprovante    String?
+  criadoPor      String?
+  pagoPor        String?
+  canceladoPor   String?
+  canceladoEm    DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status])
+  @@index([fornecedor])
+  @@index([dataVencimento])
+  @@index([categoria])
+  @@index([centroCustoId])
+}
+
+// 5. COMISSÕES
+model Comissao {
+  id           String               @id @default(cuid())
+  lancamentoId String               @unique
+  lancamento   LancamentoFinanceiro @relation(fields: [lancamentoId], references: [id], onDelete: Cascade)
+
+  // Beneficiário
+  usuario         String // Nome do vendedor/mecânico/operador
+  usuarioId       String?
+  tipoFuncionario String // VENDEDOR, MECANICO, OPERADOR
+  percentual      Decimal @default(0)
+  valor           Decimal @default(0)
+
+  // Referência da venda/OS
+  vendaId        String?
+  ordemServicoId String?
+  periodo        String? // Mes/ano de referencia (ex: "2026-07")
+
+  // Status
+  status        String    @default("PENDENTE") // PENDENTE, PAGA, CANCELADA
+  dataPagamento DateTime?
+  pagoPor       String?
+  observacoes   String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([usuarioId])
+  @@index([usuario])
+  @@index([tipoFuncionario])
+  @@index([status])
+  @@index([periodo])
+  @@index([lancamentoId])
+}
+
+// 6. AUDITORIA FINANCEIRA — nunca apagar
+model AuditoriaFinanceira {
+  id           String   @id @default(cuid())
+  entidade     String // LancamentoFinanceiro, ContaReceber, ContaPagar, Comissao, Caixa, SessaoCaixa
+  entidadeId   String
+  acao         String // CRIADO, ALTERADO, CANCELADO, ESTORNADO, PAGO, RECEBIDO, CONCILIADO, FECHADO
+  dadosAntigos String? // JSON com estado anterior
+  dadosNovos   String? // JSON com novo estado
+  descricao    String?
+  usuario      String?
+  usuarioId    String?
+  ip           String?
+  createdAt    DateTime @default(now())
+
+  @@index([entidade])
+  @@index([entidadeId])
+  @@index([acao])
+  @@index([usuarioId])
+  @@index([createdAt])
+}
+
+// 7. ALERTAS FINANCEIROS
+model AlertaFinanceiro {
+  id           String    @id @default(cuid())
+  tipo         String // CONTA_VENCENDO, CONTA_VENCIDA, FLUXO_NEGATIVO, CAIXA_NEGATIVO, BAIXO_LUCRO, DESPESA_ALTA, FORNECEDOR_ATRASO, CLIENTE_INADIMPLENTE
+  titulo       String
+  mensagem     String?
+  severidade   String    @default("MEDIA") // BAIXA, MEDIA, ALTA, CRITICA
+  resolvido    Boolean   @default(false)
+  resolvidoPor String?
+  resolvidoEm  DateTime?
+  referencia   String? // ID da entidade relacionada
+  createdAt    DateTime  @default(now())
+
+  @@index([tipo])
+  @@index([resolvido])
+  @@index([severidade])
+  @@index([createdAt])
+}
+
+// 8. FECHAMENTO DE PERÍODO
+model FechamentoPeriodo {
+  id         String   @id @default(cuid())
+  periodo    String   @unique // "2026-07"
+  dataInicio DateTime
+  dataFim    DateTime
+  status     String   @default("ABERTO") // ABERTO, FECHADO
+
+  receitaBruta     Decimal @default(0)
+  descontos        Decimal @default(0)
+  receitaLiquida   Decimal @default(0)
+  custos           Decimal @default(0)
+  lucroBruto       Decimal @default(0)
+  despesas         Decimal @default(0)
+  lucroOperacional Decimal @default(0)
+  lucroLiquido     Decimal @default(0)
+  margem           Decimal @default(0)
+
+  fechadoPor  String?
+  fechadoEm   DateTime?
+  observacoes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// ============================================================
+// FASE 15-H: VITRINE PREMIUM (E-COMMERCE PROFISSIONAL)
+// ============================================================
+
+// 1. MARCA — página exclusiva de marcas
+model Marca {
+  id        String   @id @default(cuid())
+  nome      String   @unique
+  slug      String   @unique
+  logoUrl   String?
+  descricao String?
+  site      String?
+  ativo     Boolean  @default(true)
+  destaque  Boolean  @default(false)
+  ordem     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([slug])
+  @@index([ativo])
+}
+
+// 2. AVALIAÇÃO — reviews de produtos na vitrine
+model Avaliacao {
+  id         String   @id @default(cuid())
+  pecaId     String
+  peca       Peca     @relation(fields: [pecaId], references: [id], onDelete: Cascade)
+  clienteId  String
+  cliente    Cliente  @relation(fields: [clienteId], references: [id])
+  nota       Int // 1-5 estrelas
+  titulo     String?
+  comentario String?
+  fotos      String? // JSON array de URLs
+  verificada Boolean  @default(false)
+  aprovada   Boolean  @default(true)
+  util       Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([pecaId, clienteId])
+  @@index([pecaId])
+  @@index([nota])
+  @@index([aprovada])
+}
+
+// 3. FAVORITO — wishlist do cliente
+model Favorito {
+  id        String   @id @default(cuid())
+  clienteId String
+  cliente   Cliente  @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  pecaId    String
+  peca      Peca     @relation(fields: [pecaId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([clienteId, pecaId])
+  @@index([clienteId])
+}
+
+// 4. PROMOÇÃO — campanhas com contador regressivo
+model Promocao {
+  id            String   @id @default(cuid())
+  titulo        String
+  subtitulo     String?
+  descricao     String?
+  bannerDesktop String?
+  bannerMobile  String?
+  percentual    Decimal?
+  dataInicio    DateTime
+  dataFim       DateTime
+  ativo         Boolean  @default(true)
+  tipo          String   @default("GERAL") // GERAL, CATEGORIA, PRODUTO, OFICINA
+  categoriaId   String?
+  destaque      Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  produtos PromocaoProduto[]
+
+  @@index([ativo])
+  @@index([dataInicio])
+  @@index([dataFim])
+}
+
+model PromocaoProduto {
+  id         String   @id @default(cuid())
+  promocaoId String
+  promocao   Promocao @relation(fields: [promocaoId], references: [id], onDelete: Cascade)
+  pecaId     String
+  peca       Peca     @relation(fields: [pecaId], references: [id], onDelete: Cascade)
+
+  @@unique([promocaoId, pecaId])
+}
+
+// 5. DEPOIMENTO — testemunhos de clientes
+model Depoimento {
+  id        String   @id @default(cuid())
+  nome      String
+  cargo     String?
+  fotoUrl   String?
+  texto     String
+  estrelas  Int      @default(5)
+  ativo     Boolean  @default(true)
+  ordem     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([ativo])
+}
+
+// 6. NEWSLETTER — assinantes
+model Newsletter {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  nome      String?
+  ativo     Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  @@index([email])
+}
+
+// 7. CUPOM DE DESCONTO
+model Cupom {
+  id              String    @id @default(cuid())
+  codigo          String    @unique
+  descricao       String?
+  tipo            String    @default("PERCENTUAL")
+  valor           Decimal   @default(0)
+  valorMinimo     Decimal?
+  quantidadeMax   Int?
+  quantidadeUsada Int       @default(0)
+  porCliente      Int?
+  dataInicio      DateTime?
+  dataFim         DateTime?
+  ativo           Boolean   @default(true)
+  categorias      String? // JSON array
+  produtos        String? // JSON array
+  primeiraCompra  Boolean   @default(false)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  pedidosVitrine PedidoVitrine[]
+
+  @@index([codigo])
+  @@index([ativo])
+}
+
+// 8. PEDIDO VITRINE — checkout
+model PedidoVitrine {
+  id              String              @id @default(cuid())
+  numero          Int                 @unique @default(autoincrement())
+  clienteId       String
+  cliente         Cliente             @relation(fields: [clienteId], references: [id])
+  status          String              @default("PENDENTE") // PENDENTE, CONFIRMADO, PREPARANDO, ENVIADO, ENTREGUE, CANCELADO
+  subtotal        Decimal             @default(0)
+  desconto        Decimal             @default(0)
+  frete           Decimal             @default(0)
+  total           Decimal             @default(0)
+  cupomId         String?
+  cupom           Cupom?              @relation(fields: [cupomId], references: [id], onDelete: SetNull)
+  formaPagamento  String? // PIX, CARTAO_CREDITO, CARTAO_DEBITO, DINHEIRO, BOLETO
+  formaEntrega    String              @default("RETIRADA") // RETIRADA, ENTREGA
+  enderecoEntrega String? // JSON
+  observacoes     String?
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+  itens           PedidoVitrineItem[]
+
+  @@index([clienteId])
+  @@index([status])
+  @@index([numero])
+}
+
+model PedidoVitrineItem {
+  id            String        @id @default(cuid())
+  pedidoId      String
+  pedido        PedidoVitrine @relation(fields: [pedidoId], references: [id], onDelete: Cascade)
+  pecaId        String
+  peca          Peca          @relation(fields: [pecaId], references: [id])
+  quantidade    Int           @default(1)
+  precoUnitario Decimal       @default(0)
+
+  @@index([pedidoId])
+}
+
+// 9. SEÇÃO DA VITRINE — ordem configurável pelo admin
+model SecaoVitrine {
+  id        String   @id @default(cuid())
+  nome      String   @unique
+  tipo      String // PRODUTOS_DESTAQUE, PROMOCOES, CATEGORIA, MARCAS, DEPOIMENTOS, BANNER, NEWSLETTER, OFICINA, VANTAGENS, LANCAMENTOS, MAIS_VENDIDOS, MAIS_PROCURADOS
+  config    String? // JSON
+  ativo     Boolean  @default(true)
+  ordem     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([ativo])
+  @@index([ordem])
+}
+
+// 10. MENSAGEM DE CONTATO
+model ContatoVitrine {
+  id        String   @id @default(cuid())
+  nome      String
+  email     String?
+  telefone  String
+  assunto   String?
+  mensagem  String
+  lido      Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([lido])
+}
+
+// ============================================================
+// FASE 15-H.1: VITRINE PREMIUM FINAL — NOVOS MODELOS
+// ============================================================
+
+// 11. VISUALIZAÇÃO DE PRODUTO — analytics da vitrine
+model ProdutoVisualizacao {
+  id        String   @id @default(cuid())
+  pecaId    String
+  peca      Peca     @relation(fields: [pecaId], references: [id], onDelete: Cascade)
+  clienteId String?
+  sessao    String?
+  origem    String? // catalogo, busca, home, promocoes, marcas, related
+  createdAt DateTime @default(now())
+
+  @@index([pecaId])
+  @@index([createdAt])
+}
+
+// 12. HISTÓRICO DE NAVEGAÇÃO — "continuar comprando" + "produtos vistos"
+model HistoricoNavegacao {
+  id        String   @id @default(cuid())
+  clienteId String
+  cliente   Cliente  @relation(fields: [clienteId], references: [id], onDelete: Cascade)
+  pecaId    String
+  peca      Peca     @relation(fields: [pecaId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@index([clienteId])
+  @@index([pecaId])
+  @@index([createdAt])
+}
+
+// 13. PERGUNTA — Q&A do produto (estilo Mercado Livre)
+model Pergunta {
+  id        String   @id @default(cuid())
+  pecaId    String
+  peca      Peca     @relation(fields: [pecaId], references: [id], onDelete: Cascade)
+  clienteId String
+  cliente   Cliente  @relation(fields: [clienteId], references: [id])
+  texto     String
+  aprovada  Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  respostas Resposta[]
+
+  @@index([pecaId])
+  @@index([clienteId])
+  @@index([aprovada])
+}
+
+// 14. RESPOSTA — respostas às perguntas (admin/loja responde)
+model Resposta {
+  id         String   @id @default(cuid())
+  perguntaId String
+  pergunta   Pergunta @relation(fields: [perguntaId], references: [id], onDelete: Cascade)
+  texto      String
+  por        String // admin, dono, balcao
+  createdAt  DateTime @default(now())
+
+  @@index([perguntaId])
+}
+
+// 15. CONFIGURAÇÃO DA VITRINE — SEO, contato, cores, etc.
+model ConfiguracaoVitrine {
+  id           String   @id @default(cuid())
+  chave        String   @unique
+  valor        String
+  descricao    String?
+  atualizadoEm DateTime @updatedAt
+
+  @@index([chave])
+}
+
+// 16. VEÍCULO DA VITRINE — compatibilidade estruturada
+model VeiculoVitrine {
+  id         String   @id @default(cuid())
+  marca      String
+  modelo     String
+  anoInicial Int?
+  anoFinal   Int?
+  motor      String?
+  versao     String?
+  ativo      Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@index([marca])
+  @@index([modelo])
+  @@index([ativo])
+}
+
+// ============================================================
+// FASE 15-J: CENTRAL DE AUTOMAÇÃO, NOTIFICAÇÕES E COMUNICAÇÃO
+// ============================================================
+
+// 1. NOTIFICAÇÃO — entregue a um usuário do sistema (não cliente)
+model Notificacao {
+  id           String    @id @default(cuid())
+  usuarioId    String
+  usuario      User      @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  tipo         String // VENDA, PEDIDO, OS, ESTOQUE, FINANCEIRO, GARANTIA, REVISAO, TRANSFERENCIA, SISTEMA, MENSAGEM
+  titulo       String
+  mensagem     String
+  detalhes     String? // JSON opcional com dados extras
+  prioridade   String    @default("NORMAL") // BAIXA, NORMAL, ALTA, CRITICA
+  lida         Boolean   @default(false)
+  lidaEm       DateTime?
+  urlDestino   String? // Link para a entidade (ex: /dono/pedidos-loja)
+  entidadeTipo String? // Pedido, OrdemServico, Venda, Peca, ContaPagar, etc
+  entidadeId   String?
+  icone        String? // Emoji ou identificador
+  originadoEm  DateTime  @default(now())
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  @@index([usuarioId])
+  @@index([lida])
+  @@index([prioridade])
+  @@index([tipo])
+  @@index([createdAt])
+  @@index([entidadeTipo, entidadeId])
+}
+
+// 2. EVENTO DO SISTEMA — registro bruto de acontecimento
+model EventoSistema {
+  id           String    @id @default(cuid())
+  tipo         String // PEDIDO_CRIADO, VENDA_PAGA, OS_FINALIZADA, ESTOQUE_CRITICO, etc
+  origem       String // VITRINE, PDV, OFICINA, ESTOQUE, FINANCEIRO, SISTEMA, MANUAL
+  entidadeTipo String // Pedido, Venda, OrdemServico, Peca, ContaPagar, etc
+  entidadeId   String?
+  usuarioId    String? // Quem originou (se aplicável)
+  usuario      User?     @relation(fields: [usuarioId], references: [id], onDelete: SetNull)
+  payload      String? // JSON com dados extras do evento
+  processado   Boolean   @default(false)
+  processadoEm DateTime?
+  createdAt    DateTime  @default(now())
+
+  @@index([tipo])
+  @@index([origem])
+  @@index([processado])
+  @@index([createdAt])
+  @@index([entidadeTipo, entidadeId])
+}
+
+// 3. MENSAGEM INTERNA — comunicação entre usuários do sistema
+model MensagemInterna {
+  id             String    @id @default(cuid())
+  remetenteId    String
+  remetente      User      @relation("Remetente", fields: [remetenteId], references: [id], onDelete: Cascade)
+  destinatarioId String
+  destinatario   User      @relation("Destinatario", fields: [destinatarioId], references: [id], onDelete: Cascade)
+  assunto        String?
+  mensagem       String
+  lida           Boolean   @default(false)
+  lidaEm         DateTime?
+  createdAt      DateTime  @default(now())
+
+  @@index([remetenteId])
+  @@index([destinatarioId])
+  @@index([lida])
+  @@index([createdAt])
+}
+
+// 4. CONFIGURAÇÃO DE NOTIFICAÇÃO — preferências por usuário
+model ConfiguracaoNotificacao {
+  id         String   @id @default(cuid())
+  usuarioId  String   @unique
+  usuario    User     @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  // Categorias
+  pedidos    Boolean  @default(true)
+  vendas     Boolean  @default(true)
+  oficina    Boolean  @default(true)
+  estoque    Boolean  @default(true)
+  financeiro Boolean  @default(true)
+  sistema    Boolean  @default(true)
+  mensagens  Boolean  @default(true)
+  // Canais (futuro)
+  interno    Boolean  @default(true)
+  whatsapp   Boolean  @default(false)
+  email      Boolean  @default(false)
+  push       Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+// 5. LEMBRETE DO SISTEMA — tarefas pessoais da equipe
+model LembreteSistema {
+  id           String    @id @default(cuid())
+  usuarioId    String
+  usuario      User      @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  titulo       String
+  descricao    String?
+  dataHora     DateTime
+  concluido    Boolean   @default(false)
+  concluidoEm  DateTime?
+  entidadeTipo String? // Pedido, OrdemServico, Venda, etc
+  entidadeId   String?
+  createdAt    DateTime  @default(now())
+
+  @@index([usuarioId])
+  @@index([concluido])
+  @@index([dataHora])
+  @@index([createdAt])
+}
+
+// 6. FILA DE PROCESSAMENTO — eventos assíncronos futuros
+model FilaProcessamento {
+  id               String    @id @default(cuid())
+  tipo             String // EMAIL, WHATSAPP, PUSH, RELATORIO, EXPORTACAO, NOTIFICACAO
+  payload          String? // JSON
+  status           String    @default("PENDENTE") // PENDENTE, PROCESSANDO, CONCLUIDO, FALHA
+  tentativas       Int       @default(0)
+  proximaTentativa DateTime?
+  processadoEm     DateTime?
+  erro             String?
+  createdAt        DateTime  @default(now())
+
+  @@index([tipo])
+  @@index([status])
+  @@index([proximaTentativa])
+  @@index([createdAt])
 }

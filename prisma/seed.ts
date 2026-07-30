@@ -24,19 +24,19 @@ async function main() {
   console.log('Estoque Central: estoque@marquinho.com.br / estoque123');
 
   // Categorias
-  const categorias = [
-    { nome: 'Motor', slug: 'motor' },
-    { nome: 'Freios', slug: 'freios' },
-    { nome: 'Eletrica', slug: 'eletrica' },
-    { nome: 'Suspensao', slug: 'suspensao' },
-    { nome: 'Transmissao', slug: 'transmissao' },
-    { nome: 'Carroceria', slug: 'carroceria' },
-    { nome: 'Rodas e Pneus', slug: 'rodas-e-pneus' },
-    { nome: 'Oleos e Fluidos', slug: 'oleos-e-fluidos' },
-    { nome: 'Escapamento', slug: 'escapamento' },
-    { nome: 'Acessorios', slug: 'acessorios' },
-    { nome: 'Filtros', slug: 'filtros' },
-    { nome: 'Cabos e Comandos', slug: 'cabos-e-comandos' },
+  const categorias: { nome: string; slug: string; icone: string; ordem: number }[] = [
+    { nome: 'Motor', slug: 'motor', icone: 'motor', ordem: 1 },
+    { nome: 'Freios', slug: 'freios', icone: 'freios', ordem: 2 },
+    { nome: 'Eletrica', slug: 'eletrica', icone: 'eletrica', ordem: 3 },
+    { nome: 'Suspensao', slug: 'suspensao', icone: 'suspensao', ordem: 4 },
+    { nome: 'Transmissao', slug: 'transmissao', icone: 'transmissao', ordem: 5 },
+    { nome: 'Carroceria', slug: 'carroceria', icone: 'carenagem', ordem: 6 },
+    { nome: 'Rodas e Pneus', slug: 'rodas-e-pneus', icone: 'pneus', ordem: 7 },
+    { nome: 'Oleos e Fluidos', slug: 'oleos-e-fluidos', icone: 'oleos', ordem: 8 },
+    { nome: 'Escapamento', slug: 'escapamento', icone: 'escapamento', ordem: 9 },
+    { nome: 'Acessorios', slug: 'acessorios', icone: 'acessorios', ordem: 10 },
+    { nome: 'Filtros', slug: 'filtros', icone: 'filtros', ordem: 11 },
+    { nome: 'Cabos e Comandos', slug: 'cabos-e-comandos', icone: 'cabos', ordem: 12 },
   ];
   for (const c of categorias) await prisma.categoria.upsert({ where: { slug: c.slug }, update: {}, create: c });
   console.log(`${categorias.length} categorias criadas.`);

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import PagamentoModal from '@/components/pdv/PagamentoModal';
 
 interface Peca {
   id: string; nome: string; codigo: string; precoVenda: number;
@@ -53,6 +54,10 @@ export default function DetalheOSBalcao({ os: initialOS, onClose }: { os: OS; on
 
   const pecaInputRef = useRef<HTMLInputElement>(null);
   const pecaDropdownRef = useRef<HTMLDivElement>(null);
+
+  // Pagamento
+  const [pagamentoOpen, setPagamentoOpen] = useState(false);
+  const [pagandoOS, setPagandoOS] = useState(false);
 
   const fm = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   const sc: Record<string, string> = {
@@ -178,6 +183,89 @@ export default function DetalheOSBalcao({ os: initialOS, onClose }: { os: OS; on
     } else {
       setMsg('Erro ao liberar moto.');
     }
+  }
+
+  async function receberPagamento(pagamentos: any[], trocoTotal: number) {
+    setPagamentoOpen(false);
+    setPagandoOS(true);
+    setMsg('');
+    try {
+      // 1. Criar Pedido unificado (tipo: ORDEM_SERVICO) com os itens da OS
+      const itensPedido = dados.itens.map(i => ({
+        pecaId: i.peca.id,
+        quantidade: i.quantidade,
+        precoOriginal: Number(i.precoUnitario),
+        descontoPercent: 0,
+        descontoReais: 0,
+        precoUnitario: Number(i.precoUnitario),
+      }));
+
+      // Incluir mao de obra como item observacao
+      if (maoDeObraAtual > 0) {
+        itensPedido.push({
+          pecaId: dados.itens[0]?.peca?.id || '', // fallback
+          quantidade: 1,
+          precoOriginal: maoDeObraAtual,
+          descontoPercent: 0,
+          descontoReais: 0,
+          precoUnitario: maoDeObraAtual,
+          observacao: 'Mao de obra / Servico',
+        } as any);
+      }
+
+      const pedidoRes = await fetch('/api/pedidos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          itens: itensPedido.filter(i => i.pecaId),
+          clienteNome: dados.nomeCliente,
+          clienteTelefone: dados.telefoneCliente,
+          tipo: 'ORDEM_SERVICO',
+          origem: 'ORDEM_SERVICO',
+          ordemServicoId: dados.id,
+          observacoes: `Pagamento OS #${dados.numero} — ${dados.modeloMoto}`,
+        }),
+      });
+      const pedido = await pedidoRes.json();
+      if (pedido.error) { setMsg(pedido.error); setPagandoOS(false); return; }
+
+      // 2. Criar Venda via fluxo unificado
+      const pgsProcessados = pagamentos.map((p: any) => ({
+        ...p,
+        troco: p.tipo === 'DINHEIRO' ? trocoTotal : 0,
+      }));
+
+      const vendaRes = await fetch('/api/vendas', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pedidoId: pedido.id, pagamentos: pgsProcessados }),
+      });
+      const venda = await vendaRes.json();
+      if (venda.error) { setMsg(typeof venda.error === 'string' ? venda.error : 'Erro ao processar pagamento'); setPagandoOS(false); return; }
+
+      // 3. Atualizar OS: marcar como PAGA
+      const r = await fetch(`/api/ordens/${dados.id}/status`, {
+        method: 'PUT', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          statusPagamento: 'PAGO',
+          status: 'CONCLUIDA',
+          formaPagamento: pagamentos.map((p: any) => p.tipo).join(', '),
+          valorPago: totalGeral,
+          dataPagamento: new Date().toISOString(),
+        }),
+      });
+
+      if (r?.ok) {
+        const u = await r.json();
+        setDados(u);
+        setMsgOk(`✅ PAGAMENTO RECEBIDO! Venda #${venda.numero} gerada. A moto esta liberada para entrega.`);
+      } else {
+        setMsgOk('✅ Pagamento recebido e venda gerada! (OS atualizada parcialmente)');
+      }
+    } catch {
+      setMsg('Erro ao processar pagamento.');
+    }
+    setPagandoOS(false);
   }
 
   function linkWhatsApp() {
@@ -420,9 +508,20 @@ export default function DetalheOSBalcao({ os: initialOS, onClose }: { os: OS; on
                 <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-red-50 text-red-700 border border-red-200">
                   🔴 AGUARDANDO PAGAMENTO PARA LIBERACAO DA MOTO
                 </span>
-                <button onClick={onClose} className="btn-secondary text-xs">Fechar</button>
+                <div className="flex items-center gap-2">
+                  <button onClick={onClose} className="btn-secondary text-xs">Fechar</button>
+                  <button
+                    onClick={() => setPagamentoOpen(true)}
+                    className="btn-primary text-xs font-bold"
+                    disabled={pagandoOS}
+                  >
+                    {pagandoOS ? 'Processando...' : '💰 RECEBER PAGAMENTO'}
+                  </button>
+                </div>
               </div>
-              <p className="text-[11px] text-slate-400 text-center">A Dona confirmara o pagamento para liberar a entrega.</p>
+              <p className="text-[11px] text-slate-400 text-center">
+                Total: {fm(totalGeral)} — Receba o pagamento para liberar a moto.
+              </p>
             </div>
           ) : (
             <div className="flex items-center justify-between">
@@ -439,6 +538,14 @@ export default function DetalheOSBalcao({ os: initialOS, onClose }: { os: OS; on
           )}
         </div>
       </div>
+
+      {/* Modal de pagamento */}
+      <PagamentoModal
+        open={pagamentoOpen}
+        total={totalGeral}
+        onClose={() => setPagamentoOpen(false)}
+        onConfirmar={receberPagamento}
+      />
     </div>
   );
 }

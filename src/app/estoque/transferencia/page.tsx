@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import BarcodeScanner from '@/components/scanner/BarcodeScanner';
+import ScannerUniversal from '@/components/scanner/ScannerUniversal';
 import EstoqueCategorias from '@/components/estoque/EstoqueCategorias';
 import { useEstoqueRefresh } from '@/lib/estoque-events';
 
@@ -67,7 +67,6 @@ export default function TransferenciaPage() {
     setLoading(false);
   }
 
-  function handleDetected(code:string) { setShowScanner(false); buscarPor(code); }
 
   const fm = (v:number)=>v.toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
 
@@ -192,7 +191,7 @@ export default function TransferenciaPage() {
         </div>
       </div>
 
-      {showScanner && <BarcodeScanner onDetected={handleDetected} onClose={()=>setShowScanner(false)}/>}
+      {showScanner && <ScannerUniversal onDetected={(code) => { setShowScanner(false); buscarPor(code); }} onClose={()=>setShowScanner(false)}/>}
     </div>
   );
 }

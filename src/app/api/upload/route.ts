@@ -7,7 +7,7 @@ import prisma from '@/lib/prisma';
 export async function POST(req: NextRequest) {
   try {
   const session = await getSession();
-  if (!session || !['DONO', 'BALCAO'].includes(session.role)) {
+  if (!session || !['DONO', 'BALCAO', 'ESTOQUE'].includes(session.role)) {
     return NextResponse.json({ error: 'Nao autorizado' }, { status: 403 });
   }
   const formData = await req.formData();

@@ -21,6 +21,12 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
   if (body.username !== undefined) data.username = body.username || null;
   // tipoBalcao
   if (body.tipoBalcao !== undefined) data.tipoBalcao = body.tipoBalcao || null;
+  // cargo
+  if (body.cargo !== undefined) data.cargo = body.cargo || null;
+  // telefone
+  if (body.telefone !== undefined) data.telefone = body.telefone || null;
+  // observacoes
+  if (body.observacoes !== undefined) data.observacoes = body.observacoes || null;
   // Active toggle
   if (typeof body.active === 'boolean') data.active = body.active;
   // Password

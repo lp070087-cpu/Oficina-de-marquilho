@@ -93,7 +93,7 @@ export default async function DonoDashboard() {
           <p className="text-[11px] text-slate-400 mt-1">{osConcluidasMes} OS concluidas no mes</p>
         </div>
         <div className="card-stat">
-          <p className="text-[11px] text-slate-500 font-medium uppercase tracking-wider mb-2">Mecanicos ativos</p>
+          <p className="text-[11px] text-slate-500 font-medium uppercase tracking-wider mb-2">Funcionarios ativos</p>
           <p className="text-2xl font-bold text-slate-800">{mecanicosAtivos}</p>
           <p className="text-[11px] text-slate-400 mt-1">Faturamento: {formatMoney(Number(faturamentoMes._sum.valorTotal) || 0)}</p>
         </div>

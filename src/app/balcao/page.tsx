@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import DetalheOSBalcao, { OS } from '@/components/DetalheOSBalcao';
+import DashboardPDV from '@/components/pdv/DashboardPDV';
 
 export default function BalcaoDashboard() {
   const [stats, setStats] = useState({
@@ -104,6 +105,8 @@ export default function BalcaoDashboard() {
           <p className="text-2xl font-bold text-amber-600">{stats.osAguardandoPagamento}</p>
         </div>
       </div>
+
+      <DashboardPDV />
 
       <div className="card-table">
         <div className="px-6 py-4 border-b border-slate-100">

@@ -8,7 +8,17 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
   const { id } = await params;
   const os = await prisma.ordemServico.findUnique({
     where: { id },
-    include: { mecanico: { select: { name: true } }, balcao: { select: { name: true } }, itens: { include: { peca: { include: { categoria: { select: { nome: true } } } } } }, notaFiscal: true },
+    include: {
+      mecanico: { select: { name: true } },
+      balcao: { select: { name: true } },
+      itens: { include: { peca: { include: { categoria: { select: { nome: true } } } } } },
+      servicos: true,
+      notaFiscal: true,
+      fotos: { orderBy: { createdAt: 'desc' } },
+      checklist: { orderBy: { item: 'asc' } },
+      assinatura: true,
+      revisoes: { orderBy: { createdAt: 'desc' } },
+    },
   });
   if (!os) return NextResponse.json({ error: 'OS nao encontrada' }, { status: 404 });
   return NextResponse.json(os);

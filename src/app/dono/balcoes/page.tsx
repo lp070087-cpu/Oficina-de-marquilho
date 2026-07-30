@@ -26,7 +26,7 @@ export default function BalcoesPage() {
   async function fetchUsers() {
     const res = await fetch('/api/usuarios');
     const data = await res.json();
-    setUsers(data.filter((u:User) => (u.role==='BALCAO'||u.role==='ESTOQUE'||u.role==='MECANICO') && u.active));
+    setUsers(data.filter((u:User) => (u.role==='BALCAO'||u.role==='ESTOQUE') && u.active));
     setLoading(false);
   }
   useEffect(()=>{fetchUsers();},[]);
@@ -89,26 +89,26 @@ export default function BalcoesPage() {
   return (
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
-        <div><h1 className="text-xl font-bold text-slate-800 tracking-tight">FUNCIONARIOS</h1><p className="text-sm text-slate-500 mt-0.5">{ativos} ativos</p></div>
-        <button onClick={abrirNovo} className="btn-primary inline-flex items-center gap-2 text-xs"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>Novo funcionario</button>
+        <div><h1 className="text-xl font-bold text-slate-800 tracking-tight">BALCOES</h1><p className="text-sm text-slate-500 mt-0.5">{ativos} ativos &middot; Gerencia logins, permissoes e acessos dos balcoes</p></div>
+        <button onClick={abrirNovo} className="btn-primary inline-flex items-center gap-2 text-xs"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>Novo balcao</button>
       </div>
 
       <input value={busca} onChange={e=>setBusca(e.target.value)} placeholder="Buscar..." className="input-field max-w-md mb-4"/>
 
-      {loading?<p className="text-sm text-slate-400">Carregando...</p>:filter.length===0?(<div className="card text-center py-12"><p className="text-sm text-slate-400">Nenhum funcionario cadastrado.</p></div>):(
+      {loading?<p className="text-sm text-slate-400">Carregando...</p>:filter.length===0?(<div className="card text-center py-12"><p className="text-sm text-slate-400">Nenhum balcao cadastrado.</p></div>):(
         <div className="card overflow-x-auto">
           <table className="w-full text-sm">
-            <thead><tr className="border-b border-slate-100">
-              <th className="text-left py-2.5 px-3 text-xs font-semibold text-slate-500 uppercase">Nome</th>
-              <th className="text-left py-2.5 px-3 text-xs font-semibold text-slate-500 uppercase">Login</th>
-              <th className="text-left py-2.5 px-3 text-xs font-semibold text-slate-500 uppercase">Perfil</th>
-              <th className="text-left py-2.5 px-3 text-xs font-semibold text-slate-500 uppercase">Ultimo acesso</th>
-              <th className="text-center py-2.5 px-3 text-xs font-semibold text-slate-500 uppercase">Status</th>
-              <th className="text-right py-2.5 px-3 text-xs font-semibold text-slate-500 uppercase">Acoes</th>
+            <thead><tr className="border-b border-slate-100 bg-slate-50/50">
+              <th className="text-left py-2.5 px-3 text-[11px] font-semibold text-slate-500 uppercase">Nome</th>
+              <th className="text-left py-2.5 px-3 text-[11px] font-semibold text-slate-500 uppercase">Login</th>
+              <th className="text-left py-2.5 px-3 text-[11px] font-semibold text-slate-500 uppercase">Perfil</th>
+              <th className="text-left py-2.5 px-3 text-[11px] font-semibold text-slate-500 uppercase">Ultimo acesso</th>
+              <th className="text-center py-2.5 px-3 text-[11px] font-semibold text-slate-500 uppercase">Status</th>
+              <th className="text-right py-2.5 px-3 text-[11px] font-semibold text-slate-500 uppercase">Acoes</th>
             </tr></thead>
             <tbody>{filter.map(u=>(
               <tr key={u.id} className={`border-b border-slate-50 hover:bg-slate-50/50 ${!u.active?'opacity-50':''}`}>
-                <td className="py-2.5 px-3"><p className="font-medium text-slate-700">{u.name}</p>{u.mustChangePassword&&<span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded">Trocar senha</span>}</td>
+                <td className="py-2.5 px-3"><p className="font-medium text-slate-700">{u.name}</p>{u.mustChangePassword&&<span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-medium">Trocar senha</span>}</td>
                 <td className="py-2.5 px-3 text-xs text-slate-500">{u.email}</td>
                 <td className="py-2.5 px-3 text-xs"><span className="bg-slate-50 text-slate-600 px-2 py-0.5 rounded text-[10px] font-medium">{tipoLabel[u.tipoBalcao||'']||u.role}</span></td>
                 <td className="py-2.5 px-3 text-xs text-slate-400">{u.lastLoginAt?new Date(u.lastLoginAt).toLocaleDateString('pt-BR'):'-'}</td>
@@ -120,10 +120,10 @@ export default function BalcoesPage() {
                 </td>
                 <td className="py-2.5 px-3 text-right">
                   <div className="flex items-center justify-end gap-1 flex-wrap">
-                    <button onClick={()=>abrirEditar(u)} className="text-xs text-brand-600 hover:text-brand-700 font-medium">Editar</button>
-                    <button onClick={()=>abrirReset(u)} className="text-xs text-amber-600 hover:text-amber-700 font-medium">Senha</button>
-                    <button onClick={()=>toggleBlock(u)} className={`text-xs font-medium ${u.lockedUntil?'text-emerald-600 hover:text-emerald-700':'text-orange-600 hover:text-orange-700'}`}>{u.lockedUntil?'Desbloq.':'Bloq.'}</button>
-                    <button onClick={()=>toggleActive(u.id)} className={`text-xs font-medium ${u.active?'text-red-500 hover:text-red-700':'text-emerald-600 hover:text-emerald-700'}`}>{u.active?'Desat.':'Ativar'}</button>
+                    <button onClick={()=>abrirEditar(u)} className="text-xs text-brand-600 hover:text-brand-700 font-medium px-1.5 py-1 rounded hover:bg-brand-50">Editar</button>
+                    <button onClick={()=>abrirReset(u)} className="text-xs text-amber-600 hover:text-amber-700 font-medium px-1.5 py-1 rounded hover:bg-amber-50">Senha</button>
+                    <button onClick={()=>toggleBlock(u)} className={`text-xs font-medium px-1.5 py-1 rounded ${u.lockedUntil?'text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50':'text-orange-600 hover:text-orange-700 hover:bg-orange-50'}`}>{u.lockedUntil?'Desbloq.':'Bloq.'}</button>
+                    <button onClick={()=>toggleActive(u.id)} className={`text-xs font-medium px-1.5 py-1 rounded ${u.active?'text-red-500 hover:text-red-700 hover:bg-red-50':'text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50'}`}>{u.active?'Desat.':'Ativar'}</button>
                   </div>
                 </td>
               </tr>
@@ -134,26 +134,26 @@ export default function BalcoesPage() {
 
       {/* Modal criar/editar */}
       {modal && (
-        <div className="fixed inset-0 bg-black/30 flex items-start justify-center z-50 p-4 pt-10 overflow-y-auto">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-xl w-full max-w-sm p-6 my-4">
-            <h2 className="text-base font-bold text-slate-800 mb-4">{editando?'Editar Funcionario':'Novo Funcionario'}</h2>
+        <div className="fixed inset-0 bg-black/30 flex items-start justify-center z-50 p-4 pt-10 overflow-y-auto" onClick={() => setModal(false)}>
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-xl w-full max-w-sm p-6 my-4" onClick={e => e.stopPropagation()}>
+            <h2 className="text-base font-bold text-slate-800 mb-4">{editando?'Editar Balcao':'Novo Balcao'}</h2>
             {msg&&<div className="bg-red-50 border border-red-200 text-red-700 px-4 py-2.5 rounded-xl text-xs mb-4">{msg}</div>}
             <div className="space-y-4">
-              <div><label className="text-xs font-semibold text-slate-600 uppercase">Nome *</label><input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} className="input-field mt-1.5"/></div>
-              <div><label className="text-xs font-semibold text-slate-600 uppercase">Email de login *</label><input value={form.email} onChange={e=>setForm({...form,email:e.target.value})} className="input-field mt-1.5" disabled={!!editando}/></div>
-              <div><label className="text-xs font-semibold text-slate-600 uppercase">Usuario (opcional)</label><input value={form.username} onChange={e=>setForm({...form,username:e.target.value})} className="input-field mt-1.5"/></div>
+              <div><label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Nome *</label><input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} className="input-field mt-1.5" placeholder="Ex: Joao Silva" autoFocus/></div>
+              <div><label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Email de login *</label><input value={form.email} onChange={e=>setForm({...form,email:e.target.value})} className="input-field mt-1.5" placeholder="email@exemplo.com" disabled={!!editando}/></div>
+              <div><label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Usuario (opcional)</label><input value={form.username} onChange={e=>setForm({...form,username:e.target.value})} className="input-field mt-1.5" placeholder="Nome de usuario"/></div>
               <div>
-                <label className="text-xs font-semibold text-slate-600 uppercase">Perfil</label>
+                <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Perfil *</label>
                 <select value={form.tipoBalcao} onChange={e=>setForm({...form,tipoBalcao:e.target.value})} className="input-field mt-1.5">
-                  <option value="">Selecionar...</option>
+                  <option value="">Selecionar perfil...</option>
                   <option value="SERVICOS">Balcao de Servicos</option>
-                  <option value="ESTOQUE_CENTRAL">Estoque Central</option>
                   <option value="VENDA_LOJA">Balcao de Venda</option>
+                  <option value="ESTOQUE_CENTRAL">Estoque Central</option>
                 </select>
               </div>
               <div>
-                <label className="text-xs font-semibold text-slate-600 uppercase">{editando?'Nova senha (deixe vazio para manter)':'Senha de acesso *'}</label>
-                <input type="password" value={form.password} onChange={e=>setForm({...form,password:e.target.value})} className="input-field mt-1.5" placeholder={editando?'Manter atual':'Senha'}/>
+                <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">{editando?'Nova senha (deixe vazio para manter)':'Senha de acesso *'}</label>
+                <input type="password" value={form.password} onChange={e=>setForm({...form,password:e.target.value})} className="input-field mt-1.5" placeholder={editando?'Manter senha atual':'Defina uma senha'}/>
               </div>
             </div>
             <div className="flex justify-end gap-2 mt-6 pt-4 border-t border-slate-100">
@@ -166,13 +166,13 @@ export default function BalcoesPage() {
 
       {/* Modal redefinir senha */}
       {modalReset && (
-        <div className="fixed inset-0 bg-black/30 flex items-start justify-center z-50 p-4 pt-10 overflow-y-auto">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-xl w-full max-w-sm p-6 my-4">
+        <div className="fixed inset-0 bg-black/30 flex items-start justify-center z-50 p-4 pt-10 overflow-y-auto" onClick={() => setModalReset(null)}>
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-xl w-full max-w-sm p-6 my-4" onClick={e => e.stopPropagation()}>
             <h2 className="text-base font-bold text-slate-800 mb-3">Redefinir Senha — {modalReset.name}</h2>
             {msg&&<div className="bg-red-50 border border-red-200 text-red-700 px-4 py-2.5 rounded-xl text-xs mb-4">{msg}</div>}
             <div className="space-y-3">
               <div>
-                <label className="text-xs font-semibold text-slate-600 uppercase">Nova senha</label>
+                <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Nova senha</label>
                 <input type="text" value={novaSenha} onChange={e=>setNovaSenha(e.target.value)} className="input-field mt-1.5 font-mono" placeholder="Digite ou gere automaticamente"/>
               </div>
               <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-600">

@@ -1,6 +1,6 @@
 'use client';
-// VERSÃO ASSISTENTE IA 2026 — ARQUITETURA MODULAR (FASE 13.5)
-// Redirecionado para usar os mesmos componentes do estoque/assistente
+// ASSISTENTE GERENCIAL — Consultas administrativas (sem funcoes operacionais)
+// Scanner, cadastro, XML e importacao foram movidos para o Estoque Central
 
 import { useEffect } from 'react';
 import { useAssistenteIA } from '@/components/assistente-ia/Hooks/useAssistenteIA';
@@ -8,16 +8,11 @@ import { AssistenteHeader } from '@/components/assistente-ia/Header/AssistenteHe
 import { VoiceSettingsPanel } from '@/components/assistente-ia/Voice/VoiceSettingsPanel';
 import { DashboardPanel } from '@/components/assistente-ia/Dashboard/DashboardPanel';
 import { GerentePanel } from '@/components/assistente-ia/GerenteIA/GerentePanel';
-import { CentralPanel } from '@/components/assistente-ia/CentralOperacional/CentralPanel';
-import { CopilotoPanel } from '@/components/assistente-ia/Copiloto/CopilotoPanel';
-import { AutomacaoPanel } from '@/components/assistente-ia/Automacao/AutomacaoPanel';
-import { ComprasPanel } from '@/components/assistente-ia/Compras/ComprasPanel';
-import { ScannerCadastroPanel } from '@/components/assistente-ia/ScannerCadastro';
 
-export default function AssistenteIAPage() {
+export default function AssistenteGerencialPage() {
   const ctx = useAssistenteIA();
 
-  // Cleanup SpeechRecognition e síntese de voz ao desmontar
+  // Cleanup SpeechRecognition e sintese de voz ao desmontar
   useEffect(() => {
     return () => { ctx.cleanup?.(); };
   }, [ctx.cleanup]);
@@ -28,11 +23,6 @@ export default function AssistenteIAPage() {
       <VoiceSettingsPanel ctx={ctx} />
       <DashboardPanel ctx={ctx} />
       <GerentePanel ctx={ctx} />
-      <CentralPanel ctx={ctx} />
-      <CopilotoPanel ctx={ctx} />
-      <AutomacaoPanel ctx={ctx} />
-      <ComprasPanel ctx={ctx} />
-      <ScannerCadastroPanel ctx={ctx} />
     </div>
   );
 }

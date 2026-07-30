@@ -142,7 +142,6 @@ export function useAssistenteIA() {
     const d = dashboardData;
     const insights: { icon: string; texto: string; cor: string; bg: string; border: string }[] = [];
     if (d.estoqueCritico.length > 0) insights.push({ icon: '⚠️', texto: `Existem ${d.estoqueCritico.length} produtos com estoque crítico (abaixo do mínimo).`, cor: 'text-amber-700', bg: 'bg-amber-50', border: 'border-amber-200' });
-    if (d.valorTotal > 0) insights.push({ icon: '💰', texto: `Você possui ${d.valorTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} em estoque (valor de venda).`, cor: 'text-emerald-700', bg: 'bg-emerald-50', border: 'border-emerald-200' });
     if (d.maiorCategoria && d.valorTotal > 0) { const pct = Math.round((d.maiorCategoria.valor / d.valorTotal) * 100); insights.push({ icon: '📂', texto: `A categoria ${d.maiorCategoria.nome} representa ${pct}% do valor total em estoque.`, cor: 'text-blue-700', bg: 'bg-blue-50', border: 'border-blue-200' }); }
     if (d.paradosList.length > 5) insights.push({ icon: '⏸️', texto: `Há ${d.paradosList.length} produtos com estoque elevado — podem ser transferidos para a loja.`, cor: 'text-purple-700', bg: 'bg-purple-50', border: 'border-purple-200' });
     if (d.semEstoque.length > 0) insights.push({ icon: '🚫', texto: `${d.semEstoque.length} produtos estão sem estoque. Considere reposição urgente.`, cor: 'text-red-700', bg: 'bg-red-50', border: 'border-red-200' });
@@ -150,7 +149,6 @@ export function useAssistenteIA() {
     if (precosBaixos.length > 0) insights.push({ icon: '📉', texto: `${precosBaixos.length} produtos estão com preços abaixo da média (R$ ${d.precoMedio.toFixed(2).replace('.', ',')}).`, cor: 'text-indigo-700', bg: 'bg-indigo-50', border: 'border-indigo-200' });
     const precosAltos = todosProdutos.filter(p => (Number(p.precoVenda) || 0) > (d.precoMedio * 1.5) && (p.quantidade || 0) > 0);
     if (precosAltos.length > 0) insights.push({ icon: '📈', texto: `${precosAltos.length} produtos estão com preços acima da média. Avalie a competitividade.`, cor: 'text-orange-700', bg: 'bg-orange-50', border: 'border-orange-200' });
-    if (d.valorTotalCusto > 0 && d.valorTotal > 0) { const margem = Math.round(((d.valorTotal - d.valorTotalCusto) / d.valorTotal) * 100); insights.push({ icon: '📊', texto: `Margem de lucro estimada: ${margem}% sobre o valor de custo do estoque.`, cor: 'text-cyan-700', bg: 'bg-cyan-50', border: 'border-cyan-200' }); }
     return insights.slice(0, 8);
   }, [dashboardData, todosProdutos]);
 
@@ -172,11 +170,9 @@ export function useAssistenteIA() {
     const partes: string[] = [];
     partes.push(`O estoque possui ${d.totalProdutos} produtos distribuídos em ${d.catsArray.length} categorias.`);
     if (d.estoqueCritico.length > 0) partes.push(`Há ${d.estoqueCritico.length} produtos em nível crítico.`);
-    if (d.valorTotal > 0) partes.push(`O valor estimado é de ${d.valorTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })} (venda).`);
     if (d.maiorCategoria && d.valorTotal > 0) partes.push(`A categoria ${d.maiorCategoria.nome} representa ${Math.round((d.maiorCategoria.valor / d.valorTotal) * 100)}% do valor.`);
     if (d.semEstoque.length > 0) partes.push(`${d.semEstoque.length} produtos sem estoque precisam de reposição.`);
     if (d.paradosList.length > 5) partes.push(`Foram identificados ${d.paradosList.length} itens com estoque parado elevado.`);
-    if (d.valorTotalCusto > 0 && d.valorTotal > 0) partes.push(`Margem estimada sobre custo: ${Math.round(((d.valorTotal - d.valorTotalCusto) / d.valorTotal) * 100)}%.`);
     return partes.join(' ');
   }, [dashboardData]);
 

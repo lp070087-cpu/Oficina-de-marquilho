@@ -1,20 +1,14 @@
 'use client';
-// VERSÃO SCANNER 2026
-import { useState, useRef, useEffect } from 'react';
-import BarcodeScanner from '@/components/scanner/BarcodeScanner';
+// VERSÃO SCANNER 2026 — SCANNER UNIVERSAL + INTEGRAÇÃO (FASE 15-D)
+import { useState, useEffect } from 'react';
+import ScannerUniversal from '@/components/scanner/ScannerUniversal';
+import { useEstoqueRefresh } from '@/lib/estoque-events';
 
 interface Categoria { id:string; nome:string; slug:string; }
 interface Peca { id:string; nome:string; codigo:string; codigoBarras?:string; precoVenda:number; precoCusto:number; custoMedio:number; quantidade:number; quantidadeLoja:number; estoqueMinimo:number; marca?:string; compatibilidade?:string; localizacao?:string; categoria:{nome:string;id:string}; }
 
-interface DadosEtiqueta {
-  codigoBarras: string; codigoInterno: string; codigoOEM: string;
-  nome: string; marca: string; aplicacao: string;
-  lote: string; validade: string; cnpj: string;
-}
-
 export default function EstoqueScannerPage() {
   const [showScanner, setShowScanner] = useState(false);
-  const [manualCode, setManualCode] = useState('');
   const [found, setFound] = useState<Peca|null>(null);
   const [qtdCentral, setQtdCentral] = useState('1');
   const [qtdLoja, setQtdLoja] = useState('0');
@@ -22,13 +16,16 @@ export default function EstoqueScannerPage() {
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState('');
   const [msgOk, setMsgOk] = useState('');
-  const [dadosOCR, setDadosOCR] = useState<DadosEtiqueta|null>(null);
   const [cadastroNovo, setCadastroNovo] = useState(false);
   const [categorias, setCategorias] = useState<Categoria[]>([]);
-  const [formNovo, setFormNovo] = useState({ nome:'',codigo:'',codigoBarras:'',marca:'',precoVenda:'',precoCusto:'',compatibilidade:'',categoriaId:'' });
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [formNovo, setFormNovo] = useState({
+    nome:'', codigo:'', codigoBarras:'', marca:'',
+    precoVenda:'', precoCusto:'', compatibilidade:'', categoriaId:'',
+    quantidade:'0', quantidadeLoja:'0', estoqueMinimo:'5',
+    fornecedor:'', localizacao:'', descricao:'',
+  });
+  const { triggerRefresh } = useEstoqueRefresh();
 
-  // Carrega categorias ao montar
   useEffect(() => { fetch('/api/categorias').then(r => r.json()).then(setCategorias).catch(() => {}); }, []);
 
   async function buscar(code:string) {
@@ -42,35 +39,12 @@ export default function EstoqueScannerPage() {
       setValorCusto(p.custoMedio?String(Number(p.custoMedio)):String(Number(p.precoCusto)));
     } else {
       setCadastroNovo(true);
-      setFormNovo({ nome:dadosOCR?.nome||'', codigo:dadosOCR?.codigoInterno||'', codigoBarras:code, marca:dadosOCR?.marca||'', precoVenda:'', precoCusto:'', compatibilidade:dadosOCR?.aplicacao||'', categoriaId:categorias[0]?.id||'' });
+      setFormNovo({ nome:'', codigo:'', codigoBarras:code, marca:'', precoVenda:'', precoCusto:'', compatibilidade:'', categoriaId:categorias[0]?.id||'', quantidade:'0', quantidadeLoja:'0', estoqueMinimo:'5', fornecedor:'', localizacao:'', descricao:'' });
     }
     setLoading(false);
   }
 
-  function handleDetected(code:string) { setShowScanner(false); setManualCode(code); buscar(code); }
-
-  // Simula OCR sobre a etiqueta (extrai da descrição visual)
-  function processarImagem(file:File) {
-    setLoading(true); setMsg('');
-    const reader = new FileReader();
-    reader.onload = () => {
-      // Simulação de OCR - em produção usaria Tesseract.js ou API
-      setDadosOCR({
-        codigoBarras: manualCode || `SIM-${Date.now().toString(36).toUpperCase()}`,
-        codigoInterno: '',
-        codigoOEM: '',
-        nome: file.name.replace(/\.[^.]+$/,'').replace(/[_-]/g,' '),
-        marca: '',
-        aplicacao: '',
-        lote: '',
-        validade: '',
-        cnpj: '',
-      });
-      setMsg('Etiqueta analisada. Preencha os campos complementares.');
-      setLoading(false);
-    };
-    reader.readAsDataURL(file);
-  }
+  function handleDetected(code:string) { setShowScanner(false); buscar(code); }
 
   async function entradaEstoque() {
     if (!found) return;
@@ -78,29 +52,31 @@ export default function EstoqueScannerPage() {
     const ql = parseInt(qtdLoja)||0;
     const custo = parseFloat(valorCusto)||Number(found.precoCusto);
     if (qc+ql===0) { setMsg('Informe a quantidade.'); return; }
-    setLoading(true);
+    setLoading(true); setMsg('');
     const novaQtd = found.quantidade + qc;
     const novaQtdLoja = (found.quantidadeLoja||0) + ql;
     await fetch(`/api/pecas/${found.id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ ...found, quantidade:novaQtd, quantidadeLoja:novaQtdLoja, precoCusto:custo, custoMedio:custo, categoriaId:found.categoria.id }) });
     if (qc>0) await fetch('/api/relatorios/movimentacao', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ pecaId:found.id, tipo:'ENTRADA', quantidade:qc, valorUnitario:custo, origem:'CENTRAL', observacao:'Entrada via scanner' }) });
     if (ql>0) await fetch('/api/relatorios/movimentacao', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ pecaId:found.id, tipo:'ENTRADA', quantidade:ql, valorUnitario:custo, destino:'LOJA', observacao:'Entrada direta loja' }) });
-    setFound(null); setQtdCentral('1'); setQtdLoja('0'); setManualCode('');
+    setFound(null); setQtdCentral('1'); setQtdLoja('0');
     setMsgOk(`${qc+ql} un. adicionadas (${qc} central + ${ql} loja).`);
+    triggerRefresh();
     setLoading(false);
   }
 
   async function cadastrarProduto() {
     if (!formNovo.nome||!formNovo.categoriaId) { setMsg('Preencha nome e categoria.'); return; }
-    const qc = parseInt(qtdCentral)||1;
-    const ql = parseInt(qtdLoja)||0;
+    const qc = parseInt(formNovo.quantidade)||0;
+    const ql = parseInt(formNovo.quantidadeLoja)||0;
     const custo = parseFloat(valorCusto)||0;
+    const codigo = formNovo.codigo || `SCAN-${Date.now().toString(36).toUpperCase()}`;
     setLoading(true);
-    const res = await fetch('/api/pecas', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ ...formNovo, precoVenda:Number(formNovo.precoVenda)||0, precoCusto:custo, custoMedio:custo, quantidade:qc, quantidadeLoja:ql, estoqueMinimo:5 }) });
+    const res = await fetch('/api/pecas', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ ...formNovo, codigo, precoVenda:Number(formNovo.precoVenda)||0, precoCusto:custo, custoMedio:custo, quantidade:qc, quantidadeLoja:ql, estoqueMinimo:Number(formNovo.estoqueMinimo)||5 }) });
     if (res.ok) {
       const p = await res.json();
       if (qc>0) await fetch('/api/relatorios/movimentacao', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ pecaId:p.id, tipo:'ENTRADA', quantidade:qc, valorUnitario:custo, observacao:'Cadastro via scanner' }) });
-      setCadastroNovo(false); setQtdCentral('1'); setQtdLoja('0'); setManualCode('');
-      setMsgOk(`Produto "${p.nome}" cadastrado com ${qc} un.`);
+      setCadastroNovo(false); setMsgOk(`Produto "${p.nome}" cadastrado com ${qc} un.`);
+      triggerRefresh();
     } else { const e = await res.json(); setMsg(e.error||'Erro.'); }
     setLoading(false);
   }
@@ -110,46 +86,19 @@ export default function EstoqueScannerPage() {
   return (
     <div className="p-6 max-w-2xl mx-auto">
       <h1 className="text-xl font-bold text-slate-800 tracking-tight mb-1">ENTRADA SCANNER</h1>
-      <p className="text-sm text-slate-500 mb-6">Escaneie o codigo de barras ou faca upload da etiqueta</p>
+      <p className="text-sm text-slate-500 mb-6">Escaneie o codigo de barras com camera, USB ou digite manualmente</p>
       {msgOk&&<div className="bg-emerald-50 border border-emerald-200 text-emerald-700 px-4 py-3 rounded-xl text-xs mb-4 font-bold">{msgOk}</div>}
       {msg&&<div className="bg-amber-50 border border-amber-200 text-amber-700 px-4 py-3 rounded-xl text-xs mb-4">{msg}</div>}
 
-      {/* Botoes de entrada */}
-      <div className="flex items-center gap-3 mb-6 flex-wrap">
-        <button onClick={()=>setShowScanner(true)} className="btn-primary inline-flex items-center gap-2 text-xs flex-1 justify-center min-w-[160px]">
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 13a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-          Camera
+      {/* Botao principal — Scanner Universal */}
+      <div className="flex items-center gap-3 mb-6">
+        <button onClick={()=>setShowScanner(true)} className="btn-primary inline-flex items-center gap-2 text-sm flex-1 justify-center py-3">
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"/></svg>
+          Abrir Scanner Universal
         </button>
-        <label className="btn-secondary inline-flex items-center gap-2 text-xs cursor-pointer flex-1 justify-center min-w-[160px]">
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
-          Upload Etiqueta
-          <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={e=>{const f=e.target.files?.[0];if(f)processarImagem(f);}}/>
-        </label>
       </div>
 
-      {/* Entrada manual */}
-      <div className="flex gap-2 mb-6">
-        <input value={manualCode} onChange={e=>setManualCode(e.target.value)} className="input-field flex-1" placeholder="Digite o codigo de barras ou use leitor USB..."
-          onKeyDown={e=>{if(e.key==='Enter')buscar(manualCode);}}/>
-        <button onClick={()=>buscar(manualCode)} disabled={loading} className="btn-primary text-xs px-4">Buscar</button>
-      </div>
-
-      {/* Dados OCR extraidos */}
-      {dadosOCR && (
-        <div className="card bg-slate-50 mb-4 text-xs space-y-1">
-          <p className="font-bold text-slate-700">Dados extraidos da etiqueta:</p>
-          {dadosOCR.nome&&<p><strong>Produto:</strong> {dadosOCR.nome}</p>}
-          {dadosOCR.codigoBarras&&<p><strong>Cod. Barras:</strong> <span className="font-mono">{dadosOCR.codigoBarras}</span></p>}
-          {dadosOCR.codigoInterno&&<p><strong>Cod. Interno:</strong> {dadosOCR.codigoInterno}</p>}
-          {dadosOCR.codigoOEM&&<p><strong>OEM:</strong> {dadosOCR.codigoOEM}</p>}
-          {dadosOCR.marca&&<p><strong>Marca:</strong> {dadosOCR.marca}</p>}
-          {dadosOCR.aplicacao&&<p><strong>Aplicacao:</strong> {dadosOCR.aplicacao}</p>}
-          {dadosOCR.lote&&<p><strong>Lote:</strong> {dadosOCR.lote}</p>}
-          {dadosOCR.validade&&<p><strong>Validade:</strong> {dadosOCR.validade}</p>}
-        </div>
-      )}
-
-      {loading&&<p className="text-xs text-slate-400 mb-4">Processando...</p>}
+      {loading&&<p className="text-xs text-slate-400 mb-4 text-center">Buscando...</p>}
 
       {/* Produto encontrado */}
       {found&&(
@@ -193,17 +142,20 @@ export default function EstoqueScannerPage() {
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="col-span-2"><label className="text-xs font-semibold text-slate-600 uppercase">Nome *</label><input value={formNovo.nome} onChange={e=>setFormNovo({...formNovo,nome:e.target.value})} className="input-field mt-1.5 text-xs"/></div>
-            <div><label className="text-xs font-semibold text-slate-600 uppercase">SKU</label><input value={formNovo.codigo} onChange={e=>setFormNovo({...formNovo,codigo:e.target.value})} className="input-field mt-1.5 text-xs"/></div>
+            <div><label className="text-xs font-semibold text-slate-600 uppercase">SKU</label><input value={formNovo.codigo} onChange={e=>setFormNovo({...formNovo,codigo:e.target.value})} className="input-field mt-1.5 text-xs" placeholder="Auto-gerado se vazio"/></div>
             <div><label className="text-xs font-semibold text-slate-600 uppercase">Cod. Barras</label><input value={formNovo.codigoBarras} onChange={e=>setFormNovo({...formNovo,codigoBarras:e.target.value})} className="input-field mt-1.5 text-xs"/></div>
             <div><label className="text-xs font-semibold text-slate-600 uppercase">Categoria *</label><select value={formNovo.categoriaId} onChange={e=>setFormNovo({...formNovo,categoriaId:e.target.value})} className="input-field mt-1.5 text-xs"><option value="">Selecionar</option>{categorias.map(c=>(<option key={c.id} value={c.id}>{c.nome}</option>))}</select></div>
             <div><label className="text-xs font-semibold text-slate-600 uppercase">Marca</label><input value={formNovo.marca} onChange={e=>setFormNovo({...formNovo,marca:e.target.value})} className="input-field mt-1.5 text-xs"/></div>
+            <div><label className="text-xs font-semibold text-slate-600 uppercase">Fornecedor</label><input value={formNovo.fornecedor} onChange={e=>setFormNovo({...formNovo,fornecedor:e.target.value})} className="input-field mt-1.5 text-xs"/></div>
             <div><label className="text-xs font-semibold text-slate-600 uppercase">Compatibilidade</label><input value={formNovo.compatibilidade} onChange={e=>setFormNovo({...formNovo,compatibilidade:e.target.value})} className="input-field mt-1.5 text-xs"/></div>
+            <div><label className="text-xs font-semibold text-slate-600 uppercase">Localizacao</label><input value={formNovo.localizacao} onChange={e=>setFormNovo({...formNovo,localizacao:e.target.value})} className="input-field mt-1.5 text-xs"/></div>
             <div><label className="text-xs font-semibold text-slate-600 uppercase">Preco Venda</label><input type="number" step="0.01" value={formNovo.precoVenda} onChange={e=>setFormNovo({...formNovo,precoVenda:e.target.value})} className="input-field mt-1.5 text-xs"/></div>
             <div><label className="text-xs font-semibold text-slate-600 uppercase">Preco Custo</label><input type="number" step="0.01" value={formNovo.precoCusto} onChange={e=>setFormNovo({...formNovo,precoCusto:e.target.value})} className="input-field mt-1.5 text-xs"/></div>
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div><label className="text-xs font-semibold text-slate-600 uppercase">Qtd Central</label><input type="number" value={qtdCentral} onChange={e=>setQtdCentral(e.target.value)} className="input-field mt-1.5 text-center font-bold" min="0"/></div>
-            <div><label className="text-xs font-semibold text-slate-600 uppercase">Qtd Loja</label><input type="number" value={qtdLoja} onChange={e=>setQtdLoja(e.target.value)} className="input-field mt-1.5 text-center font-bold" min="0"/></div>
+          <div className="grid grid-cols-3 gap-3">
+            <div><label className="text-xs font-semibold text-slate-600 uppercase">Qtd Central</label><input type="number" value={formNovo.quantidade} onChange={e=>setFormNovo({...formNovo,quantidade:e.target.value})} className="input-field mt-1.5 text-center font-bold" min="0"/></div>
+            <div><label className="text-xs font-semibold text-slate-600 uppercase">Qtd Loja</label><input type="number" value={formNovo.quantidadeLoja} onChange={e=>setFormNovo({...formNovo,quantidadeLoja:e.target.value})} className="input-field mt-1.5 text-center font-bold" min="0"/></div>
+            <div><label className="text-xs font-semibold text-slate-600 uppercase">Est. Minimo</label><input type="number" value={formNovo.estoqueMinimo} onChange={e=>setFormNovo({...formNovo,estoqueMinimo:e.target.value})} className="input-field mt-1.5 text-center font-bold" min="1"/></div>
           </div>
           <div className="flex gap-2 pt-2">
             <button onClick={()=>setCadastroNovo(false)} className="btn-secondary text-xs">Cancelar</button>
@@ -212,7 +164,7 @@ export default function EstoqueScannerPage() {
         </div>
       )}
 
-      {showScanner && <BarcodeScanner onDetected={handleDetected} onClose={()=>setShowScanner(false)}/>}
+      {showScanner && <ScannerUniversal onDetected={handleDetected} onClose={()=>setShowScanner(false)} />}
     </div>
   );
 }
