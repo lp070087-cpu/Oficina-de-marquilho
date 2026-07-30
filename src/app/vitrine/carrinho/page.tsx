@@ -75,7 +75,7 @@ export default function CarrinhoPage() {
               {cart.map((item, i) => {
                 const preco = item.peca.oferta && item.peca.precoOferta ? Number(item.peca.precoOferta) : Number(item.peca.precoVenda);
                 return (
-                  <div key={i} className="bg-white rounded-xl border border-slate-200 p-4 flex gap-4">
+                  <div key={i} className="bg-white rounded-xl border border-slate-200 p-4 flex flex-col sm:flex-row gap-4">
                     <a href={`/vitrine/produto/${item.peca.id}`} className="w-20 h-20 rounded-lg bg-slate-100 flex-shrink-0 overflow-hidden">
                       {item.peca.imagemUrl ? <img src={item.peca.imagemUrl} alt={item.peca.nome} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center text-slate-300 text-xs">Sem foto</div>}
                     </a>

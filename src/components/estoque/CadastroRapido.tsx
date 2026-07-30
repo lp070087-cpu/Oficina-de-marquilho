@@ -244,7 +244,7 @@ export default function CadastroRapido({
             </div>
 
             {/* Grid: Preco Custo, Preco Venda, Quantidade */}
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
               <div>
                 <label className="text-[10px] font-bold text-slate-600 uppercase">Custo</label>
                 <input

@@ -252,7 +252,7 @@ export default function ImportarPage() {
 
         {produtos.length>0 && (
           <>
-            <div className="grid grid-cols-4 gap-3 mb-4">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
               {[
                 { label:'Produtos encontrados', value:produtos.length },
                 { label:'Ja existem', value:produtos.filter(p=>p.existe).length },
@@ -351,7 +351,7 @@ export default function ImportarPage() {
 
       {produtos.length>0 && (
         <>
-          <div className="grid grid-cols-3 gap-3 mb-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
             {[
               { label:'Produtos identificados', value:produtos.length },
               { label:'Ja existem', value:produtos.filter(p=>p.existe).length },

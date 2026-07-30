@@ -379,7 +379,7 @@ export default function OrdensPage() {
                   <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center"><svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg></div>
                   <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wide">Dados do Cliente</h3>
                 </div>
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                   <div className="col-span-3 sm:col-span-2">
                     <label className="text-xs font-semibold text-slate-500 uppercase">Nome <span className="text-red-500">*</span></label>
                     <input value={form.nomeCliente} onChange={e => setForm({ ...form, nomeCliente: e.target.value })} className={inputClass('nomeCliente')} placeholder="Nome completo" autoFocus />

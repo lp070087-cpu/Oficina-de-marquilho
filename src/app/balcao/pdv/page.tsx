@@ -270,11 +270,11 @@ export default function BalcaoPdvPage() {
   const fm = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
   return (
-    <div className="flex h-full">
+    <div className="flex flex-col lg:flex-row h-full">
       {/* Coluna esquerda: Busca + area livre */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 min-h-0">
         {/* Header PDV */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-white flex-shrink-0">
+        <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-slate-100 bg-white flex-shrink-0">
           <div>
             <h1 className="text-lg font-bold text-slate-800">PDV / Balcao</h1>
             <p className="text-[10px] text-slate-400 uppercase tracking-wider">Ponto de Venda</p>
@@ -384,7 +384,7 @@ export default function BalcaoPdvPage() {
       </div>
 
       {/* Coluna direita: Carrinho */}
-      <div className="w-96 border-l border-slate-200 bg-white flex-shrink-0 flex flex-col">
+      <div className="w-full lg:w-96 border-t lg:border-t-0 lg:border-l border-slate-200 bg-white flex-shrink-0 flex flex-col max-h-[50vh] lg:max-h-none">
         <CarrinhoPDV
           itens={itens}
           onUpdateQuantidade={updateQuantidade}

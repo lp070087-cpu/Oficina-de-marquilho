@@ -66,7 +66,7 @@ export default async function DonoDashboard() {
   return (
     <div className="p-6 space-y-6">
       {/* Cards estatisticos */}
-      <div className="grid grid-cols-6 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
         <div className="card-stat">
           <p className="text-[11px] text-slate-500 font-medium uppercase tracking-wider mb-2">Pecas cadastradas</p>
           <p className="text-2xl font-bold text-slate-800">{totalPecas}</p>

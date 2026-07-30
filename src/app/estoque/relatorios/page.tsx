@@ -38,7 +38,7 @@ export default function RelatoriosPage() {
           <button key={p.k} onClick={()=>setPeriodo(p.k)} className={`px-3 py-1.5 rounded text-xs font-medium border ${periodo===p.k?'bg-brand-600 text-white border-brand-600':'bg-white text-slate-600 border-slate-200'}`}>{p.l}</button>
         ))}
       </div>
-      <div className="grid grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-6">
         <div className="card-stat"><p className="text-[11px] text-slate-500 uppercase">Pecas saidas</p><p className="text-2xl font-bold">{total}</p></div>
         <div className="card-stat"><p className="text-[11px] text-slate-500 uppercase">Valor total</p><p className="text-2xl font-bold">{fm(valor)}</p></div>
         <div className="card-stat"><p className="text-[11px] text-slate-500 uppercase">Itens diferentes</p><p className="text-2xl font-bold">{saidas.length}</p></div>

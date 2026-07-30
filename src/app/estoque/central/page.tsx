@@ -549,7 +549,7 @@ export default function EstoqueCentralPage() {
               <br />SKU: {deleteConfirm.codigo}
             </p>
             <p className="text-xs text-slate-400 text-center mb-5">Esta acao pode ser revertida por um administrador.</p>
-            <div className="flex gap-2">
+            <div className="flex flex-wrap gap-2">
               <button onClick={() => setDeleteConfirm(null)} className="btn-secondary flex-1 text-xs">Cancelar</button>
               <button onClick={() => remover(deleteConfirm)} className="flex-1 px-4 py-2.5 rounded-lg text-xs font-bold bg-red-600 text-white hover:bg-red-700 transition-colors">Remover</button>
             </div>

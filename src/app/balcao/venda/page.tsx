@@ -52,7 +52,7 @@ export default function VendaAvulsaPage() {
       {msgOk&&<div className="bg-emerald-50 border border-emerald-200 text-emerald-700 px-4 py-3 rounded-xl text-xs mb-4 font-bold">{msgOk}</div>}
       {msg&&<div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-xs mb-4">{msg}</div>}
 
-      <div className="flex gap-2 mb-4">
+      <div className="flex flex-wrap gap-2 mb-4">
         <input value={busca} onChange={e=>setBusca(e.target.value)} className="input-field" placeholder="Nome ou SKU..." onKeyDown={e=>{if(e.key==='Enter')buscar();}}/>
         <input value={barcode} onChange={e=>setBarcode(e.target.value)} className="input-field w-48" placeholder="Cod. barras..." onKeyDown={e=>{if(e.key==='Enter')buscar();}}/>
         <button onClick={buscar} disabled={loading} className="btn-primary text-xs">Buscar</button>
@@ -84,7 +84,7 @@ export default function VendaAvulsaPage() {
             <input type="number" value={qtd} onChange={e=>setQtd(e.target.value)} className="input-field w-24 text-center text-lg font-bold" min="1"/>
             <button onClick={vender} disabled={loading} className="btn-primary text-xs flex-1">Registrar venda — {fm(Number(selected.precoVenda)*(parseInt(qtd)||1))}</button>
           </div>
-          <div className="flex gap-2"><button onClick={()=>setSelected(null)} className="btn-secondary text-xs">Cancelar</button><button onClick={()=>{setSelected(null);setBusca('');setBarcode('');}} className="btn-secondary text-xs">Nova busca</button></div>
+          <div className="flex flex-wrap gap-2"><button onClick={()=>setSelected(null)} className="btn-secondary text-xs">Cancelar</button><button onClick={()=>{setSelected(null);setBusca('');setBarcode('');}} className="btn-secondary text-xs">Nova busca</button></div>
         </div>
       )}
     </div>

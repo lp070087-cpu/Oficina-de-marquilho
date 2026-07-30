@@ -136,7 +136,7 @@ export default function PagamentoModal({ open, total, onClose, onConfirmar }: Pa
           {/* Tipos de pagamento */}
           <div>
             <label className="text-[10px] font-bold text-slate-500 uppercase mb-1.5 block">Forma de pagamento</label>
-            <div className="grid grid-cols-3 gap-1.5">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
               {TIPOS.map(t => (
                 <button
                   key={t.key}
@@ -179,7 +179,7 @@ export default function PagamentoModal({ open, total, onClose, onConfirmar }: Pa
             <label className="text-[10px] font-bold text-slate-500 uppercase">
               {tipoAtual === 'DINHEIRO' ? 'Valor recebido' : 'Valor'}
             </label>
-            <div className="flex gap-2 mt-1">
+            <div className="flex flex-wrap gap-2 mt-1">
               <input
                 type="number"
                 step="0.01"
@@ -258,7 +258,7 @@ export default function PagamentoModal({ open, total, onClose, onConfirmar }: Pa
         </div>
 
         {/* Footer */}
-        <div className="flex gap-2 p-4 border-t border-slate-100">
+        <div className="flex flex-wrap gap-2 p-4 border-t border-slate-100">
           <button onClick={onClose} className="btn-secondary text-xs flex-1">Cancelar</button>
           <button
             onClick={handleConfirmar}

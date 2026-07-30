@@ -101,7 +101,7 @@ export default function DashboardPDV() {
   return (
     <div className="space-y-4">
       {/* KPIs principais */}
-      <div className="grid grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         <div className="bg-white rounded-xl border border-slate-200 p-4">
           <p className="text-[10px] text-slate-400 uppercase tracking-wider mb-1">Vendas Hoje</p>
           <p className="text-2xl font-bold text-slate-800">{resumo.qtdVendas}</p>

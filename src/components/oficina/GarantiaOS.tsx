@@ -86,7 +86,7 @@ export default function GarantiaOS({ osId, garantiaDias: garantiaInicial, garant
             </button>
           </div>
 
-          <div className="grid grid-cols-3 gap-3 text-center">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-center">
             <div>
               <p className="text-[10px] text-slate-500 uppercase">Duração</p>
               <p className="text-lg font-bold text-slate-800">{garantiaDias} dias</p>

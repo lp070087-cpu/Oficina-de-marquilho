@@ -218,7 +218,7 @@ export default function CheckoutPage() {
         {/* Cupom */}
         <div className="bg-white rounded-xl border border-slate-200 p-5 mb-4">
           <h2 className="text-sm font-bold text-slate-700 mb-3">Cupom de Desconto</h2>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <input value={cupom} onChange={e => setCupom(e.target.value.toUpperCase())} placeholder="CÓDIGO DO CUPOM"
               className="flex-1 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-xs uppercase focus:outline-none focus:border-brand-500" />
             <button onClick={aplicarCupom}

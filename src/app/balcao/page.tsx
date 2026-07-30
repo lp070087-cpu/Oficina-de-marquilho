@@ -83,7 +83,7 @@ export default function BalcaoDashboard() {
         </div>
       )}
 
-      <div className="grid grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-4">
         <div className="card-stat">
           <p className="text-[11px] text-slate-500 font-medium uppercase mb-2">Pecas no estoque</p>
           <p className="text-2xl font-bold text-slate-800">{stats.totalPecas}</p>

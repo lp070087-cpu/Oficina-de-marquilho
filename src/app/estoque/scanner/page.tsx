@@ -114,19 +114,19 @@ export default function EstoqueScannerPage() {
             <span className="text-xs font-bold px-2 py-1 rounded-full bg-emerald-50 text-emerald-700">Encontrado</span>
           </div>
 
-          <div className="grid grid-cols-3 gap-3 text-center">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 text-center">
             <div className="bg-slate-50 rounded-lg p-3"><p className="text-[10px] text-slate-400 uppercase">Central</p><p className="text-lg font-bold">{found.quantidade}</p></div>
             <div className="bg-slate-50 rounded-lg p-3"><p className="text-[10px] text-slate-400 uppercase">Loja</p><p className="text-lg font-bold">{found.quantidadeLoja||0}</p></div>
             <div className="bg-slate-50 rounded-lg p-3"><p className="text-[10px] text-slate-400 uppercase">Custo medio</p><p className="text-lg font-bold">{fm(Number(found.custoMedio)||Number(found.precoCusto))}</p></div>
           </div>
 
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             <div><label className="text-xs font-semibold text-slate-600 uppercase">Qtd Central</label><input type="number" value={qtdCentral} onChange={e=>setQtdCentral(e.target.value)} className="input-field mt-1.5 text-center font-bold" min="0"/></div>
             <div><label className="text-xs font-semibold text-slate-600 uppercase">Qtd Loja</label><input type="number" value={qtdLoja} onChange={e=>setQtdLoja(e.target.value)} className="input-field mt-1.5 text-center font-bold" min="0"/></div>
             <div><label className="text-xs font-semibold text-slate-600 uppercase">Custo Unit.</label><input type="number" step="0.01" value={valorCusto} onChange={e=>setValorCusto(e.target.value)} className="input-field mt-1.5 text-center font-bold"/></div>
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
             <button onClick={()=>setFound(null)} className="btn-secondary text-xs">Cancelar</button>
             <button onClick={entradaEstoque} disabled={loading} className="btn-primary text-xs flex-1">Confirmar entrada</button>
           </div>
@@ -157,7 +157,7 @@ export default function EstoqueScannerPage() {
             <div><label className="text-xs font-semibold text-slate-600 uppercase">Qtd Loja</label><input type="number" value={formNovo.quantidadeLoja} onChange={e=>setFormNovo({...formNovo,quantidadeLoja:e.target.value})} className="input-field mt-1.5 text-center font-bold" min="0"/></div>
             <div><label className="text-xs font-semibold text-slate-600 uppercase">Est. Minimo</label><input type="number" value={formNovo.estoqueMinimo} onChange={e=>setFormNovo({...formNovo,estoqueMinimo:e.target.value})} className="input-field mt-1.5 text-center font-bold" min="1"/></div>
           </div>
-          <div className="flex gap-2 pt-2">
+          <div className="flex flex-wrap gap-2 pt-2">
             <button onClick={()=>setCadastroNovo(false)} className="btn-secondary text-xs">Cancelar</button>
             <button onClick={cadastrarProduto} disabled={loading} className="btn-primary text-xs">{loading?'Salvando...':'Cadastrar produto'}</button>
           </div>

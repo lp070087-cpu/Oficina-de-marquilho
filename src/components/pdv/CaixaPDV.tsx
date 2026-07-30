@@ -282,7 +282,7 @@ export default function CaixaPDV() {
               </div>
             )}
 
-            <div className="flex gap-2 mt-5 pt-4 border-t border-slate-100">
+            <div className="flex flex-wrap gap-2 mt-5 pt-4 border-t border-slate-100">
               <button onClick={() => setModal('')} className="btn-secondary text-xs flex-1">Cancelar</button>
               <button onClick={() => handleAction(modal)} disabled={salvando}
                 className="btn-primary text-xs flex-1 disabled:opacity-50">

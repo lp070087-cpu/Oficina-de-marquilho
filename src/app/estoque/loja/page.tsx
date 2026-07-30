@@ -35,7 +35,7 @@ export default function EstoqueLojaPage() {
       <input value={busca} onChange={e=>{setBusca(e.target.value);setPage(1);}} placeholder="Buscar..." className="input-field max-w-md mb-4"/>
       <EstoqueCategorias active={catSlug} onChange={(s)=>{setCatSlug(s);setPage(1);}}/>
 
-      <div className="grid grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-6">
         <div className="card-stat"><p className="text-[11px] text-slate-500 uppercase">Total itens</p><p className="text-2xl font-bold">{filter.length}</p></div>
         <div className="card-stat"><p className="text-[11px] text-slate-500 uppercase">Unidades na loja</p><p className="text-2xl font-bold">{filter.reduce((s,p)=>s+(p.quantidadeLoja||0),0)}</p></div>
         <div className="card-stat"><p className="text-[11px] text-slate-500 uppercase">Valor loja</p><p className="text-2xl font-bold">{fm(filter.reduce((s,p)=>s+Number(p.precoVenda)*(p.quantidadeLoja||0),0))}</p></div>

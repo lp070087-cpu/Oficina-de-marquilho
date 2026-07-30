@@ -86,7 +86,7 @@ export default function TransferenciaPage() {
               <button key={k} onClick={()=>setFiltro(k)} className={`px-2.5 py-1 rounded text-[10px] font-semibold transition-colors ${filtro===k?'bg-brand-600 text-white':'text-slate-500 hover:bg-slate-50'}`}>{l}</button>
             ))}
           </div>
-          <div className="flex-1 flex gap-2">
+          <div className="flex-1 flex flex-wrap gap-2">
             <input value={busca} onChange={e=>setBusca(e.target.value)} placeholder="Buscar..." className="input-field flex-1 text-xs"/>
             <button onClick={()=>setShowScanner(true)} className="btn-primary text-xs inline-flex items-center gap-1 px-3">
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"/></svg>

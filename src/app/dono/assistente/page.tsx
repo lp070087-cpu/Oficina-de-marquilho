@@ -18,7 +18,7 @@ export default function AssistenteGerencialPage() {
   }, [ctx.cleanup]);
 
   return (
-    <div className="flex flex-col h-full bg-white overflow-hidden relative">
+    <div className="flex flex-col h-full bg-white overflow-y-auto relative">
       <AssistenteHeader ctx={ctx} />
       <VoiceSettingsPanel ctx={ctx} />
       <DashboardPanel ctx={ctx} />

@@ -129,7 +129,7 @@ export default function VitrineManagePage() {
           <p className="text-xs text-slate-400 mb-4">Pedidos recebidos pela Vitrine — retirada na loja</p>
 
           {/* Métricas rápidas */}
-          <div className="grid grid-cols-4 gap-3 mb-6">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-6">
             {[
               { label: 'Aguardando', qty: pedidosLoja.filter(p => p.status === 'PEDIDO_RECEBIDO').length, color: 'text-sky-600', bg: 'bg-sky-50 border-sky-200' },
               { label: 'Separando', qty: pedidosLoja.filter(p => p.status === 'EM_SEPARACAO').length, color: 'text-amber-600', bg: 'bg-amber-50 border-amber-200' },
@@ -214,7 +214,7 @@ export default function VitrineManagePage() {
                   </div>
                   <p className="text-xs text-slate-600 mb-2"><strong>Cliente:</strong> {o.cliente.nome} - {o.cliente.telefone} {o.modeloMoto?`| Moto: ${o.modeloMoto}`:''}</p>
                   <div className="space-y-0.5 mb-3">{o.itens.map((i,idx)=>(<p key={idx} className="text-xs text-slate-500">{i.quantidade}x {i.peca.nome}</p>))}</div>
-                  {o.status==='PENDENTE' && (<div className="flex gap-2"><button onClick={()=>atualizarOrcamento(o.id,'APROVADO')} className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1 rounded font-medium">Aprovar</button><button onClick={()=>atualizarOrcamento(o.id,'RECUSADO')} className="text-xs bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded font-medium">Recusar</button></div>)}
+                  {o.status==='PENDENTE' && (<div className="flex flex-wrap gap-2"><button onClick={()=>atualizarOrcamento(o.id,'APROVADO')} className="text-xs bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1 rounded font-medium">Aprovar</button><button onClick={()=>atualizarOrcamento(o.id,'RECUSADO')} className="text-xs bg-red-600 hover:bg-red-700 text-white px-3 py-1 rounded font-medium">Recusar</button></div>)}
                   {o.status==='APROVADO' && <button onClick={()=>atualizarOrcamento(o.id,'CONCLUIDO')} className="text-xs bg-brand-600 hover:bg-brand-700 text-white px-3 py-1 rounded font-medium">Concluir</button>}
                 </div>
               ))}
@@ -238,7 +238,7 @@ export default function VitrineManagePage() {
                   <label className="text-xs font-semibold text-slate-400 uppercase mb-1 block">Titulo do banner</label>
                   <input value={bannerTexto} onChange={e=>setBannerTexto(e.target.value)} className="w-full bg-white/10 border border-white/15 rounded-md py-2.5 px-4 text-white placeholder:text-slate-400 outline-none" placeholder="Ex: Tudo para sua moto com precos de atacado" />
                 </div>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   <button onClick={() => { fetch('/api/vitrine/config', { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({bannerTexto,bannerAtivo}) }); setEditandoBanner(false); }} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md text-sm font-bold">Salvar banner</button>
                   <button onClick={()=>setEditandoBanner(false)} className="px-4 py-2 bg-white/10 hover:bg-white/15 text-white rounded-md text-sm">Cancelar</button>
                 </div>

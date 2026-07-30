@@ -126,7 +126,7 @@ export default function DashboardOficina() {
       </div>
 
       {/* Linha 2: Aguardando pagamento + Canceladas + Finalizadas hoje */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         <div className="bg-red-50 border border-red-200 rounded-xl p-4">
           <p className="text-[10px] text-red-500 uppercase font-semibold">Aguard. Pagamento</p>
           <p className="text-xl font-black text-red-700 mt-1">{data.aguardandoPagamento}</p>

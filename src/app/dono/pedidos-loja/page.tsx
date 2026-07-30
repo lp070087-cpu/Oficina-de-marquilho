@@ -121,7 +121,7 @@ export default function PedidosLojaPage() {
       </div>
 
       {/* Métricas */}
-      <div className="grid grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
         {[
           { label: 'Aguardando', valor: metricas.aguardando || 0, color: 'text-sky-600', bg: 'bg-sky-50 border-sky-200' },
           { label: 'Separando', valor: metricas.separando || 0, color: 'text-amber-600', bg: 'bg-amber-50 border-amber-200' },

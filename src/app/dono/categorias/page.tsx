@@ -205,7 +205,7 @@ export default function CategoriasPage() {
       {/* Filtros */}
       <div className="flex flex-col sm:flex-row gap-3 mb-4">
         <input value={busca} onChange={e => setBusca(e.target.value)} placeholder="Pesquisar por nome ou descricao..." className="input-field max-w-md" />
-        <div className="flex gap-1">
+        <div className="flex flex-wrap gap-1">
           {(['todas', 'ativas', 'inativas'] as const).map(s => (
             <button key={s} onClick={() => setFiltroStatus(s)}
               className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-all ${filtroStatus === s ? 'bg-brand-600 text-white' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}>

@@ -107,7 +107,7 @@ export default function GarantiaAutomatica({ osId, numeroOS, garantiaDias: garan
       )}
 
       {/* Datas */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         <div className="bg-slate-50 rounded-xl p-3 text-center">
           <p className="text-[10px] text-slate-400 font-medium">Início</p>
           <p className="text-xs font-bold text-slate-700 mt-1">{base.toLocaleDateString('pt-BR')}</p>

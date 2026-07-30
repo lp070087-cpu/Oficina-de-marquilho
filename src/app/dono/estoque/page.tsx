@@ -126,7 +126,7 @@ export default function EstoquePage() {
       {loading?<div className="flex-1 flex items-center justify-center"><p className="text-sm text-slate-400">Carregando...</p></div>:(
         <div className="flex-1 overflow-auto">
           {view==='categorias'&&(
-            <div className="grid grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
               {categoriasComContagem.map(cat=>(
                 <button key={cat.id} onClick={()=>selecionarCategoria(cat)} className="card flex flex-col items-center justify-center text-center p-7 hover:border-brand-300 hover:shadow-md transition-all group cursor-pointer min-h-[160px]">
                   <div className="w-16 h-16 rounded-2xl bg-brand-50 flex items-center justify-center mb-4 group-hover:bg-brand-100 transition-colors group-hover:scale-105 duration-200">
@@ -141,7 +141,7 @@ export default function EstoquePage() {
           {view==='subcategorias'&&(
             <div>
               <button onClick={voltarNivel} className="inline-flex items-center gap-1.5 text-xs text-slate-500 hover:text-brand-600 mb-4 transition-colors"><svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7"/></svg>Voltar para categorias</button>
-              <div className="grid grid-cols-4 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
                 {subcategorias.map(sub=>{const s = subcategoriasContagem.get(sub) || { count: 0, baixas: 0 }; const count = s.count; const baixas = s.baixas; return(
                   <button key={sub} onClick={()=>selecionarSubcategoria(sub)} className="card p-5 hover:border-brand-300 hover:shadow-md transition-all group cursor-pointer text-left">
                     <div className="flex items-start justify-between mb-3">
