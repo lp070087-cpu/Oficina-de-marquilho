@@ -61,7 +61,7 @@ export default function EstoqueLoginsPage() {
       {loading ? <p className="text-sm text-slate-400">Carregando...</p> : users.length===0 ? (
         <div className="card text-center py-12"><p className="text-sm text-slate-400">Nenhum login de estoque cadastrado.</p></div>
       ) : (
-        <div className="card">
+        <div className="card overflow-x-auto">
           <table className="w-full text-sm">
             <thead><tr className="border-b border-slate-100">
               <th className="text-left py-2.5 px-3 text-xs font-semibold text-slate-500 uppercase">Nome</th>
@@ -95,7 +95,7 @@ export default function EstoqueLoginsPage() {
 
       {modal && (
         <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-xl w-full max-w-sm p-6">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-xl w-full max-w-sm p-6 max-h-[90vh] overflow-y-auto">
             <h2 className="text-base font-bold text-slate-800 mb-4">{editando?'Editar Login':'Novo Login - Estoque'}</h2>
             {msg&&<div className="bg-red-50 border border-red-200 text-red-700 px-4 py-2.5 rounded-xl text-xs mb-4">{msg}</div>}
             <div className="space-y-4">

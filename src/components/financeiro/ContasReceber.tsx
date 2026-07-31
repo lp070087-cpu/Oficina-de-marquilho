@@ -76,7 +76,7 @@ export default function ContasReceber() {
       ) : (
         <div className="space-y-2">
           {contas.map(c => (
-            <div key={c.id} className="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-xl hover:border-slate-300 transition-colors">
+            <div key={c.id} className="flex flex-wrap items-center justify-between p-3 bg-white border border-slate-200 rounded-xl hover:border-slate-300 transition-colors gap-2">
               <div>
                 <p className="text-sm font-bold text-slate-700">{c.cliente}</p>
                 <p className="text-[10px] text-slate-400">{c.descricao || '—'} • Vence: {new Date(c.dataVencimento).toLocaleDateString('pt-BR')}</p>

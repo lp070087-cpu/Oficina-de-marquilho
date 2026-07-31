@@ -118,8 +118,8 @@ export default function BalcaoDashboard() {
               <tr className="border-b border-slate-100 bg-slate-50/60">
                 <th className="text-left py-3 px-6 font-medium text-slate-500">OS</th>
                 <th className="text-left py-3 px-6 font-medium text-slate-500">Cliente</th>
-                <th className="text-left py-3 px-6 font-medium text-slate-500">Moto</th>
-                <th className="text-left py-3 px-6 font-medium text-slate-500">Mecanico</th>
+                <th className="text-left py-3 px-6 font-medium text-slate-500 hidden sm:table-cell">Moto</th>
+                <th className="text-left py-3 px-6 font-medium text-slate-500 hidden lg:table-cell">Mecanico</th>
                 <th className="text-center py-3 px-6 font-medium text-slate-500">Status</th>
                 <th className="text-right py-3 px-6 font-medium text-slate-500">Valor</th>
               </tr>
@@ -144,8 +144,8 @@ export default function BalcaoDashboard() {
                     >
                       <td className="py-3 px-6 font-semibold text-brand-600">#{os.numero}</td>
                       <td className="py-3 px-6 text-slate-700 font-medium">{os.nomeCliente}</td>
-                      <td className="py-3 px-6 text-slate-500">{os.modeloMoto}</td>
-                      <td className="py-3 px-6 text-slate-500">{os.mecanico?.name || '-'}</td>
+                      <td className="py-3 px-6 text-slate-500 hidden sm:table-cell">{os.modeloMoto}</td>
+                      <td className="py-3 px-6 text-slate-500 hidden lg:table-cell">{os.mecanico?.name || '-'}</td>
                       <td className="py-3 px-6 text-center">
                         <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium ${statusDisp.color}`}>
                           {statusDisp.label}

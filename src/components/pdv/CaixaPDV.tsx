@@ -147,7 +147,7 @@ export default function CaixaPDV() {
               Iniciar Sessao
             </button>
           ) : (
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <button onClick={() => { setModal('SANGRIA'); setValor(''); setDescricao(''); }} className="text-xs text-amber-600 bg-amber-50 px-3 py-1.5 rounded-lg hover:bg-amber-100 font-semibold">
                 Sangria
               </button>

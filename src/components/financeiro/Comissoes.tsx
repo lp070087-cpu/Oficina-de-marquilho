@@ -42,7 +42,7 @@ export default function Comissoes() {
       ) : (
         <div className="space-y-2">
           {comissoes.map(c => (
-            <div key={c.id} className="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-xl">
+            <div key={c.id} className="flex flex-wrap items-center justify-between p-3 bg-white border border-slate-200 rounded-xl gap-2">
               <div>
                 <p className="text-sm font-bold text-slate-700">{c.usuario}</p>
                 <p className="text-[10px] text-slate-400">{c.tipoFuncionario} • {c.periodo} • {c.percentual}%</p>

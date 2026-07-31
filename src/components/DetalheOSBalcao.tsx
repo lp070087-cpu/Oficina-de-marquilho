@@ -384,6 +384,7 @@ export default function DetalheOSBalcao({ os: initialOS, onClose }: { os: OS; on
             {dados.itens.length === 0 ? (
               <p className="text-xs text-slate-400 py-4">Nenhuma peca adicionada.</p>
             ) : (
+              <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
                   <tr>
@@ -480,6 +481,7 @@ export default function DetalheOSBalcao({ os: initialOS, onClose }: { os: OS; on
                   </tr>
                 </tfoot>
               </table>
+              </div>
             )}
           </div>
         </div>

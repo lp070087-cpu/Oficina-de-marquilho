@@ -86,10 +86,10 @@ export default function ContasPagar() {
       ) : (
         <div className="space-y-2">
           {contas.map(c => (
-            <div key={c.id} className="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-xl hover:border-slate-300 transition-colors">
+            <div key={c.id} className="flex flex-wrap items-center justify-between p-3 bg-white border border-slate-200 rounded-xl hover:border-slate-300 transition-colors gap-2">
               <div>
                 <p className="text-sm font-bold text-slate-700">{c.fornecedor || c.descricao || 'Despesa'}</p>
-                <p className="text-[10px] text-slate-400">{c.descricao} • {c.categoria} • Vence: {new Date(c.dataVencimento).toLocaleDateString('pt-BR')} • {c.centroCusto?.nome}</p>
+                <p className="text-[10px] text-slate-400 truncate max-w-[300px]">{c.descricao} • {c.categoria} • Vence: {new Date(c.dataVencimento).toLocaleDateString('pt-BR')} • {c.centroCusto?.nome}</p>
               </div>
               <div className="flex items-center gap-3">
                 <span className="text-sm font-bold text-slate-800">{fm(Number(c.valor))}</span>

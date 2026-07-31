@@ -409,7 +409,7 @@ export default function CadastroInteligente({
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-2xl border border-slate-200 shadow-xl w-full max-w-2xl my-4"
+        className="bg-white rounded-2xl border border-slate-200 shadow-xl w-full max-w-2xl my-4 max-h-[90vh] overflow-y-auto"
         onClick={(e) => e.stopPropagation()}
         style={{ animation: 'scaleIn 0.2s ease-out' }}
       >
@@ -437,7 +437,7 @@ export default function CadastroInteligente({
         </div>
 
         {/* Tabs */}
-        <div className="flex items-center gap-1 px-5 pt-4 pb-2 border-b border-slate-50">
+        <div className="flex flex-wrap items-center gap-1 px-5 pt-4 pb-2 border-b border-slate-50">
           {fmTabs.map((t) => (
             <button
               key={t.key}

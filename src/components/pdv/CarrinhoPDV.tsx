@@ -50,7 +50,7 @@ export default function CarrinhoPDV({
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-slate-100 flex-shrink-0">
+      <div className="flex flex-wrap items-center justify-between p-4 border-b border-slate-100 flex-shrink-0 gap-2">
         <div>
           <h2 className="text-base font-bold text-slate-800">Carrinho</h2>
           <p className="text-[10px] text-slate-400">{itens.length} item(ns) · {totalItens} un.</p>

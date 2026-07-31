@@ -118,7 +118,7 @@ export default function HistoricoPeca({ pecaId, pecaNome }: HistoricoPecaProps) 
       </div>
 
       {/* Tabs de filtro */}
-      <div className="flex gap-1 bg-slate-100 p-0.5 rounded-lg">
+      <div className="flex flex-wrap gap-1 bg-slate-100 p-0.5 rounded-lg">
         {tabs.map(tab => (
           <button
             key={tab.key}

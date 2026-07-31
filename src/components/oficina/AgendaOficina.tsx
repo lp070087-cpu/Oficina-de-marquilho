@@ -93,7 +93,7 @@ export default function AgendaOficina() {
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100 bg-white flex-shrink-0">
+      <div className="flex flex-wrap items-center justify-between px-4 sm:px-6 py-4 border-b border-slate-100 bg-white flex-shrink-0 gap-3">
         <div>
           <h1 className="text-lg font-bold text-slate-800">Agenda da Oficina</h1>
           <p className="text-[10px] text-slate-400 uppercase tracking-wider">Ordens agendadas</p>

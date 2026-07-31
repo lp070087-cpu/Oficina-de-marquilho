@@ -54,7 +54,7 @@ export default function VendaAvulsaPage() {
 
       <div className="flex flex-wrap gap-2 mb-4">
         <input value={busca} onChange={e=>setBusca(e.target.value)} className="input-field" placeholder="Nome ou SKU..." onKeyDown={e=>{if(e.key==='Enter')buscar();}}/>
-        <input value={barcode} onChange={e=>setBarcode(e.target.value)} className="input-field w-48" placeholder="Cod. barras..." onKeyDown={e=>{if(e.key==='Enter')buscar();}}/>
+        <input value={barcode} onChange={e=>setBarcode(e.target.value)} className="input-field flex-1 min-w-[120px]" placeholder="Cod. barras..." onKeyDown={e=>{if(e.key==='Enter')buscar();}}/>
         <button onClick={buscar} disabled={loading} className="btn-primary text-xs">Buscar</button>
       </div>
 

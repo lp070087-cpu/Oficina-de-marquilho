@@ -160,7 +160,7 @@ export default function RelatoriosFinanceiros() {
 
       {/* Resultado */}
       {dados && (
-        <div className="bg-white border border-slate-200 rounded-xl overflow-hidden">
+        <div className="bg-white border border-slate-200 rounded-xl overflow-x-auto">
           <div className="bg-slate-800 text-white px-5 py-3 flex items-center justify-between">
             <h3 className="text-sm font-bold">{dados.titulo}</h3>
             <span className="text-sm font-extrabold">{fm(dados.total)}</span>

@@ -190,7 +190,7 @@ export default function EstoquePage() {
 
       {modal.open&&(
         <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-xl w-full max-w-lg p-6">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
             <h2 className="text-base font-bold text-slate-800 mb-5">{modal.peca?'Editar peca':'Nova peca'}</h2>
             {msg&&<div className="bg-red-50 border border-red-200 text-red-700 px-4 py-2.5 rounded-xl text-xs mb-4">{msg}</div>}
             <div className="grid grid-cols-2 gap-4">

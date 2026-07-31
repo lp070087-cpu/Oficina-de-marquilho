@@ -92,7 +92,7 @@ export default function UploadImagens({ pecaId, imagensAtuais, onImagensChange }
       </div>
 
       {/* Seletor de tipo */}
-      <div className="flex gap-1 bg-slate-100 p-0.5 rounded-lg">
+      <div className="flex flex-wrap gap-1 bg-slate-100 p-0.5 rounded-lg">
         {TIPOS.map(t => (
           <button
             key={t.key}

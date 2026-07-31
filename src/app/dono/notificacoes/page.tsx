@@ -46,7 +46,7 @@ export default function DonoNotificacoesPage() {
       </div>
 
       {/* Cards de resumo */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
         {CARDS.map(c => (
           <div key={c.label} className={`${c.bg} rounded-xl border p-4`}>
             <p className="text-[11px] text-slate-500 font-medium mb-1">{c.label}</p>

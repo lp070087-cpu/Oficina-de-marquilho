@@ -392,7 +392,7 @@ export default function CategoriasPage() {
               {/* Icone */}
               <div>
                 <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Icone</label>
-                <div className="grid grid-cols-4 sm:grid-cols-5 gap-2 mt-1.5">
+                <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mt-1.5">
                   {ICONES.map(ic => (
                     <button key={ic.id} type="button" onClick={() => setForm({ ...form, icone: form.icone === ic.id ? '' : ic.id })}
                       className={`flex flex-col items-center gap-1 p-2 rounded-lg border text-xs transition-all

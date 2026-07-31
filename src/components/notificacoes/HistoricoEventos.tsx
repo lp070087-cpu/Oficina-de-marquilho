@@ -100,7 +100,7 @@ export default function HistoricoEventos({ limit = 50, showFilters = true }: His
             </div>
           ) : (
             <>
-              <div className="bg-white rounded-xl border border-slate-200 overflow-hidden">
+              <div className="bg-white rounded-xl border border-slate-200 overflow-x-auto">
                 <table className="w-full text-left">
                   <thead>
                     <tr className="border-b border-slate-100 text-[10px] font-bold text-slate-400 uppercase">

@@ -152,7 +152,7 @@ export default function EstoqueScannerPage() {
             <div><label className="text-xs font-semibold text-slate-600 uppercase">Preco Venda</label><input type="number" step="0.01" value={formNovo.precoVenda} onChange={e=>setFormNovo({...formNovo,precoVenda:e.target.value})} className="input-field mt-1.5 text-xs"/></div>
             <div><label className="text-xs font-semibold text-slate-600 uppercase">Preco Custo</label><input type="number" step="0.01" value={formNovo.precoCusto} onChange={e=>setFormNovo({...formNovo,precoCusto:e.target.value})} className="input-field mt-1.5 text-xs"/></div>
           </div>
-          <div className="grid grid-cols-3 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             <div><label className="text-xs font-semibold text-slate-600 uppercase">Qtd Central</label><input type="number" value={formNovo.quantidade} onChange={e=>setFormNovo({...formNovo,quantidade:e.target.value})} className="input-field mt-1.5 text-center font-bold" min="0"/></div>
             <div><label className="text-xs font-semibold text-slate-600 uppercase">Qtd Loja</label><input type="number" value={formNovo.quantidadeLoja} onChange={e=>setFormNovo({...formNovo,quantidadeLoja:e.target.value})} className="input-field mt-1.5 text-center font-bold" min="0"/></div>
             <div><label className="text-xs font-semibold text-slate-600 uppercase">Est. Minimo</label><input type="number" value={formNovo.estoqueMinimo} onChange={e=>setFormNovo({...formNovo,estoqueMinimo:e.target.value})} className="input-field mt-1.5 text-center font-bold" min="1"/></div>

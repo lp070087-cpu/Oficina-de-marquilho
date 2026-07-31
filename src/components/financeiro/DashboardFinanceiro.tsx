@@ -101,7 +101,7 @@ export default function DashboardFinanceiro() {
       {/* Gráfico: Receita Diária */}
       <div className="bg-white border border-slate-200 rounded-xl p-5">
         <h3 className="text-sm font-bold text-slate-700 mb-4">📈 Receita Diária (30 dias)</h3>
-        <div className="flex items-end gap-0.5 h-40">
+        <div className="flex items-end gap-0.5 h-40 overflow-x-auto">
           {data.receitaDiaria.map((d, i) => {
             const maxVal = Math.max(...data.receitaDiaria.map(x => x.valor), 1);
             const h = (d.valor / maxVal) * 100;
@@ -119,7 +119,7 @@ export default function DashboardFinanceiro() {
       {/* Gráfico: Receita Mensal */}
       <div className="bg-white border border-slate-200 rounded-xl p-5">
         <h3 className="text-sm font-bold text-slate-700 mb-4">📊 Receita Mensal (12 meses)</h3>
-        <div className="flex items-end gap-2 h-32">
+        <div className="flex items-end gap-2 h-32 overflow-x-auto">
           {data.receitaMensal.map((d, i) => {
             const maxVal = Math.max(...data.receitaMensal.map(x => x.valor), 1);
             const h = (d.valor / maxVal) * 100;
