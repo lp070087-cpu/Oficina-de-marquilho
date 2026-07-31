@@ -132,7 +132,7 @@ export default function EstoqueCentralPage() {
   const stats = {
     total: pecas.length,
     unidades: pecas.reduce((s, p) => s + p.quantidade, 0),
-    baixo: pecas.filter(p => p.quantidade <= p.estoqueMinimo && p.quantidade > 0).length,
+    baixo: pecas.filter(p => p.estoqueMinimo > 0 && p.quantidade < p.estoqueMinimo && p.quantidade > 0).length,
     zerado: pecas.filter(p => p.quantidade <= 0).length,
     naLoja: pecas.reduce((s, p) => s + (p.quantidadeLoja || 0), 0),
   };

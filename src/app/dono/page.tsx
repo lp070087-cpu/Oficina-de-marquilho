@@ -5,7 +5,7 @@ export default async function DonoDashboard() {
     await Promise.all([
       prisma.peca.count({ where: { ativo: true } }),
       prisma.peca.aggregate({ _sum: { quantidade: true }, where: { ativo: true } }),
-      prisma.$queryRaw<[{ count: bigint }]>`SELECT COUNT(*)::int as count FROM "Peca" WHERE ativo = true AND quantidade <= "estoqueMinimo"`,
+      prisma.$queryRaw<[{ count: bigint }]>`SELECT COUNT(*)::int as count FROM "Peca" WHERE ativo = true AND "estoqueMinimo" > 0 AND quantidade < "estoqueMinimo"`,
       prisma.ordemServico.count({ where: { status: 'ABERTA' } }),
       prisma.ordemServico.count({ where: { status: { in: ['EM_ANDAMENTO', 'AGUARDANDO_PECAS'] } } }),
       prisma.ordemServico.count({ where: { status: { in: ['PRONTA', 'CONCLUIDA'] }, updatedAt: { gte: new Date(new Date().getFullYear(), new Date().getMonth(), 1) } } }),
@@ -20,7 +20,7 @@ export default async function DonoDashboard() {
   });
 
   const pecasBaixoEstoque = await prisma.peca.findMany({
-    where: { ativo: true, quantidade: { lte: prisma.peca.fields.estoqueMinimo } },
+    where: { ativo: true, estoqueMinimo: { gt: 0 }, quantidade: { lt: prisma.peca.fields.estoqueMinimo } },
     orderBy: { quantidade: 'asc' },
     take: 5,
     select: { nome: true, quantidade: true, estoqueMinimo: true, codigo: true },
@@ -46,7 +46,6 @@ export default async function DonoDashboard() {
 
   // Nivel do estoque (porcentagem de pecas que estao ok vs baixas)
   const nivelOk = totalPecas > 0 ? Math.round(((totalPecas - estoqueBaixo) / totalPecas) * 100) : 100;
-  const nivelBaixo = totalPecas > 0 ? 100 - nivelOk : 0;
 
   const statusLabel: Record<string, string> = {
     ABERTA: 'Aberta', EM_ANDAMENTO: 'Em andamento', AGUARDANDO_PECAS: 'Aguard. pecas',
@@ -64,9 +63,9 @@ export default async function DonoDashboard() {
   };
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="p-3 sm:p-6 space-y-4 sm:space-y-6">
       {/* Cards estatisticos */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4">
+      <div className="grid grid-cols-1 min-[480px]:grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
         <div className="card-stat">
           <p className="text-[11px] text-slate-500 font-medium uppercase tracking-wider mb-2">Pecas cadastradas</p>
           <p className="text-2xl font-bold text-slate-800">{totalPecas}</p>
@@ -95,15 +94,15 @@ export default async function DonoDashboard() {
         <div className="card-stat">
           <p className="text-[11px] text-slate-500 font-medium uppercase tracking-wider mb-2">Funcionarios ativos</p>
           <p className="text-2xl font-bold text-slate-800">{mecanicosAtivos}</p>
-          <p className="text-[11px] text-slate-400 mt-1">Faturamento: {formatMoney(Number(faturamentoMes._sum.valorTotal) || 0)}</p>
+          <p className="text-[11px] text-slate-400 mt-1 truncate">Faturamento: {formatMoney(Number(faturamentoMes._sum.valorTotal) || 0)}</p>
         </div>
       </div>
 
       {/* Grafico e pecas baixas */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Nivel geral de estoque */}
-        <div className="card flex items-center gap-6">
-          <div className="relative w-28 h-28 flex-shrink-0">
+        <div className="card flex items-center gap-4 sm:gap-6 min-w-0">
+          <div className="relative w-24 h-24 sm:w-28 sm:h-28 flex-shrink-0">
             <svg viewBox="0 0 36 36" className="w-full h-full -rotate-90">
               <circle cx="18" cy="18" r="15.5" fill="none" stroke="#e2e8f0" strokeWidth="3" />
               <circle
@@ -115,41 +114,41 @@ export default async function DonoDashboard() {
               />
             </svg>
             <div className="absolute inset-0 flex items-center justify-center">
-              <span className="text-xl font-bold text-slate-800">{nivelOk}%</span>
+              <span className="text-lg sm:text-xl font-bold text-slate-800">{nivelOk}%</span>
             </div>
           </div>
-          <div>
+          <div className="min-w-0 flex-1">
             <h3 className="text-sm font-semibold text-slate-800 mb-1">Nivel geral de estoque</h3>
             <p className="text-xs text-slate-500 mb-3">Porcentagem de pecas com estoque adequado</p>
             <div className="space-y-1.5">
               <div className="flex items-center gap-2 text-xs">
                 <span className="w-2.5 h-2.5 rounded-full bg-brand-600 flex-shrink-0" />
-                <span className="text-slate-600">Estoque OK</span>
-                <span className="text-slate-800 font-semibold ml-auto">{totalPecas - estoqueBaixo} pecas</span>
+                <span className="text-slate-600 truncate">Estoque OK</span>
+                <span className="text-slate-800 font-semibold ml-auto whitespace-nowrap">{totalPecas - estoqueBaixo} pecas</span>
               </div>
               <div className="flex items-center gap-2 text-xs">
                 <span className="w-2.5 h-2.5 rounded-full bg-red-500 flex-shrink-0" />
-                <span className="text-slate-600">Abaixo do minimo</span>
-                <span className="text-slate-800 font-semibold ml-auto">{estoqueBaixo} pecas</span>
+                <span className="text-slate-600 truncate">Abaixo do minimo</span>
+                <span className="text-slate-800 font-semibold ml-auto whitespace-nowrap">{estoqueBaixo} pecas</span>
               </div>
             </div>
           </div>
         </div>
 
         {/* Pecas abaixo do estoque minimo */}
-        <div className="card">
+        <div className="card min-w-0">
           <h3 className="text-sm font-semibold text-slate-800 mb-4">Pecas abaixo do estoque minimo</h3>
           {pecasBaixoEstoque.length === 0 ? (
             <p className="text-xs text-slate-400 text-center py-6">Todas as pecas estao com estoque adequado</p>
           ) : (
             <div className="space-y-3">
               {pecasBaixoEstoque.map((peca, i) => (
-                <div key={i} className="flex items-center justify-between border-b border-slate-100 pb-3 last:border-0 last:pb-0">
-                  <div>
-                    <p className="text-[13px] font-medium text-slate-700">{peca.nome}</p>
-                    <p className="text-[11px] text-slate-400">Cod: {peca.codigo} &middot; Min: {peca.estoqueMinimo}</p>
+                <div key={i} className="flex items-center justify-between border-b border-slate-100 pb-3 last:border-0 last:pb-0 gap-3 min-w-0">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-[13px] font-medium text-slate-700 truncate">{peca.nome}</p>
+                    <p className="text-[11px] text-slate-400 truncate">Cod: {peca.codigo} &middot; Min: {peca.estoqueMinimo}</p>
                   </div>
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-red-50 text-red-700">
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold bg-red-50 text-red-700 flex-shrink-0 whitespace-nowrap">
                     {peca.quantidade} un.
                   </span>
                 </div>
@@ -161,7 +160,7 @@ export default async function DonoDashboard() {
 
       {/* Ultimas OS */}
       <div className="card-table">
-        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+        <div className="px-4 sm:px-6 py-4 border-b border-slate-100 flex items-center justify-between">
           <h3 className="text-sm font-semibold text-slate-800">Ultimas Ordens de Servico</h3>
           <a href="/dono/ordens" className="text-xs text-brand-600 hover:text-brand-700 font-medium">Ver todas</a>
         </div>
@@ -169,28 +168,28 @@ export default async function DonoDashboard() {
           <table className="w-full text-[13px]">
             <thead>
               <tr className="border-b border-slate-100 bg-slate-50/60">
-                <th className="text-left py-3 px-6 font-medium text-slate-500">OS</th>
-                <th className="text-left py-3 px-6 font-medium text-slate-500">Cliente</th>
-                <th className="text-left py-3 px-6 font-medium text-slate-500">Moto / Placa</th>
-                <th className="text-left py-3 px-6 font-medium text-slate-500">Mecanico</th>
-                <th className="text-center py-3 px-6 font-medium text-slate-500">Status</th>
-                <th className="text-right py-3 px-6 font-medium text-slate-500">Valor</th>
+                <th className="text-left py-3 px-3 sm:px-6 font-medium text-slate-500">OS</th>
+                <th className="text-left py-3 px-3 sm:px-6 font-medium text-slate-500">Cliente</th>
+                <th className="text-left py-3 px-3 sm:px-6 font-medium text-slate-500">Moto / Placa</th>
+                <th className="text-left py-3 px-3 sm:px-6 font-medium text-slate-500">Mecanico</th>
+                <th className="text-center py-3 px-3 sm:px-6 font-medium text-slate-500">Status</th>
+                <th className="text-right py-3 px-3 sm:px-6 font-medium text-slate-500">Valor</th>
               </tr>
             </thead>
             <tbody>
               {ultimasOS.map((os, i) => (
                 <tr key={os.id} className={`border-b border-slate-50 hover:bg-slate-50/50 transition-colors ${i % 2 === 0 ? 'bg-white' : 'bg-slate-50/20'}`}>
-                  <td className="py-3 px-6 font-semibold text-brand-600">#{os.numero}</td>
-                  <td className="py-3 px-6 text-slate-700 font-medium">{os.nomeCliente}</td>
-                  <td className="py-3 px-6 text-slate-500">{os.modeloMoto}{os.placaMoto ? ` - ${os.placaMoto}` : ''}</td>
-                  <td className="py-3 px-6 text-slate-500">{os.mecanico?.name || '-'}</td>
-                  <td className="py-3 px-6 text-center">
-                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium ${statusColor[os.status]}`}>
+                  <td className="py-3 px-3 sm:px-6 font-semibold text-brand-600">#{os.numero}</td>
+                  <td className="py-3 px-3 sm:px-6 text-slate-700 font-medium">{os.nomeCliente}</td>
+                  <td className="py-3 px-3 sm:px-6 text-slate-500">{os.modeloMoto}{os.placaMoto ? ` - ${os.placaMoto}` : ''}</td>
+                  <td className="py-3 px-3 sm:px-6 text-slate-500">{os.mecanico?.name || '-'}</td>
+                  <td className="py-3 px-3 sm:px-6 text-center">
+                    <span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium whitespace-nowrap ${statusColor[os.status]}`}>
                       <span className={`w-1.5 h-1.5 rounded-full ${statusDot[os.status]}`} />
                       {statusLabel[os.status]}
                     </span>
                   </td>
-                  <td className="py-3 px-6 text-right font-semibold text-slate-700">{formatMoney(Number(os.valorTotal))}</td>
+                  <td className="py-3 px-3 sm:px-6 text-right font-semibold text-slate-700 whitespace-nowrap">{formatMoney(Number(os.valorTotal))}</td>
                 </tr>
               ))}
             </tbody>
@@ -201,18 +200,18 @@ export default async function DonoDashboard() {
       {/* Servicos finalizados recentemente */}
       {servicosFinalizados.length > 0 && (
         <div className="card-table">
-          <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+          <div className="px-4 sm:px-6 py-4 border-b border-slate-100 flex items-center justify-between">
             <h3 className="text-sm font-semibold text-slate-800">Servicos finalizados recentemente</h3>
             <span className="text-xs text-slate-400">{servicosFinalizados.length} OS concluidas/entregues</span>
           </div>
-          <div className="px-6 py-3 space-y-3">
+          <div className="px-3 sm:px-6 py-3 space-y-3">
             {servicosFinalizados.map(os => (
-              <div key={os.id} className="flex items-start justify-between p-3 bg-slate-50/50 rounded-lg border border-slate-100">
+              <div key={os.id} className="flex items-start justify-between p-3 bg-slate-50/50 rounded-lg border border-slate-100 gap-3">
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 mb-1">
                     <span className="text-xs font-bold text-brand-600">#{os.numero}</span>
-                    <span className="text-xs text-slate-700 font-medium">{os.nomeCliente}</span>
-                    <span className="text-xs text-slate-400">- {os.modeloMoto}</span>
+                    <span className="text-xs text-slate-700 font-medium truncate max-w-[140px]">{os.nomeCliente}</span>
+                    <span className="text-xs text-slate-400 truncate max-w-[160px]">- {os.modeloMoto}</span>
                   </div>
                   {os.tipoServico && <p className="text-[11px] text-slate-500 mb-1">Servico: {os.tipoServico}</p>}
                   {os.itens.length > 0 && (

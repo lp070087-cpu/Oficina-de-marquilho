@@ -57,14 +57,14 @@ export default function EstoqueDashboardPage() {
       const margemLucro = valorTotalEstoque - valorTotalCusto;
       const margemPercentual = valorTotalEstoque > 0 ? Math.round((margemLucro / valorTotalEstoque) * 100) : 0;
 
-      const estoqueBaixo = pecas.filter((p) => p.quantidade <= p.estoqueMinimo && p.quantidade > 0).length;
+      const estoqueBaixo = pecas.filter((p) => p.estoqueMinimo > 0 && p.quantidade < p.estoqueMinimo && p.quantidade > 0).length;
       const semEstoque = pecas.filter((p) => p.quantidade <= 0).length;
       const produtosParados = pecas.filter((p) => p.quantidade > 15).length;
-      const giroEstimado = pecas.filter((p) => p.quantidade > 0 && p.quantidade <= p.estoqueMinimo * 2).length;
+      const giroEstimado = pecas.filter((p) => p.quantidade > 0 && p.estoqueMinimo > 0 && p.quantidade < p.estoqueMinimo * 2).length;
 
-      // Produtos que precisam de atencao
+      // Produtos que precisam de atencao (abaixo do minimo ou zerados)
       const produtosAtencao = pecas
-        .filter((p) => p.quantidade <= p.estoqueMinimo)
+        .filter((p) => p.quantidade <= 0 || (p.estoqueMinimo > 0 && p.quantidade < p.estoqueMinimo))
         .sort((a, b) => a.quantidade - b.quantidade)
         .slice(0, 8);
 

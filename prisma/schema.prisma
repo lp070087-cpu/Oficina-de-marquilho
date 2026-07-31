@@ -1,5 +1,6 @@
 generator client {
-  provider = "prisma-client-js"
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "debian-openssl-3.0.x"]
 }
 
 datasource db {
@@ -66,6 +67,7 @@ model User {
   mensagensRecebidas    MensagemInterna[]        @relation("Destinatario")
   configNotificacoes    ConfiguracaoNotificacao?
   lembretes             LembreteSistema[]
+  importacoes           LogImportacao[]
 
   @@index([role])
   @@index([tipoBalcao])
@@ -185,8 +187,8 @@ model OrdemServico {
   garantiaAte     DateTime? // Calculado: dataPagamento + garantiaDias
   kmAtual         String? // Km da moto na entrada
 
-  createdAt              DateTime  @default(now())
-  updatedAt              DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   itens                  ItemOS[]
   servicos               ServicoOrdem[]
@@ -1622,5 +1624,40 @@ model FilaProcessamento {
   @@index([tipo])
   @@index([status])
   @@index([proximaTentativa])
+  @@index([createdAt])
+}
+
+// ============================================================
+// ENTRADA INTELIGENTE DE ESTOQUE — LOG DE IMPORTAÇÕES
+// ============================================================
+model LogImportacao {
+  id               String    @id @default(cuid())
+  usuarioId        String
+  usuario          User      @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  tipo             String // CSV, EXCEL, PDF, IMAGEM, IA
+  arquivo          String? // Nome do arquivo (quando aplicável)
+  formato          String? // Extensão ou descrição do formato
+  totalEncontrado  Int       @default(0)
+  totalSelecionado Int       @default(0)
+  totalCriado      Int       @default(0)
+  totalAtualizado  Int       @default(0)
+  totalIgnorado    Int       @default(0)
+  totalDuplicado   Int       @default(0)
+  totalErro        Int       @default(0)
+  status           String    @default("PROCESSANDO") // PROCESSANDO, CONCLUIDO, PARCIAL, ERRO
+  strategy         String? // skip, update, create
+  lotes            Int       @default(1) // Quantos lotes foram necessários
+  lotesSucesso     Int       @default(0)
+  lotesFalha       Int       @default(0)
+  inicio           DateTime  @default(now())
+  conclusao        DateTime?
+  duracao          Int? // Milissegundos
+  errosDetalhe     String? // JSON array com detalhes dos erros
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([usuarioId])
+  @@index([status])
+  @@index([tipo])
   @@index([createdAt])
 }

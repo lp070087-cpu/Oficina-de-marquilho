@@ -19,7 +19,7 @@ export async function GET(req: NextRequest) {
   if (cat) where.categoriaId = cat;
   if (barcode) where.codigoBarras = barcode;
   if (baixo) {
-    const baixas = await prisma.$queryRaw<[{ id: string }]>`SELECT id FROM "Peca" WHERE ativo = true AND quantidade <= "estoqueMinimo"`;
+    const baixas = await prisma.$queryRaw<[{ id: string }]>`SELECT id FROM "Peca" WHERE ativo = true AND "estoqueMinimo" > 0 AND quantidade < "estoqueMinimo"`;
     where.id = { in: baixas.map((b: { id: string }) => b.id) };
   }
 

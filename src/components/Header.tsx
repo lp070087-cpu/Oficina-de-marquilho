@@ -31,7 +31,7 @@ const pageTitles: Record<string, string> = {
   '/estoque/relatorios': 'Relatorios',
 };
 
-export default function Header({ userName, userRole, totalItens = 4187, maxItens = 10000, onMenuToggle }: HeaderProps) {
+export default function Header({ userName, userRole, totalItens, maxItens, onMenuToggle }: HeaderProps) {
   const pathname = usePathname();
   const title = pageTitles[pathname] || 'Marquinho Moto Pecas';
   const isCliente = pathname.startsWith('/cliente');
@@ -50,9 +50,11 @@ export default function Header({ userName, userRole, totalItens = 4187, maxItens
         <h1 className="text-sm font-semibold text-slate-800 truncate">{title}</h1>
       </div>
       <div className="flex items-center gap-3 sm:gap-4">
-        <span className="hidden sm:inline text-xs text-slate-400">
-          <strong className="text-slate-600">{totalItens.toLocaleString('pt-BR')}</strong> / {maxItens.toLocaleString('pt-BR')} itens
-        </span>
+        {totalItens != null && (
+          <span className="hidden sm:inline text-xs text-slate-400">
+            <strong className="text-slate-600">{totalItens.toLocaleString('pt-BR')}</strong> itens
+          </span>
+        )}
         {/* Notification Bell — apenas para usuários internos */}
         {!isCliente && <NotificationBell />}
         <div className="w-8 h-8 rounded-full bg-brand-600 flex items-center justify-center shadow-sm flex-shrink-0">

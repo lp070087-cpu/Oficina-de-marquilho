@@ -81,7 +81,7 @@ export async function GET(req: NextRequest) {
 
     // Criticos (below minimum)
     const criticos = pecas
-      .filter(p => p.quantidade <= p.estoqueMinimo && p.quantidade > 0)
+      .filter(p => p.estoqueMinimo > 0 && p.quantidade < p.estoqueMinimo && p.quantidade > 0)
       .map(p => ({ nome: p.nome, codigo: p.codigo, quantidade: p.quantidade, estoqueMinimo: p.estoqueMinimo }))
       .sort((a, b) => a.quantidade - b.quantidade)
       .slice(0, 10);

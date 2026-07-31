@@ -1,407 +1,716 @@
 'use client';
-// VERSÃO IMPORTAR 2026
+// ENTRADA INTELIGENTE DE ESTOQUE — VERSÃO 2026 (REESCRITA COMPLETA)
+// Fluxo: Selecionar arquivo → Processar → Pré-visualizar → Editar → SALVAR NO ESTOQUE
 
-import { useState, useRef } from 'react';
+import { useState, useRef, useCallback, useMemo } from 'react';
+import TabelaRevisao from '@/components/estoque/TabelaRevisao';
+import ModalLogImportacao from '@/components/estoque/ModalLogImportacao';
+import {
+  ProdutoExtraido, StatsRevisao, ResultadoImportacao,
+  FormatoEntrada,
+} from '@/lib/entrada-inteligente/types';
+import {
+  parseCSV, parseExcel, parsePDF, parseImagemOCR, parseIAText,
+} from '@/lib/entrada-inteligente/parsers';
 
-type Metodo = 'csv' | 'excel' | 'pdf' | 'imagem' | 'ia' | null;
+let uidCounter = 0;
+function uid(): string { return `p_${Date.now()}_${++uidCounter}`; }
 
-interface ProdutoEntrada {
-  idx: number;
-  codigoBarras: string; codigoInterno: string; oem: string; sku: string;
-  nome: string; marca: string; categoria: string; fornecedor: string;
-  quantidade: string; precoCusto: string; precoVenda: string;
-  qtdLoja: string; qtdCentral: string;
-  existe: boolean; pecaExistente?: any;
-}
-
-export default function ImportarPage() {
-  const [metodo, setMetodo] = useState<Metodo>(null);
-  const [produtos, setProdutos] = useState<ProdutoEntrada[]>([]);
+export default function EntradaInteligentePage() {
+  // ─── State ───
+  const [etapa, setEtapa] = useState<'selecionar' | 'processando' | 'revisao' | 'salvando' | 'log'>('selecionar');
+  const [formato, setFormato] = useState<FormatoEntrada | null>(null);
+  const [produtos, setProdutos] = useState<ProdutoExtraido[]>([]);
+  const [pesquisa, setPesquisa] = useState('');
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState('');
-  const [resultado, setResultado] = useState<{criados:number;atualizados:number;total:number}|null>(null);
+  const [msgOk, setMsgOk] = useState('');
   const [arquivoNome, setArquivoNome] = useState('');
+  const [duplicataStrategy, setDuplicataStrategy] = useState<'skip' | 'update' | 'create'>('skip');
+  const [resultado, setResultado] = useState<ResultadoImportacao | null>(null);
+
+  // OCR / Processamento
   const [textoIA, setTextoIA] = useState('');
-  const [anexoIA, setAnexoIA] = useState<File|null>(null);
+  const [anexoIA, setAnexoIA] = useState<File | null>(null);
+  const [progressoOCR, setProgressoOCR] = useState(0);
+  const [statusOCR, setStatusOCR] = useState('');
+
   const fileRef = useRef<HTMLInputElement>(null);
-  const iaFileRef = useRef<HTMLInputElement>(null);
 
-  function reset() { setMetodo(null); setProdutos([]); setMsg(''); setResultado(null); setArquivoNome(''); setTextoIA(''); setAnexoIA(null); }
+  // ─── Stats ───
+  const stats: StatsRevisao = useMemo(() => {
+    const s: StatsRevisao = {
+      total: produtos.length,
+      novos: produtos.filter(p => p.status === 'novo').length,
+      existentes: produtos.filter(p => p.status === 'existente').length,
+      duplicados: produtos.filter(p => p.status === 'duplicado').length,
+      comErro: produtos.filter(p => p.status === 'erro').length,
+      selecionados: produtos.filter(p => p.selecionado).length,
+      totalUnidades: produtos.reduce((sum, p) => sum + (parseInt(p.quantidade) || 0), 0),
+    };
+    return s;
+  }, [produtos]);
 
-  function parseCSV(texto:string): Partial<ProdutoEntrada>[] {
-    const lines = texto.trim().split('\n').filter(l=>l.trim());
-    if (lines.length<2) return [];
-    const h = lines[0].toLowerCase().split(',').map((s:string)=>s.trim().replace(/["']/g,''));
-    const mi = (k:string)=>h.findIndex((x:string)=>x===k||x.includes(k));
-    const ci=mi('codigo'); const si=mi('sku'); const ni=mi('nome'); const pi=mi('preco'); const ci2=mi('custo'); const qi=mi('quantidade'); const bi=mi('barras');
-    return lines.slice(1).map((l,i)=>({
-      idx:i, codigoBarras:bi>=0?(l.split(',')[bi]||'').trim():'', codigoInterno:'', oem:'',
-      sku:si>=0?(l.split(',')[si]||'').trim():ci>=0?(l.split(',')[ci]||'').trim():'',
-      nome:ni>=0?(l.split(',')[ni]||'').trim():'', marca:'', categoria:'', fornecedor:'',
-      quantidade:qi>=0?(l.split(',')[qi]||'').trim():'',
-      precoCusto:ci2>=0?((l.split(',')[ci2]||'').trim().replace(/[R$\s]/g,'')):'',
-      precoVenda:pi>=0?((l.split(',')[pi]||'').trim().replace(/[R$\s]/g,'')):'',
-      qtdLoja:'0', qtdCentral:(qi>=0?(l.split(',')[qi]||'').trim():'1'), existe:false,
-    }));
-  }
-
-  async function processarLinhas(linhas: Partial<ProdutoEntrada>[]) {
-    setLoading(true);
-    const enriquecidas: ProdutoEntrada[] = [];
-    for (const l of linhas) {
-      const peca = l.codigoBarras ? await fetch(`/api/pecas?barcode=${encodeURIComponent(l.codigoBarras)}`).then(r=>r.json()).catch(()=>[]) : [];
-      const pecaPorSku = l.sku ? await fetch(`/api/pecas?q=${encodeURIComponent(l.sku)}`).then(r=>r.json()).catch(()=>[]) : [];
-      const existente = (Array.isArray(peca)&&peca.length>0) ? peca[0] : (Array.isArray(pecaPorSku)&&pecaPorSku.length>0) ? pecaPorSku[0] : null;
-      enriquecidas.push({
-        idx: l.idx||0, codigoBarras:l.codigoBarras||'', codigoInterno:l.codigoInterno||'', oem:l.oem||'',
-        sku:l.sku||'', nome:l.nome||'', marca:l.marca||'', categoria:l.categoria||'', fornecedor:l.fornecedor||'',
-        quantidade:l.quantidade||'1', precoCusto:l.precoCusto||'', precoVenda:l.precoVenda||'',
-        qtdLoja:l.qtdLoja||'0', qtdCentral:l.qtdCentral||l.quantidade||'1',
-        existe:!!existente, pecaExistente:existente,
-      });
-    }
-    setProdutos(enriquecidas);
+  // ─── Reset ───
+  function reset() {
+    setEtapa('selecionar');
+    setFormato(null);
+    setProdutos([]);
+    setPesquisa('');
     setLoading(false);
+    setMsg('');
+    setMsgOk('');
+    setArquivoNome('');
+    setDuplicataStrategy('skip');
+    setResultado(null);
+    setTextoIA('');
+    setAnexoIA(null);
+    setProgressoOCR(0);
   }
 
-  async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>, tipo: 'csv'|'excel'|'pdf'|'imagem') {
-    const file = e.target.files?.[0]; if (!file) return;
-    setArquivoNome(file.name); setLoading(true); setMsg(''); setResultado(null);
-    if (tipo==='csv') {
-      const text = await file.text();
-      const linhas = parseCSV(text);
-      if (linhas.length===0) { setMsg('Nenhum dado encontrado no arquivo.'); setLoading(false); return; }
-      await processarLinhas(linhas);
-    } else if (tipo==='excel') {
-      try {
-        const XLSX = await import('xlsx');
-        const buffer = await file.arrayBuffer();
-        const wb = XLSX.read(buffer, { type:'array' });
-        const sheetName = wb.SheetNames[0];
-        const sheet = wb.Sheets[sheetName];
-        const jsonData = XLSX.utils.sheet_to_json<any>(sheet, { header:1 });
-        if (!jsonData||jsonData.length<2) { setMsg('Planilha vazia ou sem dados.'); setLoading(false); return; }
-        const headers = (jsonData[0] as string[]).map((h:string)=>String(h||'').toLowerCase().trim());
-        const findCol = (...keys:string[])=>headers.findIndex((h:string)=>keys.some(k=>h.includes(k)));
-        const ci=findCol('codigo','sku','cod'); const ni=findCol('nome','descricao','produto','desc');
-        const qi=findCol('quantidade','qtd','estoque','saldo'); const pi=findCol('preco','venda','valor');
-        const ci2=findCol('custo'); const bi=findCol('barras','barcode');
-        const mar=findCol('marca'); const cat=findCol('categoria');
-        const linhas: Partial<ProdutoEntrada>[] = jsonData.slice(1).filter((row:any)=>row&&row.length>0).map((row:any,i:number)=>({
-          idx:i, codigoBarras:bi>=0?String(row[bi]||'').trim():'', codigoInterno:'', oem:'',
-          sku:ci>=0?String(row[ci]||'').trim():'', nome:ni>=0?String(row[ni]||'').trim():'',
-          marca:mar>=0?String(row[mar]||'').trim():'', categoria:cat>=0?String(row[cat]||'').trim():'',
-          fornecedor:'', quantidade:qi>=0?String(row[qi]||'1').trim():'1',
-          precoCusto:ci2>=0?String(row[ci2]||'').replace(/[R$\s]/g,'').trim():'',
-          precoVenda:pi>=0?String(row[pi]||'').replace(/[R$\s]/g,'').trim():'',
-          qtdLoja:'0', qtdCentral:qi>=0?String(row[qi]||'1').trim():'1', existe:false,
-        }));
-        await processarLinhas(linhas);
-      } catch(e) { setMsg('Erro ao ler Excel. Verifique o formato do arquivo.'); }
-    } else if (tipo==='pdf') {
-      try {
-        const pdfjsLib = await import('pdfjs-dist');
-        pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.6.82/pdf.worker.min.mjs`;
-        const buffer = await file.arrayBuffer();
-        const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
-        const linhas: Partial<ProdutoEntrada>[] = [];
-        for (let pIdx=1; pIdx<=pdf.numPages; pIdx++) {
-          const page = await pdf.getPage(pIdx);
-          const content = await page.getTextContent();
-          const text = content.items.map((item:any)=>item.str).join(' ');
-          const lines = text.split('\n').filter((l:string)=>l.trim().length>5);
-          for (const line of lines) {
-            const match = line.match(/([A-Z0-9\-]{3,})\s+([\w\sÀ-Ú\.\,\-\/\(\)]{5,})/i);
-            if (match) linhas.push({ idx:linhas.length, codigoBarras:'', codigoInterno:'', oem:'', sku:match[1].trim(), nome:match[2].trim(), marca:'', categoria:'', fornecedor:'', quantidade:'1', precoCusto:'', precoVenda:'', qtdLoja:'0', qtdCentral:'1', existe:false });
+  // ─── Enriquecer produtos (busca duplicatas no banco) ───
+  // CORREÇÃO #3: 1 ÚNICO POST em vez de N requisições individuais
+  async function enriquecerProdutos(raw: Partial<ProdutoExtraido>[]): Promise<ProdutoExtraido[]> {
+    if (raw.length === 0) return [];
+
+    const codigos = raw.map(p => p.codigo).filter(Boolean) as string[];
+    const barras = raw.map(p => p.codigoBarras).filter(Boolean) as string[];
+
+    let codigosExistentes = new Set<string>();
+    let barrasExistentes = new Map<string, any>();
+
+    try {
+      // ÚNICA requisição POST com todos os identificadores
+      const res: Response = await fetch('/api/pecas/batch', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ codigos, codigosBarras: barras, eans: [] }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        // Mapas já prontos da API
+        if (data.mapCodigo) {
+          for (const codigo of Object.keys(data.mapCodigo)) {
+            codigosExistentes.add(codigo);
           }
         }
-        if (linhas.length===0) { setMsg('Nenhum produto encontrado no PDF.'); setLoading(false); return; }
-        await processarLinhas(linhas);
-      } catch(e) { setMsg('Erro ao ler PDF. Verifique o arquivo.'); }
-    } else if (tipo==='imagem') {
-      try {
-        const Tesseract = await import('tesseract.js');
-        const imgUrl = URL.createObjectURL(file);
-        const { data: { text } } = await Tesseract.recognize(imgUrl, 'por+eng', { logger: (m:any) => { if (m.status==='recognizing text') setMsg(`OCR: ${Math.round(m.progress*100)}%`); } });
-        URL.revokeObjectURL(imgUrl);
-        setMsg('Imagem analisada. Confira os dados extraidos antes de abastecer.');
-        const linhas: Partial<ProdutoEntrada>[] = [];
-        const lines = text.split('\n').filter((l:string)=>l.trim().length>3);
-        for (const line of lines) {
-          const match = line.match(/([A-Z0-9\-]{3,})\s+([\w\sÀ-Ú\.\,\-\/\(\)]{5,})/i);
-          if (match) linhas.push({ idx:linhas.length, codigoBarras:'', codigoInterno:'', oem:'', sku:match[1].trim(), nome:match[2].trim(), marca:'', categoria:'', fornecedor:'', quantidade:'1', precoCusto:'', precoVenda:'', qtdLoja:'0', qtdCentral:'1', existe:false });
+        if (data.mapBarras) {
+          for (const [barras, peca] of Object.entries(data.mapBarras)) {
+            barrasExistentes.set(barras, peca);
+          }
         }
-        if (linhas.length===0) { setMsg('Nao foi possivel identificar produtos na imagem. Digite manualmente.'); setLoading(false); return; }
-        await processarLinhas(linhas);
-      } catch(e) { setMsg('Erro no OCR. Tente uma imagem mais nitida.'); }
-    }
-    setLoading(false);
-  }
-
-  async function processarIA() {
-    const texto = textoIA.trim();
-    if (!texto && !anexoIA) { setMsg('Digite algo ou anexe um arquivo.'); return; }
-    setLoading(true); setMsg('');
-    // Parse IA text
-    const linhas: Partial<ProdutoEntrada>[] = [];
-    const lines = texto.split('\n').filter(l=>l.trim());
-    for (const line of lines) {
-      const match = line.match(/(\d+)\s*(?:unidades?|un\.?|litros?|L|kits?)?\s*(?:de\s+)?(.+)/i);
-      if (match) {
-        linhas.push({ idx:linhas.length, codigoBarras:'', codigoInterno:'', oem:'', sku:'', nome:match[2].trim(), marca:'', categoria:'', fornecedor:'', quantidade:match[1], precoCusto:'', precoVenda:'', qtdLoja:'0', qtdCentral:match[1], existe:false });
-      } else if (line.length>3) {
-        linhas.push({ idx:linhas.length, codigoBarras:'', codigoInterno:'', oem:'', sku:'', nome:line.trim(), marca:'', categoria:'', fornecedor:'', quantidade:'1', precoCusto:'', precoVenda:'', qtdLoja:'0', qtdCentral:'1', existe:false });
       }
+    } catch (err) {
+      console.warn('[enriquecer] Batch lookup falhou, tratando todos como novos:', err);
+      // Sem fallback N+1 — se o batch falhar, todos são tratados como novos
     }
-    if (linhas.length===0) { setMsg('Nao foi possivel identificar produtos no texto.'); setLoading(false); return; }
-    await processarLinhas(linhas);
-  }
 
-  function updateProduto(idx:number, field:keyof ProdutoEntrada, value:string) {
-    setProdutos(prev => prev.map(p => p.idx===idx ? {...p, [field]:value} : p));
-  }
+    const enriched: ProdutoExtraido[] = raw.map(r => {
+      const existeCodigo = r.codigo ? codigosExistentes.has(r.codigo) : false;
+      const existeBarras = r.codigoBarras ? barrasExistentes.has(r.codigoBarras) : false;
+      const existe = existeCodigo || existeBarras;
 
-  async function abastecerEstoque() {
-    setLoading(true); setMsg(''); setResultado(null);
-    let criados=0, atualizados=0;
-    const catRes = await fetch('/api/categorias');
-    const cats = await catRes.json();
-    const catId = cats[0]?.id||'';
-    for (const p of produtos) {
-      const body = {
-        nome: p.nome, codigo: p.sku||`IMP-${Date.now()}-${p.idx}`, codigoBarras: p.codigoBarras||null,
-        precoVenda: parseFloat(p.precoVenda)||0, precoCusto: parseFloat(p.precoCusto)||0, custoMedio: parseFloat(p.precoCusto)||0,
-        quantidade: parseInt(p.qtdCentral)||parseInt(p.quantidade)||1,
-        quantidadeLoja: parseInt(p.qtdLoja)||0,
-        marca: p.marca||null, compatibilidade: null, categoriaId: catId,
+      let status: ProdutoExtraido['status'] = 'novo';
+      if (existe) status = 'duplicado';
+      if (!r.nome && !r.codigo) status = 'erro';
+
+      return {
+        id: uid(),
+        codigo: r.codigo || '',
+        codigoBarras: r.codigoBarras || '',
+        ean: r.ean || '',
+        nome: r.nome || '',
+        descricao: r.descricao || '',
+        marca: r.marca || '',
+        categoria: r.categoria || '',
+        subcategoria: r.subcategoria || '',
+        compatibilidade: r.compatibilidade || '',
+        modelo: r.modelo || '',
+        ano: r.ano || '',
+        aplicacao: r.aplicacao || '',
+        fornecedor: r.fornecedor || '',
+        precoCusto: r.precoCusto || '',
+        precoVenda: r.precoVenda || '',
+        quantidade: r.quantidade || '0',
+        quantidadeLoja: r.quantidadeLoja || '0',
+        estoqueMinimo: r.estoqueMinimo || '5',
+        unidade: r.unidade || 'UN',
+        localizacao: r.localizacao || '',
+        observacoes: r.observacoes || '',
+        status,
+        selecionado: status !== 'erro',
       };
-      if (p.existe && p.pecaExistente) {
-        const res = await fetch(`/api/pecas/${p.pecaExistente.id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ ...p.pecaExistente, quantidade: (p.pecaExistente.quantidade||0)+(parseInt(p.qtdCentral)||1), quantidadeLoja: (p.pecaExistente.quantidadeLoja||0)+(parseInt(p.qtdLoja)||0), categoriaId: p.pecaExistente.categoria?.id||catId, precoCusto: parseFloat(p.precoCusto)||p.pecaExistente.precoCusto, precoVenda: parseFloat(p.precoVenda)||p.pecaExistente.precoVenda }) });
-        if (res.ok) atualizados++;
-      } else {
-        const res = await fetch('/api/pecas', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
-        if (res.ok) criados++;
+    });
+
+    return enriched;
+  }
+
+  // ─── Processar arquivo ───
+  async function processarArquivo(file: File, fmt: FormatoEntrada) {
+    setArquivoNome(file.name);
+    setFormato(fmt);
+    setEtapa('processando');
+    setLoading(true);
+    setMsg('');
+    setMsgOk('');
+    setResultado(null);
+
+    const inicio = Date.now();
+
+    try {
+      let raw: Partial<ProdutoExtraido>[] = [];
+
+      if (fmt === 'csv') {
+        const text = await file.text();
+        raw = await parseCSV(text);
+
+      } else if (fmt === 'excel') {
+        const buffer = await file.arrayBuffer();
+        raw = await parseExcel(buffer);
+
+      } else if (fmt === 'pdf') {
+        raw = await parsePDF(file);
+        if (raw.length === 0) {
+          setMsg('PDF sem texto detectado. Tentando OCR...');
+        }
+
+      } else if (fmt === 'imagem') {
+        setStatusOCR('Preparando...');
+        raw = await parseImagemOCR(file, pct => setProgressoOCR(pct), status => setStatusOCR(status));
+        setProgressoOCR(0);
+        setStatusOCR('');
       }
-      // Register movement
-      await fetch('/api/relatorios/movimentacao', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ pecaId:'', tipo:'ENTRADA', quantidade: parseInt(p.qtdCentral)||1, valorUnitario: parseFloat(p.precoCusto)||0, observacao:'Entrada via '+metodo }) });
+
+      if (raw.length === 0) {
+        setMsg('Nenhum produto identificado no arquivo.');
+        setEtapa('selecionar');
+        setLoading(false);
+        return;
+      }
+
+      const enriched = await enriquecerProdutos(raw);
+      setProdutos(enriched);
+      setEtapa('revisao');
+
+    } catch (err: any) {
+      console.error('Erro ao processar:', err);
+      setMsg(`Erro ao processar arquivo: ${err.message || 'Formato não reconhecido'}`);
+      setEtapa('selecionar');
     }
-    setResultado({ criados, atualizados, total:produtos.length });
     setLoading(false);
   }
 
-  const metodos: { key: 'csv'|'excel'|'pdf'|'imagem'; titulo: string; desc: string; icon: string; accept?: string }[] = [
-    { key:'csv', titulo:'CSV', desc:'Importar arquivo CSV com dados dos produtos', icon:'M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12', accept:'.csv'},
-    { key:'excel', titulo:'Excel', desc:'Importar planilha .xlsx ou .xls', icon:'M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z', accept:'.xlsx,.xls'},
-    { key:'pdf', titulo:'PDF', desc:'Nota fiscal, pedido ou catalogo em PDF', icon:'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z', accept:'.pdf'},
-    { key:'imagem', titulo:'Imagem / OCR', desc:'Foto de nota fiscal, etiqueta ou catalogo', icon:'M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z', accept:'.png,.jpg,.jpeg,.webp,.bmp,.tiff'},
+  // ─── Processar IA ───
+  async function processarIA() {
+    if (!textoIA.trim() && !anexoIA) {
+      setMsg('Digite a descrição ou anexe um arquivo.');
+      return;
+    }
+
+    setEtapa('processando');
+    setLoading(true);
+    setMsg('');
+    setMsgOk('');
+
+    try {
+      setStatusOCR('Analisando...');
+      const raw = await parseIAText(textoIA, anexoIA || undefined, pct => setProgressoOCR(pct), status => setStatusOCR(status));
+      setProgressoOCR(0);
+      setStatusOCR('');
+
+      if (raw.length === 0) {
+        setMsg('Não foi possível identificar produtos. Tente um texto mais detalhado.');
+        setEtapa('selecionar');
+        setLoading(false);
+        return;
+      }
+
+      const enriched = await enriquecerProdutos(raw);
+      setProdutos(enriched);
+      setEtapa('revisao');
+    } catch (err: any) {
+      setMsg(`Erro: ${err.message}`);
+      setEtapa('selecionar');
+    }
+    setLoading(false);
+  }
+
+  // ─── Handlers da tabela de revisão ───
+  function updateProduto(id: string, field: string, value: string) {
+    setProdutos(prev => prev.map(p => p.id === id ? { ...p, [field]: value } : p));
+  }
+
+  function toggleSelecionar(id: string) {
+    setProdutos(prev => prev.map(p => p.id === id ? { ...p, selecionado: !p.selecionado } : p));
+  }
+
+  function toggleTodos() {
+    const allSelected = produtos.every(p => p.selecionado);
+    setProdutos(prev => prev.map(p => ({ ...p, selecionado: !allSelected && p.status !== 'erro' })));
+  }
+
+  function excluirProduto(id: string) {
+    setProdutos(prev => prev.filter(p => p.id !== id));
+  }
+
+  function duplicarProduto(id: string) {
+    const original = produtos.find(p => p.id === id);
+    if (!original) return;
+
+    const copia: ProdutoExtraido = {
+      ...original,
+      id: uid(),
+      codigo: original.codigo + '_COPY',
+      status: 'novo',
+      selecionado: true,
+    };
+    setProdutos(prev => [...prev, copia]);
+  }
+
+  // ─── SALVAR NO ESTOQUE (EM LOTES COM PROGRESSO) ───
+  // CORREÇÃO #1: Divide em lotes de 250, envia sequencialmente, mostra progresso
+  const [progressoSalvar, setProgressoSalvar] = useState({ atual: 0, total: 0 });
+  const [acumuladoSalvar, setAcumuladoSalvar] = useState({ criados: 0, atualizados: 0, duplicados: 0, ignorados: 0, erros: 0 });
+
+  async function salvarNoEstoque() {
+    const selecionados = produtos.filter(p => p.selecionado);
+    if (selecionados.length === 0) {
+      setMsg('Selecione pelo menos um produto para salvar.');
+      return;
+    }
+
+    setEtapa('salvando');
+    setLoading(true);
+    setMsg('');
+    setProgressoSalvar({ atual: 0, total: selecionados.length });
+    setAcumuladoSalvar({ criados: 0, atualizados: 0, duplicados: 0, ignorados: 0, erros: 0 });
+
+    const TAMANHO_LOTE = 250;
+    const lotes: ProdutoExtraido[][] = [];
+    for (let i = 0; i < selecionados.length; i += TAMANHO_LOTE) {
+      lotes.push(selecionados.slice(i, i + TAMANHO_LOTE));
+    }
+
+    const inicio = Date.now();
+    let logId: string | null = null;
+    let totalCriados = 0;
+    let totalAtualizados = 0;
+    let totalDuplicados = 0;
+    let totalIgnorados = 0;
+    let totalErros = 0;
+    const todosErros: string[] = [];
+
+    for (let idx = 0; idx < lotes.length; idx++) {
+      const lote = lotes[idx];
+      try {
+        const res: Response = await fetch('/api/estoque/importar', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            produtos: lote.map(p => ({
+              codigo: p.codigo,
+              codigoBarras: p.codigoBarras,
+              ean: p.ean,
+              nome: p.nome,
+              descricao: p.descricao,
+              marca: p.marca,
+              categoria: p.categoria,
+              subcategoria: p.subcategoria,
+              compatibilidade: p.compatibilidade,
+              fornecedor: p.fornecedor,
+              precoCusto: p.precoCusto,
+              precoVenda: p.precoVenda,
+              quantidade: p.quantidade,
+              quantidadeLoja: p.quantidadeLoja,
+              estoqueMinimo: p.estoqueMinimo,
+              localizacao: p.localizacao,
+            })),
+            strategy: duplicataStrategy,
+            arquivo: arquivoNome || 'Entrada Manual',
+            formato: formato || 'ia',
+            lote: idx,
+            totalLotes: lotes.length,
+            logId: logId || undefined,
+          }),
+        });
+
+        const data = await res.json();
+
+        if (!res.ok) {
+          // Falha neste lote — registra mas continua com os próximos
+          totalErros += lote.length;
+          todosErros.push(`Lote ${idx + 1}: ${data.error || 'Erro desconhecido'}`);
+          setAcumuladoSalvar(prev => ({ ...prev, erros: prev.erros + lote.length }));
+          setMsg(`Erro no lote ${idx + 1}/${lotes.length}: ${data.error}. Continuando...`);
+          continue;
+        }
+
+        // Guarda o logId do primeiro lote
+        if (data.logId) logId = data.logId;
+
+        totalCriados += data.criados || 0;
+        totalAtualizados += data.atualizados || 0;
+        totalDuplicados += data.duplicados || 0;
+        totalIgnorados += data.ignorados || 0;
+        totalErros += data.erros || 0;
+        if (data.errosDetalhe?.length) todosErros.push(...data.errosDetalhe);
+
+        // Atualiza progresso
+        const processadosAteAgora = Math.min((idx + 1) * TAMANHO_LOTE, selecionados.length);
+        setProgressoSalvar({ atual: processadosAteAgora, total: selecionados.length });
+        setAcumuladoSalvar({
+          criados: totalCriados,
+          atualizados: totalAtualizados,
+          duplicados: totalDuplicados,
+          ignorados: totalIgnorados,
+          erros: totalErros,
+        });
+      } catch (err: any) {
+        totalErros += lote.length;
+        todosErros.push(`Lote ${idx + 1}: ${err.message}`);
+        setMsg(`Erro de rede no lote ${idx + 1}/${lotes.length}. Tentando próximo lote...`);
+      }
+    }
+
+    const tempoMs = Date.now() - inicio;
+
+    // Resultado final
+    setResultado({
+      criados: totalCriados,
+      atualizados: totalAtualizados,
+      duplicados: totalDuplicados,
+      ignorados: totalIgnorados,
+      erros: totalErros,
+      totalProcessado: totalCriados + totalAtualizados,
+      tempoMs,
+      arquivo: arquivoNome || 'Entrada Manual',
+      formato: formato || 'ia',
+      data: new Date().toISOString(),
+      linhasComErro: todosErros.slice(0, 50),
+    });
+
+    setEtapa('log');
+    setLoading(false);
+  }
+
+  // ─── Métodos disponíveis ───
+  const metodos = [
+    { key: 'csv' as const, titulo: 'CSV', desc: 'Arquivo .csv com dados dos produtos', icon: '📊', accept: '.csv' },
+    { key: 'excel' as const, titulo: 'Excel', desc: 'Planilha .xlsx ou .xls', icon: '📈', accept: '.xlsx,.xls' },
+    { key: 'pdf' as const, titulo: 'PDF', desc: 'Catálogo, nota fiscal, pedido', icon: '📄', accept: '.pdf' },
+    { key: 'imagem' as const, titulo: 'Imagem / OCR', desc: 'Foto de nota, etiqueta ou catálogo', icon: '📸', accept: '.png,.jpg,.jpeg,.webp,.bmp,.tiff' },
   ];
 
-  if (!metodo) {
+  // ─── RENDER ───
+
+  // ETAPA 0: SELECIONAR MÉTODO
+  if (etapa === 'selecionar') {
     return (
-      <div className="p-6">
-        <h1 className="text-xl font-bold text-slate-800 tracking-tight mb-1">ENTRADA INTELIGENTE DE ESTOQUE</h1>
-        <p className="text-sm text-slate-500 mb-6">Escolha como deseja abastecer o estoque central</p>
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 mb-6">
+      <div className="p-6 max-w-4xl mx-auto">
+        <div className="mb-8">
+          <h1 className="text-2xl font-extrabold text-slate-800 tracking-tight mb-1">
+            ENTRADA INTELIGENTE DE ESTOQUE
+          </h1>
+          <p className="text-sm text-slate-500">
+            Importe produtos por CSV, Excel, PDF, OCR ou IA — revise antes de salvar
+          </p>
+        </div>
+
+        {/* Métodos de arquivo */}
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-6">
           {metodos.map(m => (
-            <button key={m.key} onClick={() => setMetodo(m.key)}
-              className="card flex flex-col items-center justify-center text-center p-6 hover:border-brand-300 hover:shadow-md transition-all cursor-pointer min-h-[160px]">
-              <div className="w-14 h-14 rounded-2xl bg-brand-50 flex items-center justify-center mb-3 group-hover:bg-brand-100">
-                <svg className="w-7 h-7 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d={m.icon}/></svg>
-              </div>
-              <h3 className="text-sm font-semibold text-slate-800 mb-1">{m.titulo}</h3>
-              <p className="text-xs text-slate-400">{m.desc}</p>
-              {m.accept && <input ref={fileRef} type="file" accept={m.accept} className="hidden" onChange={e=>handleFileUpload(e, m.key!)}/>}
+            <button
+              key={m.key}
+              onClick={() => {
+                setFormato(m.key);
+                fileRef.current?.click();
+              }}
+              className="card flex flex-col items-center justify-center text-center p-6 hover:border-brand-300 hover:shadow-lg transition-all cursor-pointer min-h-[140px] group"
+            >
+              <span className="text-3xl mb-2 group-hover:scale-110 transition-transform">{m.icon}</span>
+              <h3 className="text-sm font-bold text-slate-800 mb-1">{m.titulo}</h3>
+              <p className="text-[10px] text-slate-400 leading-tight">{m.desc}</p>
             </button>
           ))}
-          <button key="ia" onClick={() => setMetodo('ia')}
-            className="card flex flex-col items-center justify-center text-center p-6 hover:border-brand-300 hover:shadow-md transition-all cursor-pointer min-h-[160px]">
-            <div className="w-14 h-14 rounded-2xl bg-brand-50 flex items-center justify-center mb-3">
-              <svg className="w-7 h-7 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9.75 3.104v5.714a2.25 2.25 0 01-.659 1.591L5 14.5M9.75 3.104c-.251.023-.501.05-.75.082m.75-.082a24.301 24.301 0 014.5 0m0 0v5.714c0 .597.237 1.17.659 1.591L19.8 15.3M14.25 3.104c.251.023.501.05.75.082M19.8 15.3l-1.57.393A9.065 9.065 0 0112 15a9.065 9.065 0 00-6.23.693L5 14.5m14.8.8l1.402 1.402c1.232 1.232.65 3.318-1.067 3.611A48.309 48.309 0 0112 21c-2.773 0-5.491-.235-8.135-.687-1.718-.293-2.3-2.379-1.067-3.61L5 14.5"/></svg>
-            </div>
-            <h3 className="text-sm font-semibold text-slate-800 mb-1">Assistente IA</h3>
-            <p className="text-xs text-slate-400">Digitar, colar, audio ou imagem</p>
-          </button>
         </div>
+
+        <input
+          ref={fileRef}
+          type="file"
+          accept={formato ? metodos.find(m => m.key === formato)?.accept : undefined}
+          className="hidden"
+          onChange={e => {
+            const f = e.target.files?.[0];
+            if (f && formato) {
+              processarArquivo(f, formato);
+            }
+            e.target.value = '';
+          }}
+        />
+
+        {/* Assistente IA */}
+        <div className="card border-2 border-dashed border-slate-200 hover:border-brand-300 transition-colors">
+          <div className="flex items-center gap-3 mb-4">
+            <span className="text-2xl">🧠</span>
+            <div>
+              <h3 className="text-sm font-bold text-slate-800">Assistente IA</h3>
+              <p className="text-xs text-slate-400">Descreva os produtos recebidos ou anexe qualquer arquivo</p>
+            </div>
+          </div>
+
+          <textarea
+            value={textoIA}
+            onChange={e => setTextoIA(e.target.value)}
+            className="input-field font-mono text-xs mb-3 min-h-[100px]"
+            rows={5}
+            placeholder={'Exemplos:\n\n"Chegaram 10 litros de oleo 20W50 Motul a R$ 32,90"\n"5 pastilhas de freio dianteira para CG 160 marca ProTork"\n"Kit relacao DID 428 para Fazer 250 — 3 unidades a R$ 89"\n\nOu cole dados de catálogos, notas fiscais, ou qualquer texto com códigos de peças.'}
+          />
+
+          <div className="flex flex-wrap items-center gap-3">
+            <label className="btn-secondary text-xs cursor-pointer inline-flex items-center gap-2">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+              </svg>
+              {anexoIA ? anexoIA.name : 'Anexar arquivo (PDF, imagem, CSV, Excel)'}
+              <input
+                type="file"
+                accept="image/*,.pdf,.csv,.xlsx,.xls"
+                className="hidden"
+                onChange={e => {
+                  const f = e.target.files?.[0];
+                  if (f) {
+                    setAnexoIA(f);
+                    setArquivoNome(f.name);
+                    // Detecta formato
+                    if (f.name.endsWith('.csv')) setFormato('csv');
+                    else if (f.name.endsWith('.xlsx') || f.name.endsWith('.xls')) setFormato('excel');
+                    else if (f.name.endsWith('.pdf')) setFormato('pdf');
+                    else setFormato('ia');
+                  }
+                }}
+              />
+            </label>
+            <button
+              onClick={processarIA}
+              disabled={!textoIA.trim() && !anexoIA}
+              className="btn-primary text-xs px-6"
+            >
+              Analisar com IA
+            </button>
+          </div>
+        </div>
+
+        {msg && (
+          <div className="mt-4 bg-amber-50 border border-amber-200 text-amber-700 px-4 py-3 rounded-xl text-xs">
+            {msg}
+          </div>
+        )}
       </div>
     );
   }
 
-  // Subfluxo CSV/Excel/PDF/Imagem
-  if (metodo==='csv'||metodo==='excel'||metodo==='pdf'||metodo==='imagem') {
-    const methodMeta = metodos.find(m=>m.key===metodo)!;
+  // ETAPA 1: PROCESSANDO
+  if (etapa === 'processando') {
+    const isImagem = formato === 'imagem';
     return (
-      <div className="p-6">
-        <button onClick={reset} className="text-xs text-slate-400 hover:text-slate-600 mb-2 inline-block">← Voltar</button>
-        <h1 className="text-xl font-bold text-slate-800 tracking-tight mb-1">{methodMeta.titulo}</h1>
-        <p className="text-sm text-slate-500 mb-6">{methodMeta.desc}</p>
-        {msg && <div className="bg-amber-50 border border-amber-200 text-amber-700 px-4 py-3 rounded-xl text-xs mb-4">{msg}</div>}
+      <div className="p-6 max-w-2xl mx-auto">
+        <h1 className="text-xl font-bold text-slate-800 mb-6">
+          {formato === 'ia' ? 'Analisando com IA...' : `Processando ${formato?.toUpperCase()}...`}
+        </h1>
 
-        {produtos.length===0 && !loading && (
-          <button onClick={()=>fileRef.current?.click()} className="btn-primary text-xs mb-6">
-            Selecionar arquivo {methodMeta.accept}
-          </button>
-        )}
-        <input ref={fileRef} type="file" accept={methodMeta.accept} className="hidden" onChange={e=>handleFileUpload(e, metodo)}/>
-
-        {loading && (
-          <div className="card text-center py-8 mb-4">
-            <div className="w-10 h-10 border-2 border-brand-600 border-t-transparent rounded-full animate-spin mx-auto mb-3"/>
-            <p className="text-sm text-slate-500">{arquivoNome ? `Analisando ${arquivoNome}...` : 'Processando...'}</p>
-          </div>
-        )}
-
-        {produtos.length>0 && (
-          <>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
-              {[
-                { label:'Produtos encontrados', value:produtos.length },
-                { label:'Ja existem', value:produtos.filter(p=>p.existe).length },
-                { label:'Novos', value:produtos.filter(p=>!p.existe).length },
-                { label:'Total unidades', value:produtos.reduce((s,p)=>s+(parseInt(p.qtdCentral)||0),0) },
-              ].map((c,i)=>(
-                <div key={i} className="card-stat"><p className="text-[10px] text-slate-400 uppercase mb-1">{c.label}</p><p className="text-lg font-bold">{c.value}</p></div>
-              ))}
-            </div>
-
-            <p className="text-xs text-amber-600 bg-amber-50 border border-amber-100 rounded-lg p-3 mb-4">
-              Confira se as informacoes extraidas estao corretas antes de abastecer o estoque.
-            </p>
-
-            <div className="card-table overflow-auto mb-4">
-              <table className="w-full text-[10px]">
-                <thead><tr className="border-b border-slate-100 bg-slate-50/60 sticky top-0">
-                  <th className="text-left py-1.5 px-1.5 font-semibold text-slate-500 uppercase">Status</th>
-                  <th className="text-left py-1.5 px-1.5 font-semibold text-slate-500 uppercase">Barras</th>
-                  <th className="text-left py-1.5 px-1.5 font-semibold text-slate-500 uppercase">SKU</th>
-                  <th className="text-left py-1.5 px-1.5 font-semibold text-slate-500 uppercase">Nome</th>
-                  <th className="text-left py-1.5 px-1.5 font-semibold text-slate-500 uppercase">Marca</th>
-                  <th className="text-left py-1.5 px-1.5 font-semibold text-slate-500 uppercase">Categoria</th>
-                  <th className="text-left py-1.5 px-1.5 font-semibold text-slate-500 uppercase">Forn.</th>
-                  <th className="text-center py-1.5 px-1.5 font-semibold text-slate-500 uppercase">Qtd</th>
-                  <th className="text-right py-1.5 px-1.5 font-semibold text-slate-500 uppercase">Custo</th>
-                  <th className="text-right py-1.5 px-1.5 font-semibold text-slate-500 uppercase">Venda</th>
-                  <th className="text-center py-1.5 px-1.5 font-semibold text-slate-500 uppercase">Loja</th>
-                </tr></thead>
-                <tbody>{produtos.map((p,i)=>(
-                  <tr key={i} className={`border-b border-slate-50 hover:bg-slate-50/50 ${i%2===0?'bg-white':'bg-slate-50/20'}`}>
-                    <td className="py-1 px-1.5">
-                      <span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-bold ${p.existe?'bg-emerald-50 text-emerald-700':'bg-brand-50 text-brand-700'}`}>{p.existe?'Existe':'Novo'}</span>
-                    </td>
-                    <td className="py-1 px-1.5"><input value={p.codigoBarras} onChange={e=>updateProduto(p.idx,'codigoBarras',e.target.value)} className="w-full bg-transparent border-0 border-b border-transparent hover:border-slate-200 focus:border-brand-400 outline-none text-[10px] font-mono" placeholder="-"/></td>
-                    <td className="py-1 px-1.5"><input value={p.sku} onChange={e=>updateProduto(p.idx,'sku',e.target.value)} className="w-full bg-transparent border-0 border-b border-transparent hover:border-slate-200 focus:border-brand-400 outline-none text-[10px] font-mono" placeholder="-"/></td>
-                    <td className="py-1 px-1.5"><input value={p.nome} onChange={e=>updateProduto(p.idx,'nome',e.target.value)} className="w-full bg-transparent border-0 border-b border-transparent hover:border-slate-200 focus:border-brand-400 outline-none text-[10px] font-medium" placeholder="Nome"/></td>
-                    <td className="py-1 px-1.5"><input value={p.marca} onChange={e=>updateProduto(p.idx,'marca',e.target.value)} className="w-full bg-transparent border-0 border-b border-transparent hover:border-slate-200 focus:border-brand-400 outline-none text-[10px]" placeholder="-"/></td>
-                    <td className="py-1 px-1.5"><input value={p.categoria} onChange={e=>updateProduto(p.idx,'categoria',e.target.value)} className="w-full bg-transparent border-0 border-b border-transparent hover:border-slate-200 focus:border-brand-400 outline-none text-[10px]" placeholder="-"/></td>
-                    <td className="py-1 px-1.5"><input value={p.fornecedor} onChange={e=>updateProduto(p.idx,'fornecedor',e.target.value)} className="w-full bg-transparent border-0 border-b border-transparent hover:border-slate-200 focus:border-brand-400 outline-none text-[10px]" placeholder="-"/></td>
-                    <td className="py-1 px-1.5"><input type="number" value={p.qtdCentral} onChange={e=>updateProduto(p.idx,'qtdCentral',e.target.value)} className="w-12 bg-transparent border-0 border-b border-transparent hover:border-slate-200 focus:border-brand-400 outline-none text-[10px] text-center font-bold"/></td>
-                    <td className="py-1 px-1.5"><input type="number" step="0.01" value={p.precoCusto} onChange={e=>updateProduto(p.idx,'precoCusto',e.target.value)} className="w-16 bg-transparent border-0 border-b border-transparent hover:border-slate-200 focus:border-brand-400 outline-none text-[10px] text-right" placeholder="0,00"/></td>
-                    <td className="py-1 px-1.5"><input type="number" step="0.01" value={p.precoVenda} onChange={e=>updateProduto(p.idx,'precoVenda',e.target.value)} className="w-16 bg-transparent border-0 border-b border-transparent hover:border-slate-200 focus:border-brand-400 outline-none text-[10px] text-right" placeholder="0,00"/></td>
-                    <td className="py-1 px-1.5"><input type="number" value={p.qtdLoja} onChange={e=>updateProduto(p.idx,'qtdLoja',e.target.value)} className="w-10 bg-transparent border-0 border-b border-transparent hover:border-slate-200 focus:border-brand-400 outline-none text-[10px] text-center"/></td>
-                  </tr>
-                ))}</tbody>
-              </table>
-            </div>
-
-            <div className="flex items-center gap-3">
-              <button onClick={abastecerEstoque} disabled={loading} className="btn-primary text-xs">Abastecer Estoque Central</button>
-              <button onClick={reset} className="btn-secondary text-xs">Cancelar</button>
-            </div>
-          </>
-        )}
-
-        {resultado && (
-          <div className="mt-6 bg-emerald-50 border border-emerald-200 rounded-xl p-5">
-            <p className="font-bold text-emerald-800 mb-1">Importacao concluida!</p>
-            <p className="text-sm text-emerald-700">{resultado.criados} criados, {resultado.atualizados} atualizados. Total: {resultado.total} produtos.</p>
-            <button onClick={reset} className="btn-primary text-xs mt-3">Nova importacao</button>
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  // Subfluxo IA
-  return (
-    <div className="p-6">
-      <button onClick={reset} className="text-xs text-slate-400 hover:text-slate-600 mb-2 inline-block">← Voltar</button>
-      <h1 className="text-xl font-bold text-slate-800 tracking-tight mb-1">Assistente IA</h1>
-      <p className="text-sm text-slate-500 mb-6">Descreva os produtos recebidos ou anexe arquivos</p>
-      {msg && <div className="bg-amber-50 border border-amber-200 text-amber-700 px-4 py-3 rounded-xl text-xs mb-4">{msg}</div>}
-
-      <div className="card mb-4">
-        <textarea value={textoIA} onChange={e=>setTextoIA(e.target.value)} className="input-field font-mono text-xs" rows={8}
-          placeholder={'Exemplos:\n\nEntraram 10 litros de oleo 20W50\nChegaram 5 kits de embreagem CG 160\nRecebi 3 pastilhas de freio dianteira por R$ 45,90 cada\n2 pneus 90/90-18 Pirelli a R$ 220,00'}/>
-      </div>
-
-      <div className="flex items-center gap-3 mb-6">
-        <label className="btn-secondary text-xs cursor-pointer inline-flex items-center gap-2">
-          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"/></svg>
-          {anexoIA ? anexoIA.name : 'Anexar imagem/PDF'}
-          <input ref={iaFileRef} type="file" accept="image/*,.pdf" className="hidden" onChange={e=>{setAnexoIA(e.target.files?.[0]||null);}}/>
-        </label>
-        <button onClick={processarIA} disabled={loading} className="btn-primary text-xs">Analisar</button>
-      </div>
-
-      {loading && (
-        <div className="card text-center py-8 mb-4">
-          <div className="w-10 h-10 border-2 border-brand-600 border-t-transparent rounded-full animate-spin mx-auto mb-3"/>
-          <p className="text-sm text-slate-500">Interpretando...</p>
-        </div>
-      )}
-
-      {produtos.length>0 && (
-        <>
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
-            {[
-              { label:'Produtos identificados', value:produtos.length },
-              { label:'Ja existem', value:produtos.filter(p=>p.existe).length },
-              { label:'Novos', value:produtos.filter(p=>!p.existe).length },
-            ].map((c,i)=>(
-              <div key={i} className="card-stat"><p className="text-[10px] text-slate-400 uppercase mb-1">{c.label}</p><p className="text-lg font-bold">{c.value}</p></div>
-            ))}
-          </div>
-
-          <p className="text-xs text-amber-600 bg-amber-50 border border-amber-100 rounded-lg p-3 mb-4">
-            Confira se as informacoes estao corretas antes de abastecer.
+        <div className="card text-center py-12">
+          <div className="w-12 h-12 border-3 border-brand-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <p className="text-sm font-semibold text-slate-700 mb-1">
+            {arquivoNome ? `Analisando ${arquivoNome}` : 'Processando dados...'}
           </p>
 
-          <div className="card-table overflow-auto mb-4">
-            <table className="w-full text-[10px]">
-              <thead><tr className="border-b border-slate-100 bg-slate-50/60">
-                <th className="text-left py-1.5 px-1.5 font-semibold text-slate-500 uppercase">Status</th>
-                <th className="text-left py-1.5 px-1.5 font-semibold text-slate-500 uppercase">Nome</th>
-                <th className="text-left py-1.5 px-1.5 font-semibold text-slate-500 uppercase">SKU</th>
-                <th className="text-center py-1.5 px-1.5 font-semibold text-slate-500 uppercase">Qtd</th>
-                <th className="text-right py-1.5 px-1.5 font-semibold text-slate-500 uppercase">Custo</th>
-                <th className="text-right py-1.5 px-1.5 font-semibold text-slate-500 uppercase">Venda</th>
-              </tr></thead>
-              <tbody>{produtos.map((p,i)=>(
-                <tr key={i} className={`border-b border-slate-50 ${i%2===0?'bg-white':'bg-slate-50/20'}`}>
-                  <td className="py-1 px-1.5"><span className={`inline-flex items-center px-1.5 py-0.5 rounded-full text-[9px] font-bold ${p.existe?'bg-emerald-50 text-emerald-700':'bg-brand-50 text-brand-700'}`}>{p.existe?'Existe':'Novo'}</span></td>
-                  <td className="py-1 px-1.5"><input value={p.nome} onChange={e=>updateProduto(p.idx,'nome',e.target.value)} className="w-full bg-transparent border-0 border-b border-transparent hover:border-slate-200 focus:border-brand-400 outline-none text-[10px] font-medium" placeholder="Nome"/></td>
-                  <td className="py-1 px-1.5"><input value={p.sku} onChange={e=>updateProduto(p.idx,'sku',e.target.value)} className="w-full bg-transparent border-0 border-b border-transparent hover:border-slate-200 focus:border-brand-400 outline-none text-[10px] font-mono" placeholder="-"/></td>
-                  <td className="py-1 px-1.5"><input type="number" value={p.qtdCentral} onChange={e=>updateProduto(p.idx,'qtdCentral',e.target.value)} className="w-12 bg-transparent border-0 border-b border-transparent hover:border-slate-200 focus:border-brand-400 outline-none text-[10px] text-center font-bold"/></td>
-                  <td className="py-1 px-1.5"><input type="number" step="0.01" value={p.precoCusto} onChange={e=>updateProduto(p.idx,'precoCusto',e.target.value)} className="w-16 bg-transparent border-0 border-b border-transparent hover:border-slate-200 focus:border-brand-400 outline-none text-[10px] text-right"/></td>
-                  <td className="py-1 px-1.5"><input type="number" step="0.01" value={p.precoVenda} onChange={e=>updateProduto(p.idx,'precoVenda',e.target.value)} className="w-16 bg-transparent border-0 border-b border-transparent hover:border-slate-200 focus:border-brand-400 outline-none text-[10px] text-right"/></td>
-                </tr>
-              ))}</tbody>
-            </table>
-          </div>
+          {/* Status da etapa atual (OCR/otimização) */}
+          {statusOCR && (
+            <p className="text-xs text-brand-600 font-medium mt-2 animate-pulse">
+              {statusOCR}
+            </p>
+          )}
 
-          <div className="flex items-center gap-3">
-            <button onClick={abastecerEstoque} disabled={loading} className="btn-primary text-xs">Confirmar Entrada</button>
-            <button onClick={reset} className="btn-secondary text-xs">Cancelar</button>
-          </div>
-        </>
-      )}
+          {/* Barra de progresso do OCR */}
+          {progressoOCR > 0 && (
+            <div className="mt-3 max-w-xs mx-auto">
+              <div className="h-1.5 bg-slate-200 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-brand-500 rounded-full transition-all duration-300"
+                  style={{ width: `${progressoOCR}%` }}
+                />
+              </div>
+              <p className="text-[10px] text-slate-400 mt-1">Reconhecendo texto: {progressoOCR}%</p>
+            </div>
+          )}
 
-      {resultado && (
-        <div className="mt-6 bg-emerald-50 border border-emerald-200 rounded-xl p-5">
-          <p className="font-bold text-emerald-800 mb-1">Concluido!</p>
-          <p className="text-sm text-emerald-700">{resultado.criados} criados, {resultado.atualizados} atualizados. Total: {resultado.total}.</p>
-          <button onClick={reset} className="btn-primary text-xs mt-3">Nova entrada</button>
+          {!statusOCR && !progressoOCR && (
+            <p className="text-xs text-slate-400 mt-2">
+              {isImagem ? 'Otimizando imagem e extraindo texto...' : 'Pode levar alguns segundos para arquivos grandes ou PDFs com muitas páginas'}
+            </p>
+          )}
         </div>
-      )}
-    </div>
-  );
+      </div>
+    );
+  }
+
+  // ETAPA 2: REVISÃO (com overlay de progresso ao salvar)
+  if (etapa === 'revisao' || etapa === 'salvando') {
+    return (
+      <div className="p-4 sm:p-6 max-w-full mx-auto">
+        {/* Overlay de progresso durante o salvamento */}
+        {etapa === 'salvando' && (
+          <div className="fixed inset-0 bg-black/30 z-40 flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl shadow-2xl border border-slate-200 p-8 max-w-md w-full text-center">
+              <div className="w-14 h-14 border-4 border-brand-600 border-t-transparent rounded-full animate-spin mx-auto mb-5" />
+              <h2 className="text-lg font-bold text-slate-800 mb-2">Salvando no Estoque</h2>
+              <p className="text-3xl font-extrabold text-brand-600 mb-4">
+                {progressoSalvar.atual.toLocaleString('pt-BR')}
+                <span className="text-base font-normal text-slate-400"> / </span>
+                {progressoSalvar.total.toLocaleString('pt-BR')}
+              </p>
+              {/* Barra de progresso */}
+              <div className="h-2.5 bg-slate-200 rounded-full overflow-hidden mb-4">
+                <div
+                  className="h-full bg-brand-500 rounded-full transition-all duration-500 ease-out"
+                  style={{ width: `${progressoSalvar.total > 0 ? Math.round((progressoSalvar.atual / progressoSalvar.total) * 100) : 0}%` }}
+                />
+              </div>
+              {/* Contadores parciais */}
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="bg-emerald-50 rounded-lg px-3 py-2">
+                  <span className="text-emerald-600 font-bold text-lg block">{acumuladoSalvar.criados.toLocaleString('pt-BR')}</span>
+                  <span className="text-emerald-500">Criados</span>
+                </div>
+                <div className="bg-blue-50 rounded-lg px-3 py-2">
+                  <span className="text-blue-600 font-bold text-lg block">{acumuladoSalvar.atualizados.toLocaleString('pt-BR')}</span>
+                  <span className="text-blue-500">Atualizados</span>
+                </div>
+                <div className="bg-amber-50 rounded-lg px-3 py-2">
+                  <span className="text-amber-600 font-bold text-lg block">{acumuladoSalvar.duplicados.toLocaleString('pt-BR')}</span>
+                  <span className="text-amber-500">Duplicados</span>
+                </div>
+                <div className="bg-red-50 rounded-lg px-3 py-2">
+                  <span className="text-red-600 font-bold text-lg block">{acumuladoSalvar.erros.toLocaleString('pt-BR')}</span>
+                  <span className="text-red-500">Erros</span>
+                </div>
+              </div>
+              {msg && (
+                <p className="text-[10px] text-amber-600 mt-3">{msg}</p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Header */}
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <div>
+            <button onClick={reset} className="text-xs text-slate-400 hover:text-slate-600 mb-1 inline-block">
+              ← Voltar
+            </button>
+            <h1 className="text-xl font-bold text-slate-800">
+              Revisar Produtos · {formato?.toUpperCase()}
+            </h1>
+            <p className="text-xs text-slate-400">
+              {arquivoNome} · {produtos.length} produtos encontrados
+            </p>
+          </div>
+          {msgOk && (
+            <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 px-4 py-2 rounded-xl text-xs font-bold">
+              {msgOk}
+            </div>
+          )}
+        </div>
+
+        {/* Estratégia de duplicatas */}
+        <div className="mb-4 p-3 bg-slate-50 rounded-xl flex flex-wrap items-center gap-3">
+          <span className="text-xs font-bold text-slate-600">Produtos duplicados:</span>
+          {[
+            { key: 'skip' as const, label: 'Ignorar' },
+            { key: 'update' as const, label: 'Atualizar estoque' },
+            { key: 'create' as const, label: 'Criar novo' },
+          ].map(opt => (
+            <label key={opt.key} className="flex items-center gap-1.5 cursor-pointer">
+              <input
+                type="radio"
+                name="dupStrategy"
+                checked={duplicataStrategy === opt.key}
+                onChange={() => setDuplicataStrategy(opt.key)}
+                className="text-brand-600"
+              />
+              <span className="text-[11px] text-slate-600">{opt.label}</span>
+            </label>
+          ))}
+        </div>
+
+        {/* Tabela de revisão */}
+        <TabelaRevisao
+          produtos={produtos}
+          stats={stats}
+          onChange={updateProduto}
+          onToggleSelecionar={toggleSelecionar}
+          onToggleTodos={toggleTodos}
+          onExcluir={excluirProduto}
+          onDuplicar={duplicarProduto}
+          onSalvar={salvarNoEstoque}
+          onCancelar={reset}
+          loading={loading}
+          pesquisa={pesquisa}
+          onPesquisaChange={setPesquisa}
+        />
+      </div>
+    );
+  }
+
+  // ETAPA 3: LOG PÓS-IMPORTAÇÃO
+  if (etapa === 'log' && resultado) {
+    return (
+      <ModalLogImportacao
+        resultado={resultado}
+        onFechar={reset}
+        onNovaEntrada={reset}
+      />
+    );
+  }
+
+  return null;
+}
+
+// ─── Helper: parse de texto tabular (para PDF/OCR) ───
+function parseTextoTabela(texto: string): Partial<ProdutoExtraido>[] {
+  const lines = texto.split('\n').filter(l => l.trim().length > 2);
+  if (lines.length === 0) return [];
+
+  const produtos: Partial<ProdutoExtraido>[] = [];
+
+  // Padrão: código numérico seguido de descrição
+  const codDesc = /^(\d{4,})\s+(.+)$/;
+  // Padrão: quantidade + nome
+  const qtdNome = /(\d+)\s*(?:un|unidades?|litros?|L|kits?|pares?)\s+(?:de\s+)?(.+)/i;
+  // SKU genérico
+  const sku = /([A-Z0-9\-]{5,})/i;
+
+  for (const line of lines) {
+    let m = line.match(codDesc);
+    if (m) {
+      produtos.push({ codigo: m[1], nome: m[2].slice(0, 100), descricao: m[2] });
+      continue;
+    }
+    m = line.match(qtdNome);
+    if (m) {
+      produtos.push({ nome: m[2].slice(0, 100), quantidade: m[1], descricao: m[2] });
+      continue;
+    }
+    m = line.match(sku);
+    if (m) {
+      produtos.push({ codigo: m[1], nome: line.slice(0, 100), descricao: line });
+      continue;
+    }
+    // Fallback
+    if (line.trim().length > 5) {
+      produtos.push({ nome: line.slice(0, 100), descricao: line });
+    }
+  }
+  return produtos;
 }

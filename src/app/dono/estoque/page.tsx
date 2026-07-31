@@ -55,7 +55,7 @@ export default function EstoquePage() {
 
   const pecasFiltradas = pecas.filter(p=>{if(!busca)return true;const q=busca.toLowerCase();return p.nome.toLowerCase().includes(q)||p.codigo.toLowerCase().includes(q);});
   const totalPecas = pecas.length;
-  const estoqueBaixo = pecas.filter(p=>p.quantidade<=p.estoqueMinimo).length;
+  const estoqueBaixo = pecas.filter(p=>p.estoqueMinimo > 0 && p.quantidade < p.estoqueMinimo).length;
   const valorTotalEstoque = pecas.reduce((acc,p)=>acc+Number(p.precoCusto)*p.quantidade,0);
 
   const categoriasComContagem = useMemo(() => categorias.map(c=>({...c,_count:{pecas:pecas.filter(p=>p.categoriaId===c.id).length}})).filter(c=>(c._count?.pecas??0)>0), [categorias, pecas]);

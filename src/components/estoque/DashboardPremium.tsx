@@ -125,7 +125,7 @@ export default function DashboardPremium() {
             .map((p: any) => ({ nome: p.nome, codigo: p.codigo, quantidade: p.quantidade, diasParado: 0 }))
             .sort((a, b) => b.quantidade - a.quantidade).slice(0, 10),
           criticos: peças
-            .filter((p: any) => p.quantidade <= p.estoqueMinimo && p.quantidade > 0)
+            .filter((p: any) => p.estoqueMinimo > 0 && p.quantidade < p.estoqueMinimo && p.quantidade > 0)
             .map((p: any) => ({ nome: p.nome, codigo: p.codigo, quantidade: p.quantidade, estoqueMinimo: p.estoqueMinimo }))
             .sort((a, b) => a.quantidade - b.quantidade).slice(0, 10),
           valorCentral: peças.reduce((s: number, p: any) => s + (Number(p.precoVenda) || 0) * (p.quantidade || 0), 0),

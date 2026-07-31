@@ -4,10 +4,13 @@ import AppShell from '@/components/AppShell';
 
 export default async function DonoLayout({ children }: { children: React.ReactNode }) {
   const session = await requireAuth(['DONO']);
-  const user = await prisma.user.findUnique({ where: { id: session.id }, select: { name: true } });
+  const [user, totalPecas] = await Promise.all([
+    prisma.user.findUnique({ where: { id: session.id }, select: { name: true } }),
+    prisma.peca.count({ where: { ativo: true } }),
+  ]);
   return (
     <div className="flex h-screen overflow-hidden bg-[#F3F6FB]">
-      <AppShell user={session} userName={user?.name || session.name}>{children}</AppShell>
+      <AppShell user={session} userName={user?.name || session.name} totalItens={totalPecas}>{children}</AppShell>
     </div>
   );
 }
