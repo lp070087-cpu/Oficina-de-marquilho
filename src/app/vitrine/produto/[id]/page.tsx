@@ -17,6 +17,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   return {
     title: `${peca.nome} — Marquinho Moto Peças`,
     description: peca.descricaoCurta || peca.descricao || `Compre ${peca.nome} na Marquinho Moto Peças`,
+    alternates: { canonical: `/vitrine/produto/${peca.id}` },
     openGraph: peca.imagemUrl ? { images: [peca.imagemUrl] } : undefined,
     twitter: peca.imagemUrl ? { card: 'summary_large_image', images: [peca.imagemUrl] } : undefined,
   };
@@ -61,7 +62,8 @@ export default async function ProdutoPage({ params }: { params: Promise<{ id: st
   const economia = oferta ? Number(peca.precoVenda) - Number(peca.precoOferta) : 0;
   const desconto = oferta ? Math.round((economia / Number(peca.precoVenda)) * 100) : 0;
   const precoAtual = oferta ? Number(peca.precoOferta) : Number(peca.precoVenda);
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+  const storeDomain = process.env.NEXT_PUBLIC_STORE_DOMAIN || 'vitrine.marquinhomotopeças.com';
+  const baseUrl = `https://${storeDomain}`;
   const url = `${baseUrl}/vitrine/produto/${peca.id}`;
 
   // Garantia padrão

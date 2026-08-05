@@ -10,7 +10,7 @@ interface Peca {
 interface Categoria { id: string; nome: string; slug: string; }
 
 async function getData(slug: string) {
-  const base = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+  const base = process.env.NEXT_PUBLIC_BASE_URL || (process.env.NODE_ENV === 'production' ? 'https://marquinhomotopeças.com' : 'http://localhost:3000');
   const [pr, cr] = await Promise.all([fetch(`${base}/api/vitrine`,{cache:'no-store'}), fetch(`${base}/api/categorias`,{cache:'no-store'})]);
   return { pecas: (await pr.json()) as Peca[], categorias: (await cr.json()) as Categoria[], slug };
 }

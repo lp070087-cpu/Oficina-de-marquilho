@@ -43,15 +43,33 @@ const publicPaths = [
   '/uploads', '/icon-192.png', '/icon-512.png', '/manifest.json', '/sw.js',
 ];
 
+// Security headers applied to all responses
+function applySecurityHeaders(response: NextResponse): NextResponse {
+  response.headers.set('X-Content-Type-Options', 'nosniff');
+  response.headers.set('X-Frame-Options', 'DENY');
+  response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+  response.headers.set('X-XSS-Protection', '1; mode=block');
+  // HSTS: max-age=1 ano, inclui subdomínios (remover preload se não registrado)
+  response.headers.set('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+  // Permissions-Policy: restringe APIs sensíveis do navegador
+  response.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  return response;
+}
+
+// Retorna resposta com headers de segurança (para uso em early returns)
+function nextWithHeaders(request: NextRequest): NextResponse {
+  return applySecurityHeaders(NextResponse.next());
+}
+
 export async function middleware(request: NextRequest) {
   const { pathname, hostname } = request.nextUrl;
 
   // Allow static and public
   if (pathname.startsWith('/_next') || publicPaths.includes(pathname)) {
-    return NextResponse.next();
+    return applySecurityHeaders(NextResponse.next());
   }
   if (publicPaths.some(p => pathname.startsWith(p + '/') || pathname.startsWith(p + '?'))) {
-    return NextResponse.next();
+    return applySecurityHeaders(NextResponse.next());
   }
 
   // Domain routing (only in production with custom domains)
@@ -61,35 +79,34 @@ export async function middleware(request: NextRequest) {
 
     if (isStoreDomain && PANEL_REQUIRED_ROUTES.some(r => pathname.startsWith(r))) {
       const panelUrl = new URL(pathname, 'https://' + PANEL_DOMAIN);
-      return NextResponse.redirect(panelUrl);
+      return applySecurityHeaders(NextResponse.redirect(panelUrl));
     }
     if (isPanelDomain && STORE_ONLY_ROUTES.some(r => pathname.startsWith(r))) {
       const storeUrl = new URL(pathname, 'https://' + STORE_DOMAIN);
-      return NextResponse.redirect(storeUrl);
+      return applySecurityHeaders(NextResponse.redirect(storeUrl));
     }
   }
 
   // Login page is always allowed
-  if (pathname === '/') return NextResponse.next();
+  if (pathname === '/') return nextWithHeaders(request);
 
   const token = request.cookies.get('token')?.value;
   if (!token) {
     // For vitrine routes (public store), allow without auth
     if (pathname.startsWith('/vitrine') || pathname.startsWith('/api/vitrine/clientes') || pathname.startsWith('/api/vitrine/orcamentos') || pathname.startsWith('/api/categorias')) {
-      return NextResponse.next();
+      return nextWithHeaders(request);
     }
-    return NextResponse.redirect(new URL('/', request.url));
+    return applySecurityHeaders(NextResponse.redirect(new URL('/', request.url)));
   }
 
   try {
     const { payload } = await jwtVerify(token, JWT_SECRET);
     const role = payload.role as string;
-    const tipoBalcao = (payload.tipoBalcao as string) || '';
 
     // API permission checks
     for (const [prefix, allowedRoles] of Object.entries(apiPerms)) {
       if (pathname.startsWith(prefix) && !allowedRoles.includes(role)) {
-        return NextResponse.json({ error: 'Nao autorizado' }, { status: 403 });
+        return applySecurityHeaders(NextResponse.json({ error: 'Nao autorizado' }, { status: 403 }));
       }
     }
 
@@ -99,13 +116,13 @@ export async function middleware(request: NextRequest) {
         const redirectMap: Record<string, string> = {
           DONO: '/dono', BALCAO: '/balcao', ESTOQUE: '/estoque',
         };
-        return NextResponse.redirect(new URL(redirectMap[role] || '/', request.url));
+        return applySecurityHeaders(NextResponse.redirect(new URL(redirectMap[role] || '/', request.url)));
       }
     }
 
-    return NextResponse.next();
+    return nextWithHeaders(request);
   } catch {
-    return NextResponse.redirect(new URL('/', request.url));
+    return applySecurityHeaders(NextResponse.redirect(new URL('/', request.url)));
   }
 }
 

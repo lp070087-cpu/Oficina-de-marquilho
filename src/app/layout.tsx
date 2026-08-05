@@ -4,6 +4,9 @@ import './globals.css';
 export const metadata: Metadata = {
   title: 'Marquinho Moto Pecas',
   description: 'Sistema de gestao de oficina e estoque',
+  metadataBase: process.env.NEXT_PUBLIC_PANEL_DOMAIN
+    ? new URL(`https://${process.env.NEXT_PUBLIC_PANEL_DOMAIN}`)
+    : new URL('http://localhost:3000'),
   manifest: '/manifest.json',
   appleWebApp: { capable: true, title: 'Marquinho', statusBarStyle: 'black-translucent' },
 };

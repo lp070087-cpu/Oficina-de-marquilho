@@ -7,12 +7,16 @@ export async function GET() {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: 'Nao autorizado' }, { status: 403 });
 
-  const centros = await prisma.centroCusto.findMany({
-    where: { ativo: true },
-    include: { _count: { select: { lancamentos: true } } },
-    orderBy: { tipo: 'asc' },
-  });
-  return NextResponse.json(centros);
+  try {
+    const centros = await prisma.centroCusto.findMany({
+      where: { ativo: true },
+      include: { _count: { select: { lancamentos: true } } },
+      orderBy: { tipo: 'asc' },
+    });
+    return NextResponse.json(centros);
+  } catch (e: any) {
+    return NextResponse.json({ error: e.message }, { status: 500 });
+  }
 }
 
 // POST /api/financeiro/centro-custos

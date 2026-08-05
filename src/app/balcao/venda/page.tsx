@@ -81,7 +81,7 @@ export default function VendaAvulsaPage() {
           </div>
           <div className="flex items-center gap-2">
             <label className="text-xs font-semibold text-slate-600 uppercase">Qtd</label>
-            <input type="number" value={qtd} onChange={e=>setQtd(e.target.value)} className="input-field w-24 text-center text-lg font-bold" min="1"/>
+            <input type="number" value={qtd} onChange={e=>setQtd(e.target.value)} className="input-field w-20 sm:w-24 text-center text-lg font-bold" min="1"/>
             <button onClick={vender} disabled={loading} className="btn-primary text-xs flex-1">Registrar venda — {fm(Number(selected.precoVenda)*(parseInt(qtd)||1))}</button>
           </div>
           <div className="flex flex-wrap gap-2"><button onClick={()=>setSelected(null)} className="btn-secondary text-xs">Cancelar</button><button onClick={()=>{setSelected(null);setBusca('');setBarcode('');}} className="btn-secondary text-xs">Nova busca</button></div>

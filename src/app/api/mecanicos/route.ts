@@ -4,6 +4,10 @@ import { getSession } from '@/lib/auth';
 export async function GET() {
   const session = await getSession();
   if (!session || !['DONO', 'BALCAO'].includes(session.role)) return NextResponse.json({ error: 'Nao autorizado' }, { status: 403 });
-  const mecs = await prisma.user.findMany({ where: { role: 'MECANICO', active: true }, select: { id: true, name: true, emAlmoco: true }, orderBy: { name: 'asc' } });
-  return NextResponse.json(mecs);
+  try {
+    const mecs = await prisma.user.findMany({ where: { role: 'MECANICO', active: true }, select: { id: true, name: true, emAlmoco: true }, orderBy: { name: 'asc' } });
+    return NextResponse.json(mecs);
+  } catch (e: any) {
+    return NextResponse.json({ error: e.message }, { status: 500 });
+  }
 }

@@ -71,8 +71,8 @@ ${obs?`<p><strong>Obs:</strong> ${obs}</p>`:''}
 
         <div className="flex flex-wrap gap-2 items-end">
           <div className="flex-1"><label className="text-[10px] font-semibold text-slate-500 uppercase">Produto</label><input value={formItem.nome} onChange={e=>setFormItem({...formItem,nome:e.target.value})} className="input-field mt-1 text-xs" placeholder="Nome do produto"/></div>
-          <div className="w-24"><label className="text-[10px] font-semibold text-slate-500 uppercase">Codigo</label><input value={formItem.codigo} onChange={e=>setFormItem({...formItem,codigo:e.target.value})} className="input-field mt-1 text-xs"/></div>
-          <div className="w-16"><label className="text-[10px] font-semibold text-slate-500 uppercase">Qtd</label><input type="number" value={formItem.quantidade} onChange={e=>setFormItem({...formItem,quantidade:e.target.value})} className="input-field mt-1 text-xs" min="1"/></div>
+          <div className="w-20 sm:w-24"><label className="text-[10px] font-semibold text-slate-500 uppercase">Codigo</label><input value={formItem.codigo} onChange={e=>setFormItem({...formItem,codigo:e.target.value})} className="input-field mt-1 text-xs"/></div>
+          <div className="w-12 sm:w-16"><label className="text-[10px] font-semibold text-slate-500 uppercase">Qtd</label><input type="number" value={formItem.quantidade} onChange={e=>setFormItem({...formItem,quantidade:e.target.value})} className="input-field mt-1 text-xs" min="1"/></div>
           <div className="w-28"><label className="text-[10px] font-semibold text-slate-500 uppercase">Vlr Unit</label><input type="number" step="0.01" value={formItem.valorUnitario} onChange={e=>setFormItem({...formItem,valorUnitario:e.target.value})} className="input-field mt-1 text-xs"/></div>
           <button onClick={addItem} className="btn-primary text-xs px-3 h-[38px]">+</button>
         </div>

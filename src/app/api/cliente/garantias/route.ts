@@ -7,19 +7,23 @@ export async function GET(req: NextRequest) {
   const session = await getVitrineSession(req.headers.get('Authorization')?.replace('Bearer ', '') || '');
   if (!session) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
 
-  const status = req.nextUrl.searchParams.get('status');
+  try {
+    const status = req.nextUrl.searchParams.get('status');
 
-  const where: any = { clienteId: session.clienteId };
-  if (status) where.status = status;
+    const where: any = { clienteId: session.clienteId };
+    if (status) where.status = status;
 
-  const garantias = await prisma.garantiaCliente.findMany({
-    where,
-    include: {
-      peca: { select: { nome: true, codigo: true, imagemUrl: true, marca: true } },
-      pedido: { select: { numero: true } },
-    },
-    orderBy: { createdAt: 'desc' },
-  });
+    const garantias = await prisma.garantiaCliente.findMany({
+      where,
+      include: {
+        peca: { select: { nome: true, codigo: true, imagemUrl: true, marca: true } },
+        pedido: { select: { numero: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
 
-  return NextResponse.json(garantias);
+    return NextResponse.json(garantias);
+  } catch (e: any) {
+    return NextResponse.json({ error: e.message }, { status: 500 });
+  }
 }

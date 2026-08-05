@@ -39,7 +39,7 @@ export default function AvaliacoesVitrine({ pecaId }: { pecaId: string }) {
           <p className="text-sm text-yellow-500">{estrelas(Math.round(media))}</p>
           <p className="text-[10px] text-slate-400 mt-0.5">{total} avaliações</p>
         </div>
-        <div className="flex-1 space-y-1 min-w-[180px]">
+        <div className="flex-1 space-y-1 min-w-[140px] sm:min-w-[180px]">
           {[5,4,3,2,1].map(n => {
             const pct = total > 0 ? (dist[n] / total) * 100 : 0;
             return (

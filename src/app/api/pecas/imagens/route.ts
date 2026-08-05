@@ -61,26 +61,30 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET(req: NextRequest) {
-  const session = await getSession();
-  if (!session || !['DONO', 'BALCAO', 'ESTOQUE'].includes(session.role)) {
-    return NextResponse.json({ error: 'Nao autorizado' }, { status: 403 });
-  }
-  const pecaId = req.nextUrl.searchParams.get('pecaId');
-  if (!pecaId) return NextResponse.json({ error: 'pecaId obrigatorio' }, { status: 400 });
-  const imagens = await prisma.pecaImagem.findMany({
-    where: { pecaId },
-    orderBy: { ordem: 'asc' },
-  });
-  return NextResponse.json(imagens);
+  try {
+    const session = await getSession();
+    if (!session || !['DONO', 'BALCAO', 'ESTOQUE'].includes(session.role)) {
+      return NextResponse.json({ error: 'Nao autorizado' }, { status: 403 });
+    }
+    const pecaId = req.nextUrl.searchParams.get('pecaId');
+    if (!pecaId) return NextResponse.json({ error: 'pecaId obrigatorio' }, { status: 400 });
+    const imagens = await prisma.pecaImagem.findMany({
+      where: { pecaId },
+      orderBy: { ordem: 'asc' },
+    });
+    return NextResponse.json(imagens);
+  } catch (e: any) { return NextResponse.json({ error: e.message }, { status: 500 }); }
 }
 
 export async function DELETE(req: NextRequest) {
-  const session = await getSession();
-  if (!session || !['DONO', 'BALCAO', 'ESTOQUE'].includes(session.role)) {
-    return NextResponse.json({ error: 'Nao autorizado' }, { status: 403 });
-  }
-  const id = req.nextUrl.searchParams.get('id');
-  if (!id) return NextResponse.json({ error: 'id obrigatorio' }, { status: 400 });
-  await prisma.pecaImagem.delete({ where: { id } });
-  return NextResponse.json({ ok: true });
+  try {
+    const session = await getSession();
+    if (!session || !['DONO', 'BALCAO', 'ESTOQUE'].includes(session.role)) {
+      return NextResponse.json({ error: 'Nao autorizado' }, { status: 403 });
+    }
+    const id = req.nextUrl.searchParams.get('id');
+    if (!id) return NextResponse.json({ error: 'id obrigatorio' }, { status: 400 });
+    await prisma.pecaImagem.delete({ where: { id } });
+    return NextResponse.json({ ok: true });
+  } catch (e: any) { return NextResponse.json({ error: e.message }, { status: 500 }); }
 }

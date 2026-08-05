@@ -409,7 +409,7 @@ export default function CategoriasPage() {
               {/* Ordem */}
               <div>
                 <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Ordem de exibicao</label>
-                <input type="number" value={form.ordem} onChange={e => setForm({ ...form, ordem: parseInt(e.target.value) || 0 })} className="input-field mt-1.5 w-24" min="0" />
+                <input type="number" value={form.ordem} onChange={e => setForm({ ...form, ordem: parseInt(e.target.value) || 0 })} className="input-field mt-1.5 w-20 sm:w-24" min="0" />
               </div>
 
               {/* Status */}

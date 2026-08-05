@@ -7,33 +7,37 @@ export async function GET(req: NextRequest) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: 'Nao autorizado' }, { status: 403 });
 
-  const tipo = req.nextUrl.searchParams.get('tipo') || '';
-  const categoria = req.nextUrl.searchParams.get('categoria') || '';
-  const status = req.nextUrl.searchParams.get('status') || '';
-  const centroCustoId = req.nextUrl.searchParams.get('centroCustoId') || '';
-  const dataInicio = req.nextUrl.searchParams.get('dataInicio') || '';
-  const dataFim = req.nextUrl.searchParams.get('dataFim') || '';
-  const limit = parseInt(req.nextUrl.searchParams.get('limit') || '200');
+  try {
+    const tipo = req.nextUrl.searchParams.get('tipo') || '';
+    const categoria = req.nextUrl.searchParams.get('categoria') || '';
+    const status = req.nextUrl.searchParams.get('status') || '';
+    const centroCustoId = req.nextUrl.searchParams.get('centroCustoId') || '';
+    const dataInicio = req.nextUrl.searchParams.get('dataInicio') || '';
+    const dataFim = req.nextUrl.searchParams.get('dataFim') || '';
+    const limit = parseInt(req.nextUrl.searchParams.get('limit') || '200');
 
-  const where: any = {};
-  if (tipo) where.tipo = tipo;
-  if (categoria) where.categoria = categoria;
-  if (status) where.status = status;
-  if (centroCustoId) where.centroCustoId = centroCustoId;
-  if (dataInicio || dataFim) {
-    where.data = {};
-    if (dataInicio) where.data.gte = new Date(dataInicio);
-    if (dataFim) where.data.lte = new Date(dataFim);
+    const where: any = {};
+    if (tipo) where.tipo = tipo;
+    if (categoria) where.categoria = categoria;
+    if (status) where.status = status;
+    if (centroCustoId) where.centroCustoId = centroCustoId;
+    if (dataInicio || dataFim) {
+      where.data = {};
+      if (dataInicio) where.data.gte = new Date(dataInicio);
+      if (dataFim) where.data.lte = new Date(dataFim);
+    }
+
+    const lancamentos = await prisma.lancamentoFinanceiro.findMany({
+      where,
+      include: { centroCusto: { select: { nome: true } }, comissao: true },
+      orderBy: { data: 'desc' },
+      take: Math.min(limit, 500),
+    });
+
+    return NextResponse.json(lancamentos);
+  } catch (e: any) {
+    return NextResponse.json({ error: e.message }, { status: 500 });
   }
-
-  const lancamentos = await prisma.lancamentoFinanceiro.findMany({
-    where,
-    include: { centroCusto: { select: { nome: true } }, comissao: true },
-    orderBy: { data: 'desc' },
-    take: Math.min(limit, 500),
-  });
-
-  return NextResponse.json(lancamentos);
 }
 
 // POST /api/financeiro/lancamentos — Criar lançamento manual

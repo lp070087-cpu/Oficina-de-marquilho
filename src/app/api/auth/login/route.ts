@@ -2,8 +2,18 @@ import { NextResponse } from 'next/server';
 import bcrypt from 'bcryptjs';
 import prisma from '@/lib/prisma';
 import { createToken, roleToPath } from '@/lib/auth';
+import { checkRateLimit } from '@/lib/rate-limit';
 
 export async function POST(request: Request) {
+  // Rate limit: 5 tentativas por IP a cada 60s (brute-force protection)
+  const rl = checkRateLimit(request, { key: 'auth:login', maxRequests: 5, windowMs: 60_000 });
+  if (rl.limited) {
+    return NextResponse.json(
+      { error: 'Muitas tentativas. Tente novamente em instantes.' },
+      { status: 429, headers: { 'Retry-After': String(Math.ceil((rl.reset - Date.now()) / 1000)) } }
+    );
+  }
+
   try {
     const { email, password, perfil } = await request.json();
 

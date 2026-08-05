@@ -1,15 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { getVitrineSession } from '@/lib/auth';
 
 // GET — produtos vistos pelo cliente (para "continuar comprando" e "vistos recentemente")
 export async function GET(req: NextRequest) {
   try {
-    const clienteId = req.nextUrl.searchParams.get('clienteId');
-    if (!clienteId) return NextResponse.json({ produtos: [] });
+    const authHeader = req.headers.get('authorization') || '';
+    const session = await getVitrineSession(authHeader);
+    if (!session) return NextResponse.json({ produtos: [] });
 
-    // Buscar histórico de navegação do cliente
+    // Buscar histórico de navegação do cliente (clienteId do JWT verificado)
     const navegacao = await prisma.historicoNavegacao.findMany({
-      where: { clienteId },
+      where: { clienteId: session.clienteId },
       orderBy: { createdAt: 'desc' },
       take: 8,
       select: { pecaId: true },
@@ -36,10 +38,15 @@ export async function GET(req: NextRequest) {
 // POST — registrar histórico de navegação
 export async function POST(req: NextRequest) {
   try {
-    const { clienteId, pecaId } = await req.json();
-    if (!clienteId || !pecaId) return NextResponse.json({ ok: false });
+    const authHeader = req.headers.get('authorization') || '';
+    const session = await getVitrineSession(authHeader);
+    if (!session) return NextResponse.json({ ok: true });
 
-    await prisma.historicoNavegacao.create({ data: { clienteId, pecaId } });
+    const { pecaId } = await req.json();
+    if (!pecaId) return NextResponse.json({ ok: false });
+
+    // Usar clienteId do JWT verificado, nunca do body
+    await prisma.historicoNavegacao.create({ data: { clienteId: session.clienteId, pecaId } });
     return NextResponse.json({ ok: true });
   } catch {
     return NextResponse.json({ ok: true });

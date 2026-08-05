@@ -384,7 +384,7 @@ export default function BalcaoPdvPage() {
       </div>
 
       {/* Coluna direita: Carrinho */}
-      <div className="w-full lg:w-96 border-t lg:border-t-0 lg:border-l border-slate-200 bg-white flex-shrink-0 flex flex-col max-h-[50vh] lg:max-h-none">
+      <div className="w-full lg:w-96 border-t lg:border-t-0 lg:border-l border-slate-200 bg-white flex-shrink-0 flex flex-col max-h-[50vh] sm:max-h-[60vh] lg:max-h-none">
         <CarrinhoPDV
           itens={itens}
           onUpdateQuantidade={updateQuantidade}

@@ -12,13 +12,14 @@ Sistema completo para gestao de oficina mecanica e estoque de pecas.
 
 ## Perfis de acesso
 
-| Perfil    | Email                        | Senha          |
-|-----------|------------------------------|----------------|
-| Dono      | dono@marquinho.com.br        | marquinho123   |
-| Balcao 1  | balcao1@marquinho.com.br     | marquinho123   |
-| Balcao 2  | balcao2@marquinho.com.br     | marquinho123   |
-| Balcao 3  | balcao3@marquinho.com.br     | marquinho123   |
-| Mecanico  | mecanico@marquinho.com.br    | mecanico123    |
+| Perfil            | Email                          | Senha          |
+|-------------------|--------------------------------|----------------|
+| Dono              | lp070087@gmail.com             | marquinho123   |
+| Balcao Servicos   | servicos@marquinho.com.br      | marquinho123   |
+| Balcao Venda      | venda@marquinho.com.br         | marquinho123   |
+| Estoque Central   | estoque@marquinho.com.br       | estoque123     |
+
+> ⚠️ Os emails do seed acima sao provisorios. Os emails definitivos da empresa (@marquinhomotopeças.com) serao definidos e atualizados posteriormente.
 
 ## Como rodar localmente
 

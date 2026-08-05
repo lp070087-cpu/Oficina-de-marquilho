@@ -73,7 +73,6 @@ const STATUS_BADGE: Record<string, string> = {
   PRONTA: 'bg-emerald-50 text-emerald-700',
   ENTREGUE: 'bg-green-50 text-green-700',
   CONCLUIDA: 'bg-green-50 text-green-700',
-  FINALIZADA: 'bg-green-50 text-green-700',
   CANCELADA: 'bg-red-50 text-red-700',
 };
 

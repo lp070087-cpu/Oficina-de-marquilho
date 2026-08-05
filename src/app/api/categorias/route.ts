@@ -3,49 +3,53 @@ import prisma from '@/lib/prisma';
 import { getSession } from '@/lib/auth';
 
 export async function GET() {
-  const cats = await prisma.categoria.findMany({
-    where: { parentId: null },
-    include: {
-      _count: { select: { pecas: true } },
-      subcategorias: {
-        include: {
-          _count: { select: { pecas: true } },
-          pecas: { select: { quantidade: true, custoMedio: true, precoVenda: true, quantidadeLoja: true } },
+  try {
+    const cats = await prisma.categoria.findMany({
+      where: { parentId: null },
+      include: {
+        _count: { select: { pecas: true } },
+        subcategorias: {
+          include: {
+            _count: { select: { pecas: true } },
+            pecas: { select: { quantidade: true, custoMedio: true, precoVenda: true, quantidadeLoja: true } },
+          },
+          orderBy: { ordem: 'asc' },
         },
-        orderBy: { ordem: 'asc' },
+        pecas: { select: { quantidade: true, custoMedio: true, precoVenda: true, quantidadeLoja: true } },
       },
-      pecas: { select: { quantidade: true, custoMedio: true, precoVenda: true, quantidadeLoja: true } },
-    },
-    orderBy: { ordem: 'asc' },
-    take: 200,
-  });
-
-  // Adicionar agregacao de estoque
-  const enriched = cats.map((c) => {
-    const qtdEstoque = c.pecas.reduce((sum, p) => sum + p.quantidade + p.quantidadeLoja, 0);
-    const valorEstoque = c.pecas.reduce((sum, p) => sum + Number(p.custoMedio) * (p.quantidade + p.quantidadeLoja), 0);
-    const subQtdEstoque = c.subcategorias.reduce((sum, s) => sum + s.pecas.reduce((ss, p) => ss + p.quantidade + p.quantidadeLoja, 0), 0);
-    const subValorEstoque = c.subcategorias.reduce((sum, s) => sum + s.pecas.reduce((ss, p) => ss + Number(p.custoMedio) * (p.quantidade + p.quantidadeLoja), 0), 0);
-
-    const totalPecas = c._count.pecas + c.subcategorias.reduce((sum, s) => sum + s._count.pecas, 0);
-    const totalEstoque = qtdEstoque + subQtdEstoque;
-    const totalValorEstoque = valorEstoque + subValorEstoque;
-
-    // Remove pecas array da resposta (dados brutos desnecessarios no front)
-    const { pecas: _, subcategorias: rawSubs, ...rest } = c;
-    const cleanSubs = rawSubs.map((s) => {
-      const { pecas: __, ...sRest } = s;
-      return sRest;
+      orderBy: { ordem: 'asc' },
+      take: 200,
     });
 
-    return {
-      ...rest,
-      subcategorias: cleanSubs,
-      _estoque: { totalPecas, totalEstoque, totalValorEstoque },
-    };
-  });
+    // Adicionar agregacao de estoque
+    const enriched = cats.map((c) => {
+      const qtdEstoque = c.pecas.reduce((sum, p) => sum + p.quantidade + p.quantidadeLoja, 0);
+      const valorEstoque = c.pecas.reduce((sum, p) => sum + Number(p.custoMedio) * (p.quantidade + p.quantidadeLoja), 0);
+      const subQtdEstoque = c.subcategorias.reduce((sum, s) => sum + s.pecas.reduce((ss, p) => ss + p.quantidade + p.quantidadeLoja, 0), 0);
+      const subValorEstoque = c.subcategorias.reduce((sum, s) => sum + s.pecas.reduce((ss, p) => ss + Number(p.custoMedio) * (p.quantidade + p.quantidadeLoja), 0), 0);
 
-  return NextResponse.json(enriched);
+      const totalPecas = c._count.pecas + c.subcategorias.reduce((sum, s) => sum + s._count.pecas, 0);
+      const totalEstoque = qtdEstoque + subQtdEstoque;
+      const totalValorEstoque = valorEstoque + subValorEstoque;
+
+      // Remove pecas array da resposta (dados brutos desnecessarios no front)
+      const { pecas: _, subcategorias: rawSubs, ...rest } = c;
+      const cleanSubs = rawSubs.map((s) => {
+        const { pecas: __, ...sRest } = s;
+        return sRest;
+      });
+
+      return {
+        ...rest,
+        subcategorias: cleanSubs,
+        _estoque: { totalPecas, totalEstoque, totalValorEstoque },
+      };
+    });
+
+    return NextResponse.json(enriched);
+  } catch (e: any) {
+    return NextResponse.json({ error: e.message }, { status: 500 });
+  }
 }
 
 export async function POST(req: NextRequest) {

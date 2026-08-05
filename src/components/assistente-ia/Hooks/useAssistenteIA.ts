@@ -95,12 +95,18 @@ export function useAssistenteIA() {
   const [voiceSettingsAberto, setVoiceSettingsAberto] = useState(false);
   const vozSynthesisRef = useRef<SpeechSynthesisUtterance | null>(null);
   const vozTimerRef = useRef<any>(null);
+  const transcricaoRef = useRef<string>('');  // FASE 1 — ref para evitar stale closure
 
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const scannerInputRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<any>(null);
   const fotoInputRef = useRef<HTMLInputElement>(null);
+  // FASE 1 — Chat image upload
+  const [chatImagePreview, setChatImagePreview] = useState<string | null>(null);
+  const [chatImageFile, setChatImageFile] = useState<File | null>(null);
+  const [processingImage, setProcessingImage] = useState(false);
+  const chatImageInputRef = useRef<HTMLInputElement>(null);
 
   const sugestoes = useMemo(() => obterSugestoes(input), [input]);
   const progressoCadastro = useMemo(() => calcularProgresso(fichaCadastro), [fichaCadastro]);
@@ -1044,6 +1050,69 @@ export function useAssistenteIA() {
     reader.readAsDataURL(file);
   }
 
+  // ============================================================
+  // FASE 1 — UPLOAD DE IMAGEM NO CHAT (Tesseract OCR)
+  // ============================================================
+  function abrirChatImagePicker() { chatImageInputRef.current?.click(); }
+  function limparChatImage() { setChatImagePreview(null); setChatImageFile(null); }
+
+  async function handleChatImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    // Preview
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const dataUrl = ev.target?.result as string;
+      setChatImagePreview(dataUrl);
+      setChatImageFile(file);
+    };
+    reader.readAsDataURL(file);
+  }
+
+  async function processarImagemChat() {
+    if (!chatImageFile && !chatImagePreview) return;
+    const preview = chatImagePreview;
+    const comandoTexto = input.trim();
+
+    // Add user message with image
+    if (preview) {
+      addMsg(comandoTexto || '📷 Analise esta imagem', 'user', { imagem: preview });
+    }
+    setInput('');
+    setChatImagePreview(null);
+    setChatImageFile(null);
+    setProcessingImage(true);
+
+    try {
+      const Tesseract = await import('tesseract.js');
+      const worker = await Tesseract.createWorker('por');
+      const { data: { text } } = await worker.recognize(preview!);
+      await worker.terminate();
+
+      const textoExtraido = text.trim();
+      if (textoExtraido) {
+        addMsg(`📷 **Texto extraído da imagem:**\n\n\`\`\`\n${textoExtraido}\n\`\`\`\n\n🧠 Processando com a IA...`, 'assistant');
+        // Se tem comando junto, usa ele; senão tenta processar o texto extraído
+        const textoParaProcessar = comandoTexto || textoExtraido;
+        // Processa diretamente (já temos a mensagem do usuário)
+        setLoading(true);
+        const parsed = parseComando(textoParaProcessar);
+        try {
+          await executarIntent(parsed, textoParaProcessar);
+        } catch (e: any) {
+          addMsg(`❌ Erro: ${e.message || 'Falha ao processar'}`, 'assistant');
+        }
+        setLoading(false);
+      } else {
+        addMsg('📷 Não foi possível extrair texto desta imagem. Tente uma imagem mais nítida ou com texto impresso.', 'assistant');
+      }
+    } catch (err: any) {
+      addMsg(`❌ Erro ao processar a imagem: ${err.message || 'Tente novamente.'}`, 'assistant');
+    } finally {
+      setProcessingImage(false);
+    }
+  }
+
   function iniciarGravacaoAudio() {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SpeechRecognition) { addMsg('Reconhecimento de voz nao disponivel neste navegador.', 'assistant'); return; }
@@ -1162,6 +1231,13 @@ export function useAssistenteIA() {
       setListening(false);
       setConversacaoAtiva(false);
       setTranscricaoParcial('');
+      // FASE 1 — se tem transcrição acumulada, envia como mensagem
+      const parcial = transcricaoRef.current.trim();
+      if (parcial) {
+        setInput(parcial);
+        setTimeout(() => processarMensagem(parcial, true), 100);
+      }
+      transcricaoRef.current = '';
       return;
     }
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -1175,26 +1251,30 @@ export function useAssistenteIA() {
       setListening(true);
       setConversacaoAtiva(true);
       setTranscricaoParcial('');
+      transcricaoRef.current = '';
     };
     recognition.onend = () => {
       setListening(false);
+      setConversacaoAtiva(false);
       if (vozTimerRef.current) clearTimeout(vozTimerRef.current);
-      // Se tem transcrição parcial, processa
-      const parcial = transcricaoParcial.trim();
+      // FASE 1 — ao terminar, envia a transcrição direto no input e processa
+      const parcial = transcricaoRef.current.trim();
       if (parcial) {
-        setProcessandoVoz(true);
-        setTimeout(() => {
-          processarMensagemVoz(parcial);
-          setProcessandoVoz(false);
-        }, 400);
-      } else {
-        setConversacaoAtiva(false);
+        setInput(parcial);
+        setTimeout(() => processarMensagem(parcial, true), 100);
       }
     };
     recognition.onerror = () => {
       setListening(false);
       setConversacaoAtiva(false);
       setTranscricaoParcial('');
+      if (vozTimerRef.current) clearTimeout(vozTimerRef.current);
+      // FASE 1 — envia o que foi capturado antes do erro
+      const parcial = transcricaoRef.current.trim();
+      if (parcial) {
+        setInput(parcial);
+        setTimeout(() => processarMensagem(parcial, true), 100);
+      }
     };
 
     let finalTranscript = '';
@@ -1209,8 +1289,11 @@ export function useAssistenteIA() {
       }
       const fullTranscript = finalTranscript + interim;
       setTranscricaoParcial(fullTranscript.trim());
+      transcricaoRef.current = fullTranscript.trim();
+      // FASE 1 — reflete transcrição no input em tempo real
+      setInput(fullTranscript.trim());
 
-      // Auto-stop após silêncio de 3s — usa timer
+      // Auto-stop após silêncio de 3s
       if (vozTimerRef.current) clearTimeout(vozTimerRef.current);
       if (fullTranscript.trim().length > 5) {
         vozTimerRef.current = setTimeout(() => {
@@ -1277,17 +1360,22 @@ export function useAssistenteIA() {
       return;
     }
 
-    if (isVoz) {
-      addMsg(`🎤 "${cmd}"`, 'user');
-    } else {
-      addMsg(cmd, 'user');
-    }
+    // FASE 1 — Voz aparece como mensagem normal (sem prefixo 🎤)
+    addMsg(cmd, 'user');
 
     setInput('');
     setComandosExecutados(prev => prev + 1);
     setLoading(true);
 
     const parsed = parseComando(cmd);
+    await executarIntent(parsed, cmd, isVoz);
+    setLoading(false);
+  }
+
+  // ============================================================
+  // FASE 1 — EXECUTAR INTENT (extraído de processarMensagem para reuso)
+  // ============================================================
+  async function executarIntent(parsed: ParsedCommand, cmdOriginal: string, isVoz: boolean = false) {
     let sucesso = true;
     let resultadoResumo = '';
 
@@ -1300,15 +1388,15 @@ export function useAssistenteIA() {
         case 'mostrar_zerado':   await handleMostrarZerado(); resultadoResumo = 'Lista de produtos sem estoque exibida'; break;
         case 'mostrar_vendidos': await handleMostrarVendidos(); resultadoResumo = 'Ranking de vendas exibido'; break;
         case 'mostrar_parados':  await handleMostrarParados(); resultadoResumo = 'Lista de produtos parados exibida'; break;
-        case 'buscar':           await handleBuscar(parsed); resultadoResumo = `Busca por "${parsed.produto || cmd}" concluída`; break;
+        case 'buscar':           await handleBuscar(parsed); resultadoResumo = `Busca por "${parsed.produto || cmdOriginal}" concluída`; break;
         case 'ajudar':
-          addMsg('📋 **Comandos disponiveis:**\n\nFale naturalmente — nao precisa decorar comandos!\n\n🧠 **Cadastro Inteligente** — crie fichas completas\n🎤 **Modo Conversação** — fale como no ChatGPT\n💰 **Precos:** "altere o preco", "esse produto agora custa R$ 90"\n📦 **Estoque:** "troque a quantidade", "ajuste o estoque"\n➕ **Cadastro:** "adicione 10 filtros", "cadastre um produto"\n🔍 **Busca:** "onde esta", "me mostre", "localize"\n⚠️ **Alertas:** "o que ta acabando", "produtos sem estoque"\n📊 **Relatorios:** "gere um relatorio", "mais vendidos"\n⏸️ **Parados:** "encalhados", "sem saida", "parados"\n\nToda alteracao critica precisa ser confirmada.', 'assistant');
+          addMsg('📋 **Comandos disponíveis:**\n\nFale naturalmente — não precisa decorar comandos!\n\n💰 **Preços:** "altere o preço", "esse produto agora custa R$ 90"\n📦 **Estoque:** "troque a quantidade", "ajuste o estoque"\n➕ **Cadastro:** "adicione 10 filtros", "cadastre um produto"\n🔍 **Busca:** "onde está", "me mostre", "localize"\n⚠️ **Alertas:** "o que tá acabando", "produtos sem estoque"\n📊 **Relatórios:** "gere um relatório", "mais vendidos"\n⏸️ **Parados:** "encalhados", "sem saída", "parados"\n\nToda alteração crítica precisa ser confirmada.', 'assistant');
           resultadoResumo = 'Lista de comandos exibida'; break;
-        default: await handleBuscar({ ...parsed, intent: 'buscar', produto: cmd }); resultadoResumo = `Busca genérica por "${cmd}"`;
+        default: await handleBuscar({ ...parsed, intent: 'buscar', produto: cmdOriginal }); resultadoResumo = `Busca genérica por "${cmdOriginal}"`;
       }
-    } catch (e: any) { sucesso = false; resultadoResumo = `Erro: ${e.message || 'Falha ao processar'}`; addMsg(`❌ Erro: ${e.message || 'Nao foi possivel processar o comando.'}`, 'assistant'); }
+    } catch (e: any) { sucesso = false; resultadoResumo = `Erro: ${e.message || 'Falha ao processar'}`; addMsg(`❌ Erro: ${e.message || 'Não foi possível processar o comando.'}`, 'assistant'); }
 
-    // Resposta IA simulada (Fase 7)
+    // Resposta IA simulada por voz
     if (sucesso && isVoz) {
       const respostasIA: Record<string, string> = {
         alterar_preco: `Entendido. Encontrei o produto ${parsed.produto || ''}. O novo preço será R$ ${(parsed.preco || 0).toFixed(2).replace('.', ',')}. Aguardando confirmação.`,
@@ -1318,26 +1406,21 @@ export function useAssistenteIA() {
         mostrar_zerado: 'Entendido. Mostrando produtos sem estoque.',
         mostrar_vendidos: 'Entendido. Gerando relatório dos mais vendidos.',
         mostrar_parados: 'Entendido. Listando produtos parados.',
-        buscar: `Entendido. Buscando por ${parsed.produto || cmd}.`,
+        buscar: `Entendido. Buscando por ${parsed.produto || cmdOriginal}.`,
       };
-      const respostaVoz = respostasIA[parsed.intent] || `Entendido. Processando: ${cmd}`;
+      const respostaVoz = respostasIA[parsed.intent] || `Entendido. Processando: ${cmdOriginal}`;
       speakResponse(respostaVoz);
     }
 
-    const trace = gerarTrace(parsed, cmd, sucesso, resultadoResumo);
+    const trace = gerarTrace(parsed, cmdOriginal, sucesso, resultadoResumo);
     setMessages(prev => { const updated = [...prev]; const lastMsg = updated[updated.length - 1]; if (lastMsg && lastMsg.role === 'assistant') updated[updated.length - 1] = { ...lastMsg, trace }; return updated; });
     const style = INTENT_STYLES[parsed.intent] || INTENT_STYLES.desconhecido;
-    adicionarHistorico(style.label, parsed.intent, cmd.slice(0, 60), sucesso ? 'sucesso' : 'erro', style.icon, parsed.confianca);
+    adicionarHistorico(style.label, parsed.intent, cmdOriginal.slice(0, 60), sucesso ? 'sucesso' : 'erro', style.icon, parsed.confianca);
 
     if (isVoz) {
-      adicionarVozComando(cmd, sucesso ? 'sucesso' : 'erro', style.icon, parsed.intent);
+      adicionarVozComando(cmdOriginal, sucesso ? 'sucesso' : 'erro', style.icon, parsed.intent);
     }
-
-    setLoading(false);
   }
-
-  // ============================================================
-  // HANDLERS DE INTENTS (TODOS PRESERVADOS)
   // ============================================================
   async function handleAdicionar(parsed: ParsedCommand) {
     const res = await fetch(`/api/pecas?q=${encodeURIComponent(parsed.produto || '')}`); const pecas: PecaResult[] = await res.json();
@@ -1436,6 +1519,9 @@ export function useAssistenteIA() {
     voiceSettings, setVoiceSettings, vozComandosRecentes, setVozComandosRecentes,
     vozRespondendo, setVozRespondendo, processandoVoz, setProcessandoVoz,
     voiceSettingsAberto, setVoiceSettingsAberto,
+    // FASE 1 — Chat image upload
+    chatImagePreview, setChatImagePreview, processingImage, setProcessingImage,
+    chatImageInputRef,
     bottomRef, inputRef, scannerInputRef, recognitionRef, fotoInputRef,
     audioRecognitionRef, vozSynthesisRef, vozTimerRef,
     sugestoes, progressoCadastro, camposFicha,
@@ -1457,6 +1543,8 @@ export function useAssistenteIA() {
     novaConversa, selecionarConversa, limparConversa, toggleFavorito,
     speakResponse, stopSpeaking, atualizarVoiceSettings, adicionarVozComando,
     toggleVoz, interromperConversacao, processarMensagemVoz,
+    // FASE 1 — Chat image upload
+    abrirChatImagePicker, limparChatImage, handleChatImageUpload, processarImagemChat,
     addMsg, adicionarHistorico, processarMensagem,
     handleAdicionar, handleAlterarPreco, handleAlterarQtd,
     handleMostrarBaixo, handleMostrarZerado, handleMostrarVendidos, handleMostrarParados,

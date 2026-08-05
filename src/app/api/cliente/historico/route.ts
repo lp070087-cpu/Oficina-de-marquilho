@@ -7,20 +7,24 @@ export async function GET(req: NextRequest) {
   const session = await getVitrineSession(req.headers.get('Authorization')?.replace('Bearer ', '') || '');
   if (!session) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
 
-  const historico = await prisma.historicoNavegacao.findMany({
-    where: { clienteId: session.clienteId },
-    include: {
-      peca: {
-        select: {
-          id: true, nome: true, codigo: true, imagemUrl: true, precoVenda: true,
-          precoOferta: true, marca: true, categoria: { select: { nome: true, slug: true } },
+  try {
+    const historico = await prisma.historicoNavegacao.findMany({
+      where: { clienteId: session.clienteId },
+      include: {
+        peca: {
+          select: {
+            id: true, nome: true, codigo: true, imagemUrl: true, precoVenda: true,
+            precoOferta: true, marca: true, categoria: { select: { nome: true, slug: true } },
+          },
         },
       },
-    },
-    orderBy: { createdAt: 'desc' },
-    take: 20,
-    distinct: ['pecaId'],
-  });
+      orderBy: { createdAt: 'desc' },
+      take: 20,
+      distinct: ['pecaId'],
+    });
 
-  return NextResponse.json(historico);
+    return NextResponse.json(historico);
+  } catch (e: any) {
+    return NextResponse.json({ error: e.message }, { status: 500 });
+  }
 }

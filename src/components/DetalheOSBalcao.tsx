@@ -376,7 +376,7 @@ export default function DetalheOSBalcao({ os: initialOS, onClose }: { os: OS; on
               </div>
               <input
                 type="number" value={qtd} onChange={e => setQtd(e.target.value)}
-                className="input-field w-20 text-xs" min="1"
+                className="input-field w-16 sm:w-20 text-xs" min="1"
               />
             </div>
 
@@ -465,7 +465,7 @@ export default function DetalheOSBalcao({ os: initialOS, onClose }: { os: OS; on
                           value={valorRevisao}
                           onChange={e => setValorRevisao(e.target.value)}
                           onBlur={atualizarRevisao}
-                          className="input-field w-24 text-xs text-right"
+                          className="input-field w-20 sm:w-24 text-xs text-right"
                         />
                       ) : (
                         <span className="text-slate-400">{fm(0)}</span>

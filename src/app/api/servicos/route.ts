@@ -10,16 +10,20 @@ export async function GET(req: NextRequest) {
   const categoria = req.nextUrl.searchParams.get('categoria') || '';
   const ativo = req.nextUrl.searchParams.get('ativo');
 
-  const where: any = {};
-  if (categoria) where.categoria = categoria;
-  if (ativo !== null && ativo !== '') where.ativo = ativo === 'true';
+  try {
+    const where: any = {};
+    if (categoria) where.categoria = categoria;
+    if (ativo !== null && ativo !== '') where.ativo = ativo === 'true';
 
-  const servicos = await prisma.servicoTabelado.findMany({
-    where,
-    orderBy: [{ categoria: 'asc' }, { nome: 'asc' }],
-  });
+    const servicos = await prisma.servicoTabelado.findMany({
+      where,
+      orderBy: [{ categoria: 'asc' }, { nome: 'asc' }],
+    });
 
-  return NextResponse.json(servicos);
+    return NextResponse.json(servicos);
+  } catch (e: any) {
+    return NextResponse.json({ error: e.message }, { status: 500 });
+  }
 }
 
 // POST /api/servicos — Criar servico tabelado

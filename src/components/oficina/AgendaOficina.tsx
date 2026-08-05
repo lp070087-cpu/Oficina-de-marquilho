@@ -44,7 +44,7 @@ export default function AgendaOficina() {
   const hoje = new Date();
   hoje.setHours(0, 0, 0, 0);
 
-  const agendadas = ordens.filter(o => o.dataAgendamento && o.status !== 'FINALIZADA' && o.status !== 'CANCELADA');
+  const agendadas = ordens.filter(o => o.dataAgendamento && o.status !== 'ENTREGUE' && o.status !== 'CONCLUIDA' && o.status !== 'CANCELADA');
 
   // Filtro por mecanico
   const filtradas = mecanicoFiltro
@@ -111,7 +111,7 @@ export default function AgendaOficina() {
             <button onClick={() => navegar(-1)} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7"/></svg>
             </button>
-            <span className="text-sm font-semibold text-slate-700 min-w-[180px] text-center capitalize">{tituloPeriodo()}</span>
+            <span className="text-sm font-semibold text-slate-700 min-w-[130px] sm:min-w-[180px] text-center capitalize">{tituloPeriodo()}</span>
             <button onClick={() => navegar(1)} className="p-1.5 rounded-lg hover:bg-slate-100 text-slate-500">
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7"/></svg>
             </button>

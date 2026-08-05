@@ -9,8 +9,12 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Apenas Dono' }, { status: 403 });
   }
 
-  const fechamentos = await prisma.fechamentoPeriodo.findMany({ orderBy: { periodo: 'desc' }, take: 24 });
-  return NextResponse.json(fechamentos);
+  try {
+    const fechamentos = await prisma.fechamentoPeriodo.findMany({ orderBy: { periodo: 'desc' }, take: 24 });
+    return NextResponse.json(fechamentos);
+  } catch (e: any) {
+    return NextResponse.json({ error: e.message }, { status: 500 });
+  }
 }
 
 // POST — Fechar período

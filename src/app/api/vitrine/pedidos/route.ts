@@ -1,27 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { jwtVerify } from 'jose';
+import { getSession, getVitrineSession } from '@/lib/auth';
 import { emitEvent } from '@/lib/event-bus';
-
-const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || 'vitrine-secret');
-
-// Decodificar token JWT do cliente
-async function getClienteFromToken(req: NextRequest) {
-  const auth = req.headers.get('Authorization')?.replace('Bearer ', '');
-  if (!auth) return null;
-  try {
-    const { payload } = await jwtVerify(auth, JWT_SECRET);
-    return { id: payload.sub as string };
-  } catch { return null; }
-}
+import { checkRateLimit } from '@/lib/rate-limit';
 
 // GET — listar pedidos do cliente (vitrine) ou todos (admin ?admin=1)
 export async function GET(req: NextRequest) {
   try {
     const admin = req.nextUrl.searchParams.get('admin');
 
-    // Admin: listar todos (verificado por token DONO no middleware ou manual)
+    // Admin: listar todos (exige sessão DONO/BALCAO)
     if (admin === '1') {
+      const session = await getSession();
+      if (!session || !['DONO', 'BALCAO'].includes(session.role)) {
+        return NextResponse.json({ error: 'Acesso negado' }, { status: 403 });
+      }
+
       const status = req.nextUrl.searchParams.get('status');
       const where: any = { tipo: 'VITRINE' };
       if (status) where.status = status.toUpperCase();
@@ -52,12 +46,13 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    // Cliente: listar seus pedidos
-    const cliente = await getClienteFromToken(req);
+    // Cliente: listar seus pedidos (usa getVitrineSession centralizada)
+    const authHeader = req.headers.get('authorization') || '';
+    const cliente = await getVitrineSession(authHeader);
     if (!cliente) return NextResponse.json({ pedidos: [] });
 
     const pedidos = await prisma.pedido.findMany({
-      where: { clienteId: cliente.id, tipo: 'VITRINE' },
+      where: { clienteId: cliente.clienteId, tipo: 'VITRINE' },
       include: {
         itens: { include: { peca: { select: { nome: true, codigo: true, imagemUrl: true, categoria: { select: { nome: true } } } } } },
         historico: { orderBy: { createdAt: 'desc' }, take: 5 },
@@ -73,8 +68,17 @@ export async function GET(req: NextRequest) {
 
 // POST — criar pedido da vitrine (checkout finalizado)
 export async function POST(req: NextRequest) {
+  const rl = checkRateLimit(req, { key: 'vitrine:pedidos', maxRequests: 5, windowMs: 60_000 });
+  if (rl.limited) {
+    return NextResponse.json(
+      { error: 'Muitos pedidos. Aguarde um momento.' },
+      { status: 429, headers: { 'Retry-After': String(Math.ceil((rl.reset - Date.now()) / 1000)) } }
+    );
+  }
+
   try {
-    const cliente = await getClienteFromToken(req);
+    const authHeader = req.headers.get('authorization') || '';
+    const cliente = await getVitrineSession(authHeader);
     if (!cliente) return NextResponse.json({ error: 'Login necessário' }, { status: 401 });
 
     const body = await req.json();
@@ -88,7 +92,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Buscar cliente para nome/telefone
-    const clienteData = await prisma.cliente.findUnique({ where: { id: cliente.id } });
+    const clienteData = await prisma.cliente.findUnique({ where: { id: cliente.clienteId } });
     if (!clienteData) return NextResponse.json({ error: 'Cliente não encontrado' }, { status: 404 });
 
     // Calcular totais e validar estoque da loja
@@ -152,20 +156,20 @@ export async function POST(req: NextRequest) {
         tipo: 'VITRINE',
         origem: 'VITRINE',
         status: 'PEDIDO_RECEBIDO',
-        clienteId: cliente.id,
+        clienteId: cliente.clienteId,
         clienteNome: clienteData.nome,
         clienteTelefone: clienteData.telefone,
         formaPagamento,
         retiradaNome: retiradaNome || clienteData.nome,
         retiradaTelefone: retiradaTelefone || clienteData.telefone,
         retiradaDocumento: retiradaDocumento || null,
-        qrCode: `MP:${cliente.id}:${Date.now()}`, // Será substituído após criação
+        qrCode: `MP:${cliente.clienteId}:${Date.now()}`, // Será substituído após criação
         subtotal,
         descontoTotal,
         total,
         observacoes: observacoes || null,
         criadoPor: clienteData.nome,
-        criadoPorId: cliente.id,
+        criadoPorId: cliente.clienteId,
       },
     });
 

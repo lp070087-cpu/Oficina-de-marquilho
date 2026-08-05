@@ -8,12 +8,17 @@ export async function GET() {
   if (!session || session.role !== 'DONO') {
     return NextResponse.json({ error: 'Nao autorizado' }, { status: 403 });
   }
-  const users = await prisma.user.findMany({
-    where: { role: { in: ['MECANICO', 'BALCAO', 'ESTOQUE'] } },
-    select: { id: true, name: true, email: true, username: true, role: true, active: true, emAlmoco: true, tipoBalcao: true, mustChangePassword: true, lastLoginAt: true, lockedUntil: true, failedLoginAttempts: true, cargo: true, telefone: true, observacoes: true },
-    take: 200, orderBy: { name: 'asc' },
-  });
-  return NextResponse.json(users);
+
+  try {
+    const users = await prisma.user.findMany({
+      where: { role: { in: ['MECANICO', 'BALCAO', 'ESTOQUE'] } },
+      select: { id: true, name: true, email: true, username: true, role: true, active: true, emAlmoco: true, tipoBalcao: true, mustChangePassword: true, lastLoginAt: true, lockedUntil: true, failedLoginAttempts: true, cargo: true, telefone: true, observacoes: true },
+      take: 200, orderBy: { name: 'asc' },
+    });
+    return NextResponse.json(users);
+  } catch (e: any) {
+    return NextResponse.json({ error: e.message }, { status: 500 });
+  }
 }
 
 export async function POST(req: Request) {
@@ -21,30 +26,35 @@ export async function POST(req: Request) {
   if (!session || session.role !== 'DONO') {
     return NextResponse.json({ error: 'Nao autorizado' }, { status: 403 });
   }
-  const body = await req.json();
-  if (!body.name) return NextResponse.json({ error: 'Nome obrigatorio' }, { status: 400 });
-  if (!body.email) return NextResponse.json({ error: 'Email obrigatorio' }, { status: 400 });
-  if (!body.password) return NextResponse.json({ error: 'Senha obrigatoria' }, { status: 400 });
 
-  // Check duplicate email
-  const exists = await prisma.user.findUnique({ where: { email: body.email } });
-  if (exists) return NextResponse.json({ error: 'Este email ja esta cadastrado.' }, { status: 400 });
+  try {
+    const body = await req.json();
+    if (!body.name) return NextResponse.json({ error: 'Nome obrigatorio' }, { status: 400 });
+    if (!body.email) return NextResponse.json({ error: 'Email obrigatorio' }, { status: 400 });
+    if (!body.password) return NextResponse.json({ error: 'Senha obrigatoria' }, { status: 400 });
 
-  const hash = await bcrypt.hash(body.password, 10);
-  const user = await prisma.user.create({
-    data: {
-      name: body.name,
-      email: body.email,
-      username: body.username || null,
-      password: hash,
-      role: body.role || 'BALCAO',
-      tipoBalcao: body.tipoBalcao || null,
-      cargo: body.cargo || null,
-      telefone: body.telefone || null,
-      observacoes: body.observacoes || null,
-      createdBy: 'DONO',
-    },
-    select: { id: true, name: true, email: true, username: true, role: true, active: true, tipoBalcao: true },
-  });
-  return NextResponse.json(user, { status: 201 });
+    // Check duplicate email
+    const exists = await prisma.user.findUnique({ where: { email: body.email } });
+    if (exists) return NextResponse.json({ error: 'Este email ja esta cadastrado.' }, { status: 400 });
+
+    const hash = await bcrypt.hash(body.password, 10);
+    const user = await prisma.user.create({
+      data: {
+        name: body.name,
+        email: body.email,
+        username: body.username || null,
+        password: hash,
+        role: body.role || 'BALCAO',
+        tipoBalcao: body.tipoBalcao || null,
+        cargo: body.cargo || null,
+        telefone: body.telefone || null,
+        observacoes: body.observacoes || null,
+        createdBy: 'DONO',
+      },
+      select: { id: true, name: true, email: true, username: true, role: true, active: true, tipoBalcao: true },
+    });
+    return NextResponse.json(user, { status: 201 });
+  } catch (e: any) {
+    return NextResponse.json({ error: e.message }, { status: 500 });
+  }
 }

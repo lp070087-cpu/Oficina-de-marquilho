@@ -4,24 +4,28 @@ import { getSession } from '@/lib/auth';
 import { emitEvent } from '@/lib/event-bus';
 
 export async function GET(req: NextRequest) {
-  const session = await getSession();
-  if (!session) return NextResponse.json({ error: 'Nao autorizado' }, { status: 403 });
-  const status = req.nextUrl.searchParams.get('status') || '';
-  const where: any = {};
-  if (status) where.status = status;
-  const ordens = await prisma.ordemServico.findMany({
-    where,
-    include: {
-      mecanico: { select: { name: true } },
-      balcao: { select: { name: true } },
-      itens: { include: { peca: true } },
-      fotos: true,
-      assinatura: true,
-    },
-    orderBy: { createdAt: 'desc' },
-    take: 200,
-  });
-  return NextResponse.json(ordens);
+  try {
+    const session = await getSession();
+    if (!session) return NextResponse.json({ error: 'Nao autorizado' }, { status: 403 });
+    const status = req.nextUrl.searchParams.get('status') || '';
+    const where: any = {};
+    if (status) where.status = status;
+    const ordens = await prisma.ordemServico.findMany({
+      where,
+      include: {
+        mecanico: { select: { name: true } },
+        balcao: { select: { name: true } },
+        itens: { include: { peca: true } },
+        fotos: true,
+        assinatura: true,
+      },
+      orderBy: { createdAt: 'desc' },
+      take: 200,
+    });
+    return NextResponse.json(ordens);
+  } catch (e: any) {
+    return NextResponse.json({ error: e.message }, { status: 500 });
+  }
 }
 
 export async function POST(req: NextRequest) {

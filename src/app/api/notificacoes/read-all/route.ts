@@ -7,10 +7,14 @@ export async function PATCH() {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
 
-  await prisma.notificacao.updateMany({
-    where: { usuarioId: session.id, lida: false },
-    data: { lida: true, lidaEm: new Date() },
-  });
+  try {
+    await prisma.notificacao.updateMany({
+      where: { usuarioId: session.id, lida: false },
+      data: { lida: true, lidaEm: new Date() },
+    });
 
-  return NextResponse.json({ ok: true });
+    return NextResponse.json({ ok: true });
+  } catch (e: any) {
+    return NextResponse.json({ error: e.message }, { status: 500 });
+  }
 }

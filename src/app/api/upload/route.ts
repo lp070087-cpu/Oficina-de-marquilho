@@ -1,10 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
+import { checkRateLimit } from '@/lib/rate-limit';
 import { writeFile } from 'fs/promises';
 import path from 'path';
 import prisma from '@/lib/prisma';
 
 export async function POST(req: NextRequest) {
+  // Rate limit: 30 uploads por IP a cada 60s
+  const rl = checkRateLimit(req, { key: 'upload', maxRequests: 30, windowMs: 60_000 });
+  if (rl.limited) {
+    return NextResponse.json(
+      { error: 'Muitos uploads. Tente novamente em instantes.' },
+      { status: 429, headers: { 'Retry-After': String(Math.ceil((rl.reset - Date.now()) / 1000)) } }
+    );
+  }
+
   try {
   const session = await getSession();
   if (!session || !['DONO', 'BALCAO', 'ESTOQUE'].includes(session.role)) {

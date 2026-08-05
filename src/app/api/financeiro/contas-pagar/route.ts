@@ -7,19 +7,23 @@ export async function GET(req: NextRequest) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: 'Nao autorizado' }, { status: 403 });
 
-  const status = req.nextUrl.searchParams.get('status') || '';
-  const categoria = req.nextUrl.searchParams.get('categoria') || '';
-  const limit = parseInt(req.nextUrl.searchParams.get('limit') || '200');
+  try {
+    const status = req.nextUrl.searchParams.get('status') || '';
+    const categoria = req.nextUrl.searchParams.get('categoria') || '';
+    const limit = parseInt(req.nextUrl.searchParams.get('limit') || '200');
 
-  const where: any = {};
-  if (status) where.status = status;
-  if (categoria) where.categoria = categoria;
+    const where: any = {};
+    if (status) where.status = status;
+    if (categoria) where.categoria = categoria;
 
-  const contas = await prisma.contaPagar.findMany({
-    where, include: { centroCusto: { select: { nome: true } } },
-    orderBy: { dataVencimento: 'asc' }, take: Math.min(limit, 500),
-  });
-  return NextResponse.json(contas);
+    const contas = await prisma.contaPagar.findMany({
+      where, include: { centroCusto: { select: { nome: true } } },
+      orderBy: { dataVencimento: 'asc' }, take: Math.min(limit, 500),
+    });
+    return NextResponse.json(contas);
+  } catch (e: any) {
+    return NextResponse.json({ error: e.message }, { status: 500 });
+  }
 }
 
 // POST /api/financeiro/contas-pagar

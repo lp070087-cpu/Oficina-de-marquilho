@@ -147,7 +147,7 @@ export default function RelatoriosFinanceiros() {
       {/* Filtros */}
       <div className="flex flex-wrap items-center gap-3">
         <select value={tipo} onChange={e => setTipo(e.target.value as RelatorioTipo)}
-          className="input-field text-xs py-2 min-w-[200px]">
+          className="input-field text-xs py-2 min-w-[150px] sm:min-w-[200px]">
           {TIPOS.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
         </select>
         <input type="date" value={periodoInicio} onChange={e => setPeriodoInicio(e.target.value)} className="input-field text-xs py-1.5 w-36" />

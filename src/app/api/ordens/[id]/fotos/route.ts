@@ -4,21 +4,25 @@ import { getSession } from '@/lib/auth';
 
 // GET /api/ordens/[id]/fotos — Listar fotos da OS
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const session = await getSession();
-  if (!session) return NextResponse.json({ error: 'Nao autorizado' }, { status: 403 });
+  try {
+    const session = await getSession();
+    if (!session) return NextResponse.json({ error: 'Nao autorizado' }, { status: 403 });
 
-  const { id } = await params;
-  const tipo = req.nextUrl.searchParams.get('tipo') || '';
+    const { id } = await params;
+    const tipo = req.nextUrl.searchParams.get('tipo') || '';
 
-  const where: any = { ordemServicoId: id };
-  if (tipo) where.tipo = tipo;
+    const where: any = { ordemServicoId: id };
+    if (tipo) where.tipo = tipo;
 
-  const fotos = await prisma.fotoOS.findMany({
-    where,
-    orderBy: { createdAt: 'desc' },
-  });
+    const fotos = await prisma.fotoOS.findMany({
+      where,
+      orderBy: { createdAt: 'desc' },
+    });
 
-  return NextResponse.json(fotos);
+    return NextResponse.json(fotos);
+  } catch (e: any) {
+    return NextResponse.json({ error: e.message }, { status: 500 });
+  }
 }
 
 // POST /api/ordens/[id]/fotos — Adicionar foto a OS
@@ -73,14 +77,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
 // DELETE /api/ordens/[id]/fotos — Remover foto
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const session = await getSession();
-  if (!session || !['DONO'].includes(session.role)) {
-    return NextResponse.json({ error: 'Apenas Dono pode remover fotos' }, { status: 403 });
+  try {
+    const session = await getSession();
+    if (!session || !['DONO'].includes(session.role)) {
+      return NextResponse.json({ error: 'Apenas Dono pode remover fotos' }, { status: 403 });
+    }
+
+    const fotoId = req.nextUrl.searchParams.get('fotoId');
+    if (!fotoId) return NextResponse.json({ error: 'ID da foto e obrigatorio' }, { status: 400 });
+
+    await prisma.fotoOS.delete({ where: { id: fotoId } });
+    return NextResponse.json({ success: true });
+  } catch (e: any) {
+    return NextResponse.json({ error: e.message }, { status: 500 });
   }
-
-  const fotoId = req.nextUrl.searchParams.get('fotoId');
-  if (!fotoId) return NextResponse.json({ error: 'ID da foto e obrigatorio' }, { status: 400 });
-
-  await prisma.fotoOS.delete({ where: { id: fotoId } });
-  return NextResponse.json({ success: true });
 }

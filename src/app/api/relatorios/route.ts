@@ -17,9 +17,8 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: 'Intervalo máximo permitido é de 365 dias' }, { status: 400 });
   }
 
-  let ordens;
   try {
-    ordens = await prisma.ordemServico.findMany({
+    const ordens = await prisma.ordemServico.findMany({
       where: {
         createdAt: { gte: new Date(inicio), lte: new Date(fim) },
         status: { not: 'CANCELADA' },
@@ -31,28 +30,28 @@ export async function GET(req: NextRequest) {
       orderBy: { createdAt: 'desc' },
       take: 500,
     });
-  } catch {
-    return NextResponse.json({ error: 'Erro ao consultar relatório' }, { status: 500 });
-  }
 
-  const saidas: any[] = [];
-  for (const os of ordens) {
-    for (const item of os.itens) {
-      saidas.push({
-        peca: item.peca.nome,
-        codigo: item.peca.codigo,
-        quantidade: item.quantidade,
-        preco: Number(item.precoUnitario),
-        os: os.numero,
-        cliente: os.nomeCliente,
-        data: os.createdAt.toISOString(),
-        balcao: os.balcao?.name || '-',
-      });
+    const saidas: any[] = [];
+    for (const os of ordens) {
+      for (const item of os.itens) {
+        saidas.push({
+          peca: item.peca.nome,
+          codigo: item.peca.codigo,
+          quantidade: item.quantidade,
+          preco: Number(item.precoUnitario),
+          os: os.numero,
+          cliente: os.nomeCliente,
+          data: os.createdAt.toISOString(),
+          balcao: os.balcao?.name || '-',
+        });
+      }
     }
+
+    const totalPecas = saidas.reduce((s, i) => s + i.quantidade, 0);
+    const valorTotal = saidas.reduce((s, i) => s + i.preco * i.quantidade, 0);
+
+    return NextResponse.json({ saidas, totalPecas, valorTotal });
+  } catch (e: any) {
+    return NextResponse.json({ error: e.message }, { status: 500 });
   }
-
-  const totalPecas = saidas.reduce((s, i) => s + i.quantidade, 0);
-  const valorTotal = saidas.reduce((s, i) => s + i.preco * i.quantidade, 0);
-
-  return NextResponse.json({ saidas, totalPecas, valorTotal });
 }

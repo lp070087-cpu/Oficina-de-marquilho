@@ -3,41 +3,43 @@ import prisma from '@/lib/prisma';
 import { getSession } from '@/lib/auth';
 
 export async function GET(req: NextRequest) {
-  const session = await getSession();
-  if (!session || !['DONO', 'BALCAO', 'ESTOQUE'].includes(session.role)) {
-    return NextResponse.json({ error: 'Nao autorizado' }, { status: 403 });
-  }
-  const q = req.nextUrl.searchParams.get('q') || '';
-  const cat = req.nextUrl.searchParams.get('categoria') || '';
-  const baixo = req.nextUrl.searchParams.get('baixo') === '1';
-  const modelo = req.nextUrl.searchParams.get('modelo') || '';
-  const todas = req.nextUrl.searchParams.get('todas') === '1';
-  const barcode = req.nextUrl.searchParams.get('barcode') || '';
+  try {
+    const session = await getSession();
+    if (!session || !['DONO', 'BALCAO', 'ESTOQUE'].includes(session.role)) {
+      return NextResponse.json({ error: 'Nao autorizado' }, { status: 403 });
+    }
+    const q = req.nextUrl.searchParams.get('q') || '';
+    const cat = req.nextUrl.searchParams.get('categoria') || '';
+    const baixo = req.nextUrl.searchParams.get('baixo') === '1';
+    const modelo = req.nextUrl.searchParams.get('modelo') || '';
+    const todas = req.nextUrl.searchParams.get('todas') === '1';
+    const barcode = req.nextUrl.searchParams.get('barcode') || '';
 
-  const where: any = { ativo: true };
-  if (q) where.nome = { contains: q, mode: 'insensitive' };
-  if (cat) where.categoriaId = cat;
-  if (barcode) where.codigoBarras = barcode;
-  if (baixo) {
-    const baixas = await prisma.$queryRaw<[{ id: string }]>`SELECT id FROM "Peca" WHERE ativo = true AND "estoqueMinimo" > 0 AND quantidade < "estoqueMinimo"`;
-    where.id = { in: baixas.map((b: { id: string }) => b.id) };
-  }
+    const where: any = { ativo: true };
+    if (q) where.nome = { contains: q, mode: 'insensitive' };
+    if (cat) where.categoriaId = cat;
+    if (barcode) where.codigoBarras = barcode;
+    if (baixo) {
+      const baixas = await prisma.$queryRaw<[{ id: string }]>`SELECT id FROM "Peca" WHERE ativo = true AND "estoqueMinimo" > 0 AND quantidade < "estoqueMinimo"`;
+      where.id = { in: baixas.map((b: { id: string }) => b.id) };
+    }
 
-  // Filtrar por compatibilidade com modelo de moto
-  if (modelo && !todas) {
-    where.OR = [
-      { compatibilidade: { contains: modelo, mode: 'insensitive' } },
-      { compatibilidade: { contains: 'Universal', mode: 'insensitive' } },
-    ];
-  }
+    // Filtrar por compatibilidade com modelo de moto
+    if (modelo && !todas) {
+      where.OR = [
+        { compatibilidade: { contains: modelo, mode: 'insensitive' } },
+        { compatibilidade: { contains: 'Universal', mode: 'insensitive' } },
+      ];
+    }
 
-  const pecas = await prisma.peca.findMany({
-    where,
-    include: { categoria: { select: { nome: true } } },
-    orderBy: { nome: 'asc' },
-    take: 500,
-  });
-  return NextResponse.json(pecas);
+    const pecas = await prisma.peca.findMany({
+      where,
+      include: { categoria: { select: { nome: true } } },
+      orderBy: { nome: 'asc' },
+      take: 500,
+    });
+    return NextResponse.json(pecas);
+  } catch (e: any) { return NextResponse.json({ error: e.message }, { status: 500 }); }
 }
 
 export async function POST(req: NextRequest) {

@@ -5,6 +5,7 @@ import { Metadata } from 'next';
 export const metadata: Metadata = {
   title: 'Marquinho Moto Peças — Peças e Acessórios para Motos',
   description: 'Peças, acessórios, pneus e óleos para sua moto. Monte seu orçamento online e retire na loja. Atendimento rápido pelo WhatsApp.',
+  alternates: { canonical: '/vitrine' },
   openGraph: { title: 'Marquinho Moto Peças', description: 'Peças e acessórios para sua moto com preços de atacado.' },
 };
 
@@ -17,7 +18,7 @@ interface Peca {
 }
 
 async function getVitrineData() {
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
+  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || (process.env.NODE_ENV === 'production' ? 'https://marquinhomotopeças.com' : 'http://localhost:3000');
   try {
     const [pecasRes, catsRes] = await Promise.all([
       fetch(`${baseUrl}/api/vitrine`, { cache: 'no-store' }),

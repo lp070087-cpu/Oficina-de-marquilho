@@ -4,16 +4,20 @@ import { getSession } from '@/lib/auth';
 
 // GET /api/ordens/[id]/revisoes — Listar revisoes agendadas
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const session = await getSession();
-  if (!session) return NextResponse.json({ error: 'Nao autorizado' }, { status: 403 });
+  try {
+    const session = await getSession();
+    if (!session) return NextResponse.json({ error: 'Nao autorizado' }, { status: 403 });
 
-  const { id } = await params;
-  const revisoes = await prisma.revisaoAgendada.findMany({
-    where: { ordemServicoId: id },
-    orderBy: { createdAt: 'desc' },
-  });
+    const { id } = await params;
+    const revisoes = await prisma.revisaoAgendada.findMany({
+      where: { ordemServicoId: id },
+      orderBy: { createdAt: 'desc' },
+    });
 
-  return NextResponse.json(revisoes);
+    return NextResponse.json(revisoes);
+  } catch (e: any) {
+    return NextResponse.json({ error: e.message }, { status: 500 });
+  }
 }
 
 // POST /api/ordens/[id]/revisoes — Agendar revisao
@@ -60,14 +64,18 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 
 // DELETE /api/ordens/[id]/revisoes — Remover revisao agendada
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const session = await getSession();
-  if (!session || !['DONO'].includes(session.role)) {
-    return NextResponse.json({ error: 'Apenas Dono pode remover revisoes' }, { status: 403 });
+  try {
+    const session = await getSession();
+    if (!session || !['DONO'].includes(session.role)) {
+      return NextResponse.json({ error: 'Apenas Dono pode remover revisoes' }, { status: 403 });
+    }
+
+    const revisaoId = req.nextUrl.searchParams.get('revisaoId');
+    if (!revisaoId) return NextResponse.json({ error: 'ID da revisao e obrigatorio' }, { status: 400 });
+
+    await prisma.revisaoAgendada.delete({ where: { id: revisaoId } });
+    return NextResponse.json({ success: true });
+  } catch (e: any) {
+    return NextResponse.json({ error: e.message }, { status: 500 });
   }
-
-  const revisaoId = req.nextUrl.searchParams.get('revisaoId');
-  if (!revisaoId) return NextResponse.json({ error: 'ID da revisao e obrigatorio' }, { status: 400 });
-
-  await prisma.revisaoAgendada.delete({ where: { id: revisaoId } });
-  return NextResponse.json({ success: true });
 }

@@ -2,9 +2,19 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { createVitrineToken } from '@/lib/auth';
 import bcrypt from 'bcryptjs';
+import { checkRateLimit } from '@/lib/rate-limit';
 
 // POST — login ou cadastro do cliente
 export async function POST(req: NextRequest) {
+  // Rate limit: 10 tentativas por IP a cada 60s (cadastro + login)
+  const rl = checkRateLimit(req, { key: 'cliente:auth', maxRequests: 10, windowMs: 60_000 });
+  if (rl.limited) {
+    return NextResponse.json(
+      { error: 'Muitas tentativas. Tente novamente em instantes.' },
+      { status: 429, headers: { 'Retry-After': String(Math.ceil((rl.reset - Date.now()) / 1000)) } }
+    );
+  }
+
   try {
     const body = await req.json();
     const { nome, telefone, whatsapp, email, password, cpf, dataNascimento, endereco, cidade, estado, cep, modeloMoto } = body;

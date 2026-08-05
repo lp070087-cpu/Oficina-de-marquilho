@@ -7,21 +7,25 @@ export async function GET(req: NextRequest) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: 'Nao autorizado' }, { status: 403 });
 
-  const tipo = req.nextUrl.searchParams.get('tipo') || '';
-  const status = req.nextUrl.searchParams.get('status') || '';
+  try {
+    const tipo = req.nextUrl.searchParams.get('tipo') || '';
+    const status = req.nextUrl.searchParams.get('status') || '';
 
-  const where: any = {};
-  if (tipo) where.tipo = tipo;
-  if (status) where.status = status;
+    const where: any = {};
+    if (tipo) where.tipo = tipo;
+    if (status) where.status = status;
 
-  const logs = await prisma.whatsAppLog.findMany({
-    where,
-    include: { ordemServico: { select: { numero: true, nomeCliente: true } } },
-    orderBy: { createdAt: 'desc' },
-    take: 200,
-  });
+    const logs = await prisma.whatsAppLog.findMany({
+      where,
+      include: { ordemServico: { select: { numero: true, nomeCliente: true } } },
+      orderBy: { createdAt: 'desc' },
+      take: 200,
+    });
 
-  return NextResponse.json(logs);
+    return NextResponse.json(logs);
+  } catch (e: any) {
+    return NextResponse.json({ error: e.message }, { status: 500 });
+  }
 }
 
 // POST /api/whatsapp — Registrar tentativa de envio (estrutura, sem integracao)

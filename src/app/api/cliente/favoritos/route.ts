@@ -7,21 +7,25 @@ export async function GET(req: NextRequest) {
   const session = await getVitrineSession(req.headers.get('Authorization')?.replace('Bearer ', '') || '');
   if (!session) return NextResponse.json({ error: 'Não autorizado' }, { status: 401 });
 
-  const favoritos = await prisma.favorito.findMany({
-    where: { clienteId: session.clienteId },
-    include: {
-      peca: {
-        select: {
-          id: true, nome: true, codigo: true, imagemUrl: true, precoVenda: true,
-          precoOferta: true, marca: true, quantidade: true, quantidadeLoja: true,
-          categoria: { select: { nome: true, slug: true } },
+  try {
+    const favoritos = await prisma.favorito.findMany({
+      where: { clienteId: session.clienteId },
+      include: {
+        peca: {
+          select: {
+            id: true, nome: true, codigo: true, imagemUrl: true, precoVenda: true,
+            precoOferta: true, marca: true, quantidade: true, quantidadeLoja: true,
+            categoria: { select: { nome: true, slug: true } },
+          },
         },
       },
-    },
-    orderBy: { createdAt: 'desc' },
-  });
+      orderBy: { createdAt: 'desc' },
+    });
 
-  return NextResponse.json(favoritos);
+    return NextResponse.json(favoritos);
+  } catch (e: any) {
+    return NextResponse.json({ error: e.message }, { status: 500 });
+  }
 }
 
 // POST — adicionar favorito
@@ -51,6 +55,10 @@ export async function DELETE(req: NextRequest) {
   const pecaId = req.nextUrl.searchParams.get('pecaId');
   if (!pecaId) return NextResponse.json({ error: 'pecaId obrigatório' }, { status: 400 });
 
-  await prisma.favorito.deleteMany({ where: { clienteId: session.clienteId, pecaId } });
-  return NextResponse.json({ ok: true });
+  try {
+    await prisma.favorito.deleteMany({ where: { clienteId: session.clienteId, pecaId } });
+    return NextResponse.json({ ok: true });
+  } catch (e: any) {
+    return NextResponse.json({ error: e.message }, { status: 500 });
+  }
 }

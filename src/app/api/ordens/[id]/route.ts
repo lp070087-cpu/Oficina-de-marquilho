@@ -3,23 +3,27 @@ import prisma from '@/lib/prisma';
 import { getSession } from '@/lib/auth';
 
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const session = await getSession();
-  if (!session) return NextResponse.json({ error: 'Nao autorizado' }, { status: 403 });
-  const { id } = await params;
-  const os = await prisma.ordemServico.findUnique({
-    where: { id },
-    include: {
-      mecanico: { select: { name: true } },
-      balcao: { select: { name: true } },
-      itens: { include: { peca: { include: { categoria: { select: { nome: true } } } } } },
-      servicos: true,
-      notaFiscal: true,
-      fotos: { orderBy: { createdAt: 'desc' } },
-      checklist: { orderBy: { item: 'asc' } },
-      assinatura: true,
-      revisoes: { orderBy: { createdAt: 'desc' } },
-    },
-  });
-  if (!os) return NextResponse.json({ error: 'OS nao encontrada' }, { status: 404 });
-  return NextResponse.json(os);
+  try {
+    const session = await getSession();
+    if (!session) return NextResponse.json({ error: 'Nao autorizado' }, { status: 403 });
+    const { id } = await params;
+    const os = await prisma.ordemServico.findUnique({
+      where: { id },
+      include: {
+        mecanico: { select: { name: true } },
+        balcao: { select: { name: true } },
+        itens: { include: { peca: { include: { categoria: { select: { nome: true } } } } } },
+        servicos: true,
+        notaFiscal: true,
+        fotos: { orderBy: { createdAt: 'desc' } },
+        checklist: { orderBy: { item: 'asc' } },
+        assinatura: true,
+        revisoes: { orderBy: { createdAt: 'desc' } },
+      },
+    });
+    if (!os) return NextResponse.json({ error: 'OS nao encontrada' }, { status: 404 });
+    return NextResponse.json(os);
+  } catch (e: any) {
+    return NextResponse.json({ error: e.message }, { status: 500 });
+  }
 }

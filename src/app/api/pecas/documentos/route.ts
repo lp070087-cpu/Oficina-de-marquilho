@@ -61,26 +61,30 @@ export async function POST(req: NextRequest) {
 }
 
 export async function GET(req: NextRequest) {
-  const session = await getSession();
-  if (!session || !['DONO', 'BALCAO', 'ESTOQUE'].includes(session.role)) {
-    return NextResponse.json({ error: 'Nao autorizado' }, { status: 403 });
-  }
-  const pecaId = req.nextUrl.searchParams.get('pecaId');
-  if (!pecaId) return NextResponse.json({ error: 'pecaId obrigatorio' }, { status: 400 });
-  const docs = await prisma.pecaDocumento.findMany({
-    where: { pecaId },
-    orderBy: { createdAt: 'desc' },
-  });
-  return NextResponse.json(docs);
+  try {
+    const session = await getSession();
+    if (!session || !['DONO', 'BALCAO', 'ESTOQUE'].includes(session.role)) {
+      return NextResponse.json({ error: 'Nao autorizado' }, { status: 403 });
+    }
+    const pecaId = req.nextUrl.searchParams.get('pecaId');
+    if (!pecaId) return NextResponse.json({ error: 'pecaId obrigatorio' }, { status: 400 });
+    const docs = await prisma.pecaDocumento.findMany({
+      where: { pecaId },
+      orderBy: { createdAt: 'desc' },
+    });
+    return NextResponse.json(docs);
+  } catch (e: any) { return NextResponse.json({ error: e.message }, { status: 500 }); }
 }
 
 export async function DELETE(req: NextRequest) {
-  const session = await getSession();
-  if (!session || !['DONO', 'BALCAO', 'ESTOQUE'].includes(session.role)) {
-    return NextResponse.json({ error: 'Nao autorizado' }, { status: 403 });
-  }
-  const id = req.nextUrl.searchParams.get('id');
-  if (!id) return NextResponse.json({ error: 'id obrigatorio' }, { status: 400 });
-  await prisma.pecaDocumento.delete({ where: { id } });
-  return NextResponse.json({ ok: true });
+  try {
+    const session = await getSession();
+    if (!session || !['DONO', 'BALCAO', 'ESTOQUE'].includes(session.role)) {
+      return NextResponse.json({ error: 'Nao autorizado' }, { status: 403 });
+    }
+    const id = req.nextUrl.searchParams.get('id');
+    if (!id) return NextResponse.json({ error: 'id obrigatorio' }, { status: 400 });
+    await prisma.pecaDocumento.delete({ where: { id } });
+    return NextResponse.json({ ok: true });
+  } catch (e: any) { return NextResponse.json({ error: e.message }, { status: 500 }); }
 }

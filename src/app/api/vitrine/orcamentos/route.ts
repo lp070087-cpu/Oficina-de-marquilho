@@ -1,8 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getSession, getVitrineSession } from '@/lib/auth';
+import { checkRateLimit } from '@/lib/rate-limit';
 
 export async function POST(req: NextRequest) {
+  const rl = checkRateLimit(req, { key: 'vitrine:orcamentos', maxRequests: 5, windowMs: 60_000 });
+  if (rl.limited) {
+    return NextResponse.json(
+      { error: 'Muitos orçamentos. Aguarde um momento.' },
+      { status: 429, headers: { 'Retry-After': String(Math.ceil((rl.reset - Date.now()) / 1000)) } }
+    );
+  }
+
   const authHeader = req.headers.get('Authorization') || '';
   const session = await getVitrineSession(authHeader);
   if (!session) {

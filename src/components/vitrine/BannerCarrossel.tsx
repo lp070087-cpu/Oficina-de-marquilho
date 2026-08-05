@@ -39,7 +39,7 @@ export default function BannerCarrossel({ banners }: { banners: Banner[] }) {
       {b.imagemDesktop && <img src={b.imagemDesktop} alt="" className="absolute inset-0 w-full h-full object-cover z-0 opacity-40" />}
 
       {/* Content */}
-      <div className={`relative z-10 max-w-7xl mx-auto px-4 py-14 flex items-center gap-10 ${b.posicaoConteudo === 'right' ? 'flex-row-reverse' : ''}`}>
+      <div className={`relative z-10 max-w-7xl mx-auto px-4 py-14 flex items-center gap-6 lg:gap-10 ${b.posicaoConteudo === 'right' ? 'flex-row-reverse' : ''}`}>
         <div className="flex-1">
           {b.titulo && <span className="inline-block bg-brand-600 text-white text-[10px] font-extrabold px-3 py-1 rounded-full uppercase tracking-wider mb-4">{b.titulo}</span>}
           <h1 className="text-3xl lg:text-4xl font-extrabold mb-3 leading-tight" style={{color:txtColor}}>{b.subtitulo || 'Tudo para sua moto com precos de atacado'}</h1>

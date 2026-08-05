@@ -1,7 +1,8 @@
 import { MetadataRoute } from 'next';
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'https://marquinho.com.br';
+  const storeDomain = process.env.NEXT_PUBLIC_STORE_DOMAIN || 'vitrine.marquinhomotopeças.com';
+  const baseUrl = `https://${storeDomain}`;
 
   const staticPages = [
     { url: `${baseUrl}/vitrine`, lastModified: new Date(), changeFrequency: 'daily' as const, priority: 1 },

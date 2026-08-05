@@ -99,7 +99,7 @@ export default function TempoServico({ osId, tempoEstimado: estimadoInicial, ini
           {editandoEstimado ? (
             <div className="flex items-center gap-1">
               <input type="number" value={valorEstimado} onChange={e => setValorEstimado(e.target.value)}
-                className="input-field text-xs w-16 text-center" min="0" autoFocus />
+                className="input-field text-xs w-12 sm:w-16 text-center" min="0" autoFocus />
               <button onClick={salvarEstimado} className="text-emerald-600 p-1"><svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/></svg></button>
               <button onClick={() => { setEditandoEstimado(false); setValorEstimado(String(tempoEstimado || '')); }} className="text-red-500 p-1"><svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg></button>
             </div>

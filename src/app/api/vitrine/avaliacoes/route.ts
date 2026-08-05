@@ -1,52 +1,65 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getVitrineSession } from '@/lib/auth';
+import { checkRateLimit } from '@/lib/rate-limit';
 
 export async function GET(req: NextRequest) {
-  const { searchParams } = new URL(req.url);
-  const pecaId = searchParams.get('pecaId');
-  if (!pecaId) return NextResponse.json({ error: 'pecaId é obrigatório' }, { status: 400 });
+  try {
+    const { searchParams } = new URL(req.url);
+    const pecaId = searchParams.get('pecaId');
+    if (!pecaId) return NextResponse.json({ error: 'pecaId é obrigatório' }, { status: 400 });
 
-  const [avaliacoes, agregado] = await Promise.all([
-    prisma.avaliacao.findMany({
-      where: { pecaId, aprovada: true },
-      include: { cliente: { select: { nome: true } } },
-      orderBy: { createdAt: 'desc' },
-      take: 50,
-    }),
-    prisma.avaliacao.aggregate({
-      where: { pecaId, aprovada: true },
-      _avg: { nota: true },
-      _count: { id: true },
-    }),
-    prisma.avaliacao.groupBy({
+    const [avaliacoes, agregado] = await Promise.all([
+      prisma.avaliacao.findMany({
+        where: { pecaId, aprovada: true },
+        include: { cliente: { select: { nome: true } } },
+        orderBy: { createdAt: 'desc' },
+        take: 50,
+      }),
+      prisma.avaliacao.aggregate({
+        where: { pecaId, aprovada: true },
+        _avg: { nota: true },
+        _count: { id: true },
+      }),
+      prisma.avaliacao.groupBy({
+        by: ['nota'],
+        where: { pecaId, aprovada: true },
+        _count: { id: true },
+      }),
+    ]);
+
+    const distribuicao: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
+    // groupBy returns the 3rd element
+    // Actually groupBy doesn't return from aggregate, let's compute separately
+    const distResult = await prisma.avaliacao.groupBy({
       by: ['nota'],
       where: { pecaId, aprovada: true },
       _count: { id: true },
-    }),
-  ]);
+    });
+    for (const d of distResult) {
+      distribuicao[d.nota] = d._count.id;
+    }
 
-  const distribuicao: Record<number, number> = { 1: 0, 2: 0, 3: 0, 4: 0, 5: 0 };
-  // groupBy returns the 3rd element
-  // Actually groupBy doesn't return from aggregate, let's compute separately
-  const distResult = await prisma.avaliacao.groupBy({
-    by: ['nota'],
-    where: { pecaId, aprovada: true },
-    _count: { id: true },
-  });
-  for (const d of distResult) {
-    distribuicao[d.nota] = d._count.id;
+    return NextResponse.json({
+      avaliacoes,
+      media: agregado._avg.nota || 0,
+      total: agregado._count.id,
+      distribuicao,
+    });
+  } catch (e: any) {
+    return NextResponse.json({ error: e.message }, { status: 500 });
   }
-
-  return NextResponse.json({
-    avaliacoes,
-    media: agregado._avg.nota || 0,
-    total: agregado._count.id,
-    distribuicao,
-  });
 }
 
 export async function POST(req: NextRequest) {
+  const rl = checkRateLimit(req, { key: 'vitrine:avaliacoes', maxRequests: 5, windowMs: 60_000 });
+  if (rl.limited) {
+    return NextResponse.json(
+      { error: 'Muitas avaliações. Aguarde um momento.' },
+      { status: 429, headers: { 'Retry-After': String(Math.ceil((rl.reset - Date.now()) / 1000)) } }
+    );
+  }
+
   const authHeader = req.headers.get('Authorization') || '';
   const session = await getVitrineSession(authHeader);
   if (!session) {

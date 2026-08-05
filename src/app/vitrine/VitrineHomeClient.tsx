@@ -30,8 +30,8 @@ export default function VitrineHomeClient({ destaques, ofertas, lancamentos, pec
       // Carregar favoritos
       fetch('/api/vitrine/favoritos', { headers: { Authorization: `Bearer ${d.token}` } })
         .then(r => r.json()).then(data => setFavoritos(new Set(data.map((f: any) => f.pecaId))));
-      // Carregar produtos vistos pelo cliente
-      fetch(`/api/vitrine/historico?clienteId=${d.id}`)
+      // Carregar produtos vistos pelo cliente (com Bearer token do JWT)
+      fetch('/api/vitrine/historico', { headers: { Authorization: `Bearer ${d.token}` } })
         .then(r => r.json()).then(data => setVistos(data.produtos || []));
     }
   }, []);

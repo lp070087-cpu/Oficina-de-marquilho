@@ -8,18 +8,22 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
     return NextResponse.json({ error: 'Nao autorizado' }, { status: 403 });
   }
 
-  const { id } = await params;
+  try {
+    const { id } = await params;
 
-  const venda = await prisma.venda.findUnique({
-    where: { id },
-    include: {
-      itens: { include: { peca: { select: { nome: true, codigo: true, codigoBarras: true, imagemUrl: true, marca: true } } } },
-      pagamentos: true,
-    },
-  });
+    const venda = await prisma.venda.findUnique({
+      where: { id },
+      include: {
+        itens: { include: { peca: { select: { nome: true, codigo: true, codigoBarras: true, imagemUrl: true, marca: true } } } },
+        pagamentos: true,
+      },
+    });
 
-  if (!venda) return NextResponse.json({ error: 'Venda nao encontrada' }, { status: 404 });
-  return NextResponse.json(venda);
+    if (!venda) return NextResponse.json({ error: 'Venda nao encontrada' }, { status: 404 });
+    return NextResponse.json(venda);
+  } catch (e: any) {
+    return NextResponse.json({ error: e.message }, { status: 500 });
+  }
 }
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -28,15 +32,19 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     return NextResponse.json({ error: 'Nao autorizado' }, { status: 403 });
   }
 
-  const { id } = await params;
+  try {
+    const { id } = await params;
 
-  const body = await req.json();
-  const venda = await prisma.venda.update({
-    where: { id },
-    data: {
-      status: body.status,
-    },
-  });
+    const body = await req.json();
+    const venda = await prisma.venda.update({
+      where: { id },
+      data: {
+        status: body.status,
+      },
+    });
 
-  return NextResponse.json(venda);
+    return NextResponse.json(venda);
+  } catch (e: any) {
+    return NextResponse.json({ error: e.message }, { status: 500 });
+  }
 }

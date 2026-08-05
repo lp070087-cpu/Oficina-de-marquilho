@@ -4,16 +4,20 @@ import { getSession } from '@/lib/auth';
 
 // GET /api/ordens/[id]/assinatura — Obter assinatura da OS
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
-  const session = await getSession();
-  if (!session) return NextResponse.json({ error: 'Nao autorizado' }, { status: 403 });
+  try {
+    const session = await getSession();
+    if (!session) return NextResponse.json({ error: 'Nao autorizado' }, { status: 403 });
 
-  const { id } = await params;
-  const assinatura = await prisma.assinaturaOS.findUnique({
-    where: { ordemServicoId: id },
-  });
+    const { id } = await params;
+    const assinatura = await prisma.assinaturaOS.findUnique({
+      where: { ordemServicoId: id },
+    });
 
-  if (!assinatura) return NextResponse.json(null);
-  return NextResponse.json(assinatura);
+    if (!assinatura) return NextResponse.json(null);
+    return NextResponse.json(assinatura);
+  } catch (e: any) {
+    return NextResponse.json({ error: e.message }, { status: 500 });
+  }
 }
 
 // POST /api/ordens/[id]/assinatura — Salvar assinatura digital

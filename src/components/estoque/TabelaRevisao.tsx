@@ -207,7 +207,7 @@ export default function TabelaRevisao({
                     step="0.01"
                     value={p.precoCusto}
                     onChange={e => onChange(p.id, 'precoCusto', e.target.value)}
-                    className="w-20 bg-transparent border-0 border-b border-transparent hover:border-slate-300 focus:border-brand-400 outline-none text-right"
+                    className="w-16 sm:w-20 bg-transparent border-0 border-b border-transparent hover:border-slate-300 focus:border-brand-400 outline-none text-right"
                     placeholder="0,00"
                   />
                 </td>
@@ -219,7 +219,7 @@ export default function TabelaRevisao({
                     step="0.01"
                     value={p.precoVenda}
                     onChange={e => onChange(p.id, 'precoVenda', e.target.value)}
-                    className="w-20 bg-transparent border-0 border-b border-transparent hover:border-slate-300 focus:border-brand-400 outline-none text-right"
+                    className="w-16 sm:w-20 bg-transparent border-0 border-b border-transparent hover:border-slate-300 focus:border-brand-400 outline-none text-right"
                     placeholder="0,00"
                   />
                 </td>

@@ -1,8 +1,9 @@
 import { MetadataRoute } from 'next';
 
 export default function robots(): MetadataRoute.Robots {
+  const storeDomain = process.env.NEXT_PUBLIC_STORE_DOMAIN || 'vitrine.marquinhomotopeças.com';
   return {
     rules: { userAgent: '*', allow: '/vitrine/', disallow: ['/api/', '/dono/', '/balcao/', '/estoque/', '/oficina/', '/mecanico/'] },
-    sitemap: `${process.env.NEXT_PUBLIC_BASE_URL || 'https://marquinho.com.br'}/vitrine/sitemap.xml`,
+    sitemap: `https://${storeDomain}/vitrine/sitemap.xml`,
   };
 }

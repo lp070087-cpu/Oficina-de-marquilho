@@ -7,15 +7,19 @@ export async function GET(req: NextRequest) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: 'Nao autorizado' }, { status: 403 });
 
-  const apenasAtivos = req.nextUrl.searchParams.get('apenasAtivos') !== 'false';
+  try {
+    const apenasAtivos = req.nextUrl.searchParams.get('apenasAtivos') !== 'false';
 
-  const where: any = {};
-  if (apenasAtivos) where.resolvido = false;
+    const where: any = {};
+    if (apenasAtivos) where.resolvido = false;
 
-  const alertas = await prisma.alertaFinanceiro.findMany({
-    where, orderBy: { createdAt: 'desc' }, take: 50,
-  });
-  return NextResponse.json(alertas);
+    const alertas = await prisma.alertaFinanceiro.findMany({
+      where, orderBy: { createdAt: 'desc' }, take: 50,
+    });
+    return NextResponse.json(alertas);
+  } catch (e: any) {
+    return NextResponse.json({ error: e.message }, { status: 500 });
+  }
 }
 
 // PUT — Resolver alerta

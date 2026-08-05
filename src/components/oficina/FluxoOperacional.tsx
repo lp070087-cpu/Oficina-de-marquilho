@@ -26,7 +26,6 @@ function mapearStatus(status: string): string {
   const mapa: Record<string, string> = {
     'ABERTA': 'RECEPCAO',
     'EM_ANDAMENTO': 'EM_SERVICO',
-    'FINALIZADA': 'ENTREGUE',
     'CONCLUIDA': 'ENTREGUE',
   };
   return mapa[status] || status;
@@ -43,7 +42,7 @@ export default function FluxoOperacional({ osId, status, statusPagamento, onAvan
   const [executando, setExecutando] = useState(false);
 
   const currentIdx = getStepIndex(status);
-  const isEntregue = status === 'ENTREGUE' || status === 'FINALIZADA' || status === 'CONCLUIDA';
+  const isEntregue = status === 'ENTREGUE' || status === 'CONCLUIDA';
   const isCancelada = status === 'CANCELADA';
 
   function getEstado(key: string, step: number) {

@@ -7,26 +7,30 @@ export async function GET(req: NextRequest) {
   const session = await getSession();
   if (!session) return NextResponse.json({ error: 'Nao autorizado' }, { status: 403 });
 
-  const servicoId = req.nextUrl.searchParams.get('servicoId') || '';
+  try {
+    const servicoId = req.nextUrl.searchParams.get('servicoId') || '';
 
-  if (servicoId) {
-    // Retornar templates vinculados ao tipo de serviço
-    const templates = await prisma.checklistServicoTemplate.findMany({
-      where: { servicoTabeladoId: servicoId },
-      include: {
-        template: {
-          include: { itens: { orderBy: { ordem: 'asc' } } },
+    if (servicoId) {
+      // Retornar templates vinculados ao tipo de serviço
+      const templates = await prisma.checklistServicoTemplate.findMany({
+        where: { servicoTabeladoId: servicoId },
+        include: {
+          template: {
+            include: { itens: { orderBy: { ordem: 'asc' } } },
+          },
         },
-      },
-    });
-    return NextResponse.json(templates.map(t => t.template));
-  }
+      });
+      return NextResponse.json(templates.map(t => t.template));
+    }
 
-  const templates = await prisma.checklistTemplate.findMany({
-    include: { itens: { orderBy: { ordem: 'asc' } }, servicos: true },
-    orderBy: { ordem: 'asc' },
-  });
-  return NextResponse.json(templates);
+    const templates = await prisma.checklistTemplate.findMany({
+      include: { itens: { orderBy: { ordem: 'asc' } }, servicos: true },
+      orderBy: { ordem: 'asc' },
+    });
+    return NextResponse.json(templates);
+  } catch (e: any) {
+    return NextResponse.json({ error: e.message }, { status: 500 });
+  }
 }
 
 // POST /api/checklist-templates — Criar modelo
@@ -120,6 +124,10 @@ export async function DELETE(req: NextRequest) {
   const id = req.nextUrl.searchParams.get('id');
   if (!id) return NextResponse.json({ error: 'ID obrigatorio' }, { status: 400 });
 
-  await prisma.checklistTemplate.delete({ where: { id } });
-  return NextResponse.json({ success: true });
+  try {
+    await prisma.checklistTemplate.delete({ where: { id } });
+    return NextResponse.json({ success: true });
+  } catch (e: any) {
+    return NextResponse.json({ error: e.message }, { status: 500 });
+  }
 }

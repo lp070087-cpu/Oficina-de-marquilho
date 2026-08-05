@@ -76,40 +76,63 @@ export async function GET(req: NextRequest) {
       where: { status: 'CONCLUIDA', updatedAt: { gte: hoje, lte: fimHoje } },
     });
 
-    // Top mecanicos (OS entregues no mes)
+    // Top mecanicos (OS entregues no mes) — otimizado com groupBy + query única
     const mecanicos = await prisma.user.findMany({
       where: { role: 'MECANICO', active: true },
       select: { id: true, name: true },
     });
+    const mecanicoIds = mecanicos.map(m => m.id);
 
-    const osPorMecanico = await Promise.all(
-      mecanicos.map(async (m) => {
-        const [count, osComTempo] = await Promise.all([
-          prisma.ordemServico.count({ where: { mecanicoId: m.id, status: 'CONCLUIDA', updatedAt: { gte: inicioMes } } }),
-          prisma.ordemServico.findMany({
-            where: {
-              mecanicoId: m.id, status: 'CONCLUIDA',
-              updatedAt: { gte: inicioMes },
-              inicioServico: { not: null }, fimServico: { not: null },
-            },
-            select: { inicioServico: true, fimServico: true },
-          }),
-        ]);
+    // Contagem agregada por mecânico (1 query)
+    const countsGrouped = await prisma.ordemServico.groupBy({
+      by: ['mecanicoId'],
+      where: {
+        mecanicoId: { in: mecanicoIds },
+        status: 'CONCLUIDA',
+        updatedAt: { gte: inicioMes },
+      },
+      _count: true,
+    });
+    const countMap = new Map(countsGrouped.map(g => [g.mecanicoId, g._count]));
 
-        // Tempo medio por mecanico
-        let tempoMedioMecanico = 0;
-        if (osComTempo.length > 0) {
-          const totalMin = osComTempo.reduce((s, o) => {
-            const ini = o.inicioServico ? new Date(o.inicioServico).getTime() : 0;
-            const fim = o.fimServico ? new Date(o.fimServico).getTime() : 0;
-            return s + (fim - ini) / 60000;
-          }, 0);
-          tempoMedioMecanico = Math.round(totalMin / osComTempo.length);
-        }
+    // OS com timing para cálculo de tempo médio (1 query para todos os mecânicos)
+    const osComTempoAll = await prisma.ordemServico.findMany({
+      where: {
+        mecanicoId: { in: mecanicoIds },
+        status: 'CONCLUIDA',
+        updatedAt: { gte: inicioMes },
+        inicioServico: { not: null },
+        fimServico: { not: null },
+      },
+      select: { mecanicoId: true, inicioServico: true, fimServico: true },
+    });
 
-        return { nome: m.name, count, tempoMedioMinutos: tempoMedioMecanico };
-      })
-    );
+    // Agrupar OS com timing por mecânico em memória
+    const osPorMecanicoMap = new Map<string, { inicioServico: Date | null; fimServico: Date | null }[]>();
+    for (const os of osComTempoAll) {
+      if (!os.mecanicoId) continue;
+      if (!osPorMecanicoMap.has(os.mecanicoId)) {
+        osPorMecanicoMap.set(os.mecanicoId, []);
+      }
+      osPorMecanicoMap.get(os.mecanicoId)!.push(os);
+    }
+
+    const osPorMecanico = mecanicos.map(m => {
+      const count = countMap.get(m.id) || 0;
+      const osDoMecanico = osPorMecanicoMap.get(m.id) || [];
+
+      let tempoMedioMecanico = 0;
+      if (osDoMecanico.length > 0) {
+        const totalMin = osDoMecanico.reduce((s, o) => {
+          const ini = o.inicioServico ? new Date(o.inicioServico).getTime() : 0;
+          const fim = o.fimServico ? new Date(o.fimServico).getTime() : 0;
+          return s + (fim - ini) / 60000;
+        }, 0);
+        tempoMedioMecanico = Math.round(totalMin / osDoMecanico.length);
+      }
+
+      return { nome: m.name, count, tempoMedioMinutos: tempoMedioMecanico };
+    });
     osPorMecanico.sort((a, b) => b.count - a.count);
 
     // Tempo medio geral (entregues nos ultimos 30 dias)

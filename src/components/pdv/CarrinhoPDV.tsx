@@ -170,7 +170,7 @@ export default function CarrinhoPDV({
                               onChange={e => onUpdateDescontoReais(item.id, parseFloat(e.target.value) || 0)}
                               onBlur={() => setEditDescontoReais(null)}
                               onKeyDown={e => { if (e.key === 'Enter') setEditDescontoReais(null); }}
-                              className="w-16 text-[10px] font-bold text-red-500 bg-red-50 border border-red-200 rounded px-1 py-0.5 text-center"
+                              className="w-12 sm:w-16 text-[10px] font-bold text-red-500 bg-red-50 border border-red-200 rounded px-1 py-0.5 text-center"
                               autoFocus
                             />
                           ) : (

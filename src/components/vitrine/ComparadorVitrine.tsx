@@ -34,7 +34,7 @@ export default function ComparadorVitrine({ produtos: initial, onClose }: { prod
                   <tr>
                     <th className="text-left py-2 px-3 text-slate-400 font-medium w-32">Atributo</th>
                     {produtos.map(p => (
-                      <th key={p.id} className="py-2 px-3 text-center min-w-[180px]">
+                      <th key={p.id} className="py-2 px-3 text-center min-w-[140px] sm:min-w-[180px]">
                         <div className="w-20 h-20 bg-slate-50 rounded-lg mx-auto mb-2 overflow-hidden">
                           {p.imagemUrl ? <img src={p.imagemUrl} alt={p.nome} className="w-full h-full object-cover" /> : <div className="w-full h-full flex items-center justify-center"><svg className="w-8 h-8 text-slate-200" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16"/></svg></div>}
                         </div>

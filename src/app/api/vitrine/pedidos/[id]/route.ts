@@ -1,15 +1,39 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { jwtVerify } from 'jose';
-import { getSession } from '@/lib/auth';
+import { getSession, getVitrineSession } from '@/lib/auth';
 import { emitEvent } from '@/lib/event-bus';
 
-const JWT_SECRET = new TextEncoder().encode(process.env.JWT_SECRET || 'vitrine-secret');
-
-// GET — detalhes de um pedido (cliente ou admin)
+// GET — detalhes de um pedido (cliente vê o próprio, admin vê qualquer)
 export async function GET(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const { id } = await params;
+
+    // Verificar autenticação: admin (cookie) ou cliente vitrine (Bearer token)
+    const session = await getSession();
+    const isAdmin = session && ['DONO', 'BALCAO'].includes(session.role);
+
+    if (!isAdmin) {
+      // Verificar token da vitrine (cliente)
+      const authHeader = req.headers.get('authorization');
+      if (!authHeader) {
+        return NextResponse.json({ error: 'Autenticação obrigatória' }, { status: 401 });
+      }
+      const vitrineSession = await getVitrineSession(authHeader);
+      if (!vitrineSession) {
+        return NextResponse.json({ error: 'Token inválido ou expirado' }, { status: 401 });
+      }
+
+      // Cliente só pode ver o próprio pedido
+      const pedido = await prisma.pedido.findUnique({
+        where: { id },
+        select: { clienteId: true },
+      });
+      if (!pedido) return NextResponse.json({ error: 'Pedido não encontrado' }, { status: 404 });
+      if (pedido.clienteId !== vitrineSession.clienteId) {
+        return NextResponse.json({ error: 'Acesso negado' }, { status: 403 });
+      }
+    }
+
     const pedido = await prisma.pedido.findUnique({
       where: { id },
       include: {

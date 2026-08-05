@@ -50,16 +50,16 @@ export default function FiltrosBarra({
         {/* Compatibilidade */}
         <input type="text" placeholder="Moto/Modelo" value={filtros.compatibilidade}
           onChange={e => onChange({ ...filtros, compatibilidade: e.target.value })}
-          className="w-32 bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-600 outline-none focus:border-brand-400" />
+          className="w-full sm:w-32 bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-600 outline-none focus:border-brand-400" />
 
         {/* Preço */}
         <input type="number" placeholder="Preço mín" value={filtros.precoMin}
           onChange={e => onChange({ ...filtros, precoMin: e.target.value })}
-          className="w-24 bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-600 outline-none focus:border-brand-400" />
+          className="w-20 sm:w-24 bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-600 outline-none focus:border-brand-400" />
         <span className="text-slate-300">—</span>
         <input type="number" placeholder="Preço máx" value={filtros.precoMax}
           onChange={e => onChange({ ...filtros, precoMax: e.target.value })}
-          className="w-24 bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-600 outline-none focus:border-brand-400" />
+          className="w-20 sm:w-24 bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-600 outline-none focus:border-brand-400" />
       </div>
 
       <div className="flex items-center justify-between flex-wrap gap-2">
