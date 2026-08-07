@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import PagamentoModal from '@/components/pdv/PagamentoModal';
 
 interface Peca {
-  id: string; nome: string; codigo: string; precoVenda: number;
+  id: string; nome: string; codigo: string; codigoBarras?: string; precoVenda: number;
   quantidade: number; quantidadeLoja: number; compatibilidade?: string;
   categoria: { nome: string };
 }
@@ -107,10 +107,12 @@ export default function DetalheOSBalcao({ os: initialOS, onClose }: { os: OS; on
   }), [pecas, dados.modeloMoto]);
 
   // Filtrar conforme busca no autocomplete
+  // Busca unificada: Nome, SKU, Codigo de Barras
   const pecasFiltradas = pecaBusca
     ? pecasOrdenadas.filter(p =>
         p.nome.toLowerCase().includes(pecaBusca.toLowerCase()) ||
-        p.codigo.toLowerCase().includes(pecaBusca.toLowerCase())
+        p.codigo.toLowerCase().includes(pecaBusca.toLowerCase()) ||
+        (p.codigoBarras || '').toLowerCase().includes(pecaBusca.toLowerCase())
       ).slice(0, 15)
     : pecasOrdenadas.slice(0, 15);
 

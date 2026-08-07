@@ -17,48 +17,114 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       const peca = await tx.peca.findUnique({ where: { id: pecaId } });
       if (!peca) throw new Error('Peca nao encontrada');
 
-      const qtdLoja = peca.quantidadeLoja || 0;
-      const qtdCentral = peca.quantidade || 0;
       const qtdNecessaria = quantidade;
 
-      if (qtdLoja + qtdCentral < qtdNecessaria) {
-        throw new Error(`Estoque insuficiente. Loja: ${qtdLoja}, Central: ${qtdCentral}`);
-      }
-
-      // Baixa primeiro da Loja, depois do Central
-      const baixaLoja = Math.min(qtdLoja, qtdNecessaria);
-      const baixaCentral = qtdNecessaria - baixaLoja;
-
-      // Verificar compatibilidade
-      const ordemExistente = await tx.ordemServico.findUnique({ where: { id }, select: { modeloMoto: true } });
-      const modelo = ordemExistente?.modeloMoto?.toLowerCase() || '';
-      const comp = (peca.compatibilidade || '').toLowerCase();
-      const isUniversal = comp.includes('universal');
-      const isCompativel = comp.includes(modelo) || isUniversal;
-      const isAdaptado = adaptado === true || (!isCompativel && !isUniversal);
-
-      await tx.itemOS.create({
-        data: { ordemServicoId: id, pecaId, quantidade, precoUnitario: peca.precoVenda, adaptado: isAdaptado },
+      // Verificar se a peça já existe na OS (incrementar em vez de duplicar)
+      const itemExistente = await tx.itemOS.findFirst({
+        where: { ordemServicoId: id, pecaId },
       });
 
-      // Update stock (atômico com create)
-      await tx.peca.update({
-        where: { id: pecaId },
-        data: {
-          quantidadeLoja: qtdLoja - baixaLoja,
-          quantidade: baixaCentral > 0 ? qtdCentral - baixaCentral : undefined,
-        },
-      });
+      if (itemExistente) {
+        // Incrementar quantidade do item existente + baixar estoque adicional
+        const qtdLoja = peca.quantidadeLoja || 0;
+        const qtdCentral = peca.quantidade || 0;
 
-      // Register movement
-      if (baixaLoja > 0) {
-        await tx.movimentacaoEstoque.create({
-          data: { pecaId, tipo: 'USO_OS', quantidade: baixaLoja, origem: 'LOJA', usuario: session.name, observacao: `OS #${id} - usado em servico` },
+        if (qtdLoja + qtdCentral < qtdNecessaria) {
+          throw new Error(`Estoque insuficiente. Loja: ${qtdLoja}, Central: ${qtdCentral}`);
+        }
+
+        const baixaLoja = Math.min(qtdLoja, qtdNecessaria);
+        const baixaCentral = qtdNecessaria - baixaLoja;
+
+        await tx.itemOS.update({
+          where: { id: itemExistente.id },
+          data: { quantidade: { increment: qtdNecessaria } },
         });
-      }
-      if (baixaCentral > 0) {
-        await tx.movimentacaoEstoque.create({
-          data: { pecaId, tipo: 'USO_OS', quantidade: baixaCentral, origem: 'CENTRAL', usuario: session.name, observacao: `OS #${id} - usado em servico` },
+
+        await tx.peca.update({
+          where: { id: pecaId },
+          data: {
+            quantidadeLoja: qtdLoja - baixaLoja,
+            quantidade: baixaCentral > 0 ? qtdCentral - baixaCentral : undefined,
+          },
+        });
+
+        if (baixaLoja > 0) {
+          await tx.movimentacaoEstoque.create({
+            data: { pecaId, tipo: 'USO_OS', quantidade: baixaLoja, origem: 'LOJA', usuario: session.name, observacao: `OS #${id} - adicionado ao servico` },
+          });
+        }
+        if (baixaCentral > 0) {
+          await tx.movimentacaoEstoque.create({
+            data: { pecaId, tipo: 'USO_OS', quantidade: baixaCentral, origem: 'CENTRAL', usuario: session.name, observacao: `OS #${id} - adicionado ao servico` },
+          });
+        }
+
+        // Registrar log
+        await tx.historicoOS.create({
+          data: {
+            ordemServicoId: id,
+            tipo: 'ADICAO_PECA',
+            descricao: `+${qtdNecessaria}x ${peca.nome} (SKU: ${peca.codigo}) - ja existia na OS`,
+            usuario: session.name,
+            usuarioId: session.id,
+          },
+        });
+      } else {
+        // Primeira adição: criar item + baixar estoque completo
+        const qtdLoja = peca.quantidadeLoja || 0;
+        const qtdCentral = peca.quantidade || 0;
+
+        if (qtdLoja + qtdCentral < qtdNecessaria) {
+          throw new Error(`Estoque insuficiente. Loja: ${qtdLoja}, Central: ${qtdCentral}`);
+        }
+
+        // Baixa primeiro da Loja, depois do Central
+        const baixaLoja = Math.min(qtdLoja, qtdNecessaria);
+        const baixaCentral = qtdNecessaria - baixaLoja;
+
+        // Verificar compatibilidade
+        const ordemExistente = await tx.ordemServico.findUnique({ where: { id }, select: { modeloMoto: true } });
+        const modelo = ordemExistente?.modeloMoto?.toLowerCase() || '';
+        const comp = (peca.compatibilidade || '').toLowerCase();
+        const isUniversal = comp.includes('universal');
+        const isCompativel = comp.includes(modelo) || isUniversal;
+        const isAdaptado = adaptado === true || (!isCompativel && !isUniversal);
+
+        await tx.itemOS.create({
+          data: { ordemServicoId: id, pecaId, quantidade, precoUnitario: peca.precoVenda, adaptado: isAdaptado },
+        });
+
+        // Update stock (atômico com create)
+        await tx.peca.update({
+          where: { id: pecaId },
+          data: {
+            quantidadeLoja: qtdLoja - baixaLoja,
+            quantidade: baixaCentral > 0 ? qtdCentral - baixaCentral : undefined,
+          },
+        });
+
+        // Register movement
+        if (baixaLoja > 0) {
+          await tx.movimentacaoEstoque.create({
+            data: { pecaId, tipo: 'USO_OS', quantidade: baixaLoja, origem: 'LOJA', usuario: session.name, observacao: `OS #${id} - usado em servico` },
+          });
+        }
+        if (baixaCentral > 0) {
+          await tx.movimentacaoEstoque.create({
+            data: { pecaId, tipo: 'USO_OS', quantidade: baixaCentral, origem: 'CENTRAL', usuario: session.name, observacao: `OS #${id} - usado em servico` },
+          });
+        }
+
+        // Registrar log
+        await tx.historicoOS.create({
+          data: {
+            ordemServicoId: id,
+            tipo: 'ADICAO_PECA',
+            descricao: `Adicionado ${qtdNecessaria}x ${peca.nome} (SKU: ${peca.codigo}) a OS`,
+            usuario: session.name,
+            usuarioId: session.id,
+          },
         });
       }
 

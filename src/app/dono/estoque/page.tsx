@@ -5,7 +5,7 @@ import React from 'react';
 
 interface Categoria { id: string; nome: string; slug: string; _count?: { pecas: number }; }
 interface Peca {
-  id: string; nome: string; codigo: string; subcategoria?: string;
+  id: string; nome: string; codigo: string; codigoBarras?: string; subcategoria?: string;
   marca?: string; compatibilidade?: string;
   precoVenda: number; precoCusto: number; quantidade: number; estoqueMinimo: number;
   descricao?: string; categoriaId: string; categoria: { nome: string };
@@ -53,13 +53,15 @@ export default function EstoquePage() {
 
   const fetchPecas = async () => { const res = await fetch('/api/pecas'); setPecas(await res.json()); };
 
-  const pecasFiltradas = pecas.filter(p=>{if(!busca)return true;const q=busca.toLowerCase();return p.nome.toLowerCase().includes(q)||p.codigo.toLowerCase().includes(q);});
+  const pecasFiltradas = pecas.filter(p=>{if(!busca)return true;const q=busca.toLowerCase();return p.nome.toLowerCase().includes(q)||p.codigo.toLowerCase().includes(q)||(p.codigoBarras||'').toLowerCase().includes(q)||(p.marca||'').toLowerCase().includes(q);});
   const totalPecas = pecas.length;
   const estoqueBaixo = pecas.filter(p=>p.estoqueMinimo > 0 && p.quantidade < p.estoqueMinimo).length;
   const valorTotalEstoque = pecas.reduce((acc,p)=>acc+Number(p.precoCusto)*p.quantidade,0);
 
   const categoriasComContagem = useMemo(() => categorias.map(c=>({...c,_count:{pecas:pecas.filter(p=>p.categoriaId===c.id).length}})).filter(c=>(c._count?.pecas??0)>0), [categorias, pecas]);
+  const NO_SUBCAT_DONO = '__sem_subcategoria__';
   const subcategorias = categoriaSelecionada ? [...new Set(pecas.filter(p=>p.categoriaId===categoriaSelecionada.id&&p.subcategoria).map(p=>p.subcategoria!))].sort() : [];
+  const temSemSubcategoria = categoriaSelecionada ? pecas.some(p=>p.categoriaId===categoriaSelecionada.id&&!p.subcategoria) : false;
   const subcategoriasContagem = useMemo(() => {
     if (!categoriaSelecionada) return new Map();
     const map = new Map<string, { count: number; baixas: number }>();
@@ -70,9 +72,14 @@ export default function EstoquePage() {
       if (p.quantidade <= p.estoqueMinimo) entry.baixas++;
       map.set(p.subcategoria, entry);
     }
+    if (temSemSubcategoria) {
+      const sem = pecas.filter(p=>p.categoriaId===categoriaSelecionada.id&&!p.subcategoria);
+      const baixas = sem.filter(p=>p.quantidade <= p.estoqueMinimo).length;
+      map.set(NO_SUBCAT_DONO, { count: sem.length, baixas });
+    }
     return map;
-  }, [pecas, categoriaSelecionada]);
-  const pecasNivel = view==='pecas'&&categoriaSelecionada&&subcategoriaSelecionada ? pecasFiltradas.filter(p=>p.categoriaId===categoriaSelecionada.id&&p.subcategoria===subcategoriaSelecionada) : [];
+  }, [pecas, categoriaSelecionada, temSemSubcategoria]);
+  const pecasNivel = view==='pecas'&&categoriaSelecionada&&subcategoriaSelecionada ? pecasFiltradas.filter(p=>p.categoriaId===categoriaSelecionada.id&&(subcategoriaSelecionada===NO_SUBCAT_DONO?!p.subcategoria:p.subcategoria===subcategoriaSelecionada)) : [];
 
   function selecionarCategoria(cat:Categoria){setCategoriaSelecionada(cat);setSubcategoriaSelecionada(null);setView('subcategorias');setBusca('');}
   function selecionarSubcategoria(sub:string){setSubcategoriaSelecionada(sub);setView('pecas');}
@@ -154,6 +161,18 @@ export default function EstoquePage() {
                     <p className="text-xs text-slate-400">{count} pecas</p>
                   </button>
                 );})}
+                {temSemSubcategoria&&(()=>{const s=subcategoriasContagem.get(NO_SUBCAT_DONO)||{count:0,baixas:0};const count=s.count;const baixas=s.baixas;return(
+                  <button key={NO_SUBCAT_DONO} onClick={()=>selecionarSubcategoria(NO_SUBCAT_DONO)} className="card p-5 hover:border-brand-300 hover:shadow-md transition-all group cursor-pointer text-left border-dashed border-slate-300">
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="w-12 h-12 rounded-xl bg-slate-100 flex items-center justify-center group-hover:bg-slate-200 group-hover:scale-105 duration-200 transition-all">
+                        <svg className="w-6 h-6 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+                      </div>
+                      {baixas>0&&<span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold bg-amber-50 text-amber-700">{baixas} baixo</span>}
+                    </div>
+                    <h3 className="text-sm font-semibold text-slate-800 mb-1">Sem subcategoria</h3>
+                    <p className="text-xs text-slate-400">{count} pecas</p>
+                  </button>
+                );})()}
               </div>
             </div>
           )}

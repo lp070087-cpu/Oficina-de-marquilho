@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import EstoqueCategorias from '@/components/estoque/EstoqueCategorias';
 import { useEstoqueRefresh } from '@/lib/estoque-events';
 
-interface Peca { id:string; nome:string; codigo:string; quantidadeLoja:number; quantidade:number; estoqueMinimo:number; marca?:string; precoVenda:number; categoria:{nome:string;slug:string;id:string}; }
+interface Peca { id:string; nome:string; codigo:string; codigoBarras?:string; quantidadeLoja:number; quantidade:number; estoqueMinimo:number; marca?:string; precoVenda:number; categoria:{nome:string;slug:string;id:string}; }
 
 export default function EstoqueLojaPage() {
   const [pecas, setPecas] = useState<Peca[]>([]);
@@ -21,7 +21,7 @@ export default function EstoqueLojaPage() {
     if (catSlug && p.categoria?.slug !== catSlug) return false;
     if (!busca) return true;
     const q = busca.toLowerCase();
-    return p.nome.toLowerCase().includes(q) || p.codigo.toLowerCase().includes(q) || (p.marca||'').toLowerCase().includes(q);
+    return p.nome.toLowerCase().includes(q) || p.codigo.toLowerCase().includes(q) || (p.codigoBarras||'').toLowerCase().includes(q) || (p.marca||'').toLowerCase().includes(q);
   });
 
   const totalPages = Math.ceil(filter.length/PER_PAGE);

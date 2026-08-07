@@ -16,7 +16,15 @@ export async function GET(req: NextRequest) {
     const barcode = req.nextUrl.searchParams.get('barcode') || '';
 
     const where: any = { ativo: true };
-    if (q) where.nome = { contains: q, mode: 'insensitive' };
+    // Busca unificada: Nome, SKU (codigo) e Codigo de Barras
+    if (q) {
+      where.OR = [
+        { nome: { contains: q, mode: 'insensitive' } },
+        { codigo: { contains: q, mode: 'insensitive' } },
+        { codigoBarras: { contains: q, mode: 'insensitive' } },
+        { marca: { contains: q, mode: 'insensitive' } },
+      ];
+    }
     if (cat) where.categoriaId = cat;
     if (barcode) where.codigoBarras = barcode;
     if (baixo) {
