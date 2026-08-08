@@ -2,6 +2,22 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getSession } from '@/lib/auth';
 
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const session = await getSession();
+    if (!session || !['DONO', 'BALCAO', 'ESTOQUE'].includes(session.role)) {
+      return NextResponse.json({ error: 'Nao autorizado' }, { status: 403 });
+    }
+    const { id } = await params;
+    const peca = await prisma.peca.findUnique({
+      where: { id, ativo: true },
+      include: { categoria: { select: { nome: true } } },
+    });
+    if (!peca) return NextResponse.json({ error: 'Peca nao encontrada' }, { status: 404 });
+    return NextResponse.json(peca);
+  } catch (e: any) { return NextResponse.json({ error: e.message }, { status: 500 }); }
+}
+
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const session = await getSession();

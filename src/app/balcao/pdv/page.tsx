@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import CarrinhoPDV, { ItemCarrinho } from '@/components/pdv/CarrinhoPDV';
 import PagamentoModal from '@/components/pdv/PagamentoModal';
 import ComprovanteVenda from '@/components/pdv/ComprovanteVenda';
@@ -41,6 +41,67 @@ export default function BalcaoPdvPage() {
   const [scannerOpen, setScannerOpen] = useState(false);
 
   const total = itens.reduce((s, i) => s + i.subtotal, 0);
+  const preloadRef = useRef(false);
+
+  // Consome itens pre-carregados via sessionStorage (Estoque → VENDER / Adicionar ao Carrinho)
+  useEffect(() => {
+    if (preloadRef.current) return;
+    preloadRef.current = true;
+    (async () => {
+      let preloadData: any[] = [];
+      try {
+        const raw = sessionStorage.getItem('pdv_preload');
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed) && parsed.length > 0) preloadData = parsed;
+        }
+      } catch { /* ignore parse errors */ }
+      try { sessionStorage.removeItem('pdv_preload'); } catch { /* cleanup */ }
+
+      if (preloadData.length === 0) return;
+
+      // Busca dados completos de cada peca via API
+      const novosItems: ItemCarrinho[] = [];
+      for (const pre of preloadData) {
+        try {
+          const res = await fetch(`/api/pecas/${pre.pecaId}`);
+          if (!res.ok) { console.warn('[PDV] Peca nao encontrada ou erro:', pre.pecaId, res.status); continue; }
+          const peca = await res.json();
+          if (!peca || !peca.id || !peca.ativo) { console.warn('[PDV] Peca inativa ou invalida:', pre.pecaId); continue; }
+          novosItems.push({
+            id: `${peca.id}-${Date.now()}-${Math.random().toString(36).slice(2,7)}`,
+            pecaId: peca.id,
+            nome: peca.nome,
+            codigo: peca.codigo,
+            imagemUrl: peca.imagemUrl,
+            precoOriginal: Number(peca.precoVenda),
+            precoUnitario: Number(peca.precoVenda),
+            descontoPercent: 0,
+            descontoReais: 0,
+            quantidade: pre.quantidade || 1,
+            subtotal: Number(peca.precoVenda) * (pre.quantidade || 1),
+            reservado: false,
+          });
+        } catch (err) { console.error('[PDV] Erro ao buscar peca para carrinho:', pre.pecaId, err); }
+      }
+
+      if (novosItems.length === 0) return;
+
+      setItens(prev => {
+        const merged = [...prev];
+        for (const novo of novosItems) {
+          const existente = merged.find(i => i.pecaId === novo.pecaId);
+          if (existente) {
+            existente.quantidade += novo.quantidade;
+            existente.subtotal = existente.precoUnitario * existente.quantidade;
+          } else {
+            merged.push(novo);
+          }
+        }
+        return merged;
+      });
+    })();
+  }, []);
 
   // Atualizacoes do carrinho
   const updateQuantidade = useCallback((id: string, qtd: number) => {

@@ -144,13 +144,17 @@ export default function EstoqueCentralPage() {
     setPage(1);
   }
 
+  function fmtMoeda(v:number){return v.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});}
+  function parseMoeda(v:string){return parseFloat((v||'').replace(/\./g,'').replace(',','.'))||0;}
+  function onBlurPreco(field:'precoVenda'|'precoCusto'){const val=parseMoeda(form[field]);setForm({...form,[field]:fmtMoeda(val)});}
+
   function abrirForm(peca?: Peca) {
     setFormErrors({});
     if (peca) {
       setForm({
         nome: peca.nome, codigo: peca.codigo, codigoBarras: peca.codigoBarras || '',
-        codigoOEM: '', precoVenda: String(peca.precoVenda),
-        precoCusto: String(peca.precoCusto), quantidade: String(peca.quantidade),
+        codigoOEM: '', precoVenda: fmtMoeda(Number(peca.precoVenda)),
+        precoCusto: fmtMoeda(Number(peca.precoCusto)), quantidade: String(peca.quantidade),
         quantidadeLoja: String(peca.quantidadeLoja || 0),
         estoqueMinimo: String(peca.estoqueMinimo), marca: peca.marca || '',
         compatibilidade: peca.compatibilidade || '', localizacao: peca.localizacao || '',
@@ -189,8 +193,8 @@ export default function EstoqueCentralPage() {
 
     const body = {
       ...form,
-      precoVenda: Number(form.precoVenda) || 0,
-      precoCusto: Number(form.precoCusto) || 0,
+      precoVenda: parseMoeda(form.precoVenda),
+      precoCusto: parseMoeda(form.precoCusto),
       quantidade: Number(form.quantidade) || 0,
       quantidadeLoja: Number(form.quantidadeLoja) || 0,
       estoqueMinimo: Number(form.estoqueMinimo) || 5,
@@ -634,13 +638,13 @@ export default function EstoqueCentralPage() {
               </div>
 
               <div>
-                <label className="text-xs font-semibold text-slate-600 uppercase">Preco custo</label>
-                <input type="number" step="0.01" value={form.precoCusto} onChange={e => setForm({ ...form, precoCusto: e.target.value })} className="input-field mt-1.5 text-xs" placeholder="0,00"/>
+                <label className="text-xs font-semibold text-slate-600 uppercase">Preco custo (R$)</label>
+                <input type="text" inputMode="decimal" value={form.precoCusto} onChange={e => setForm({ ...form, precoCusto: e.target.value })} onBlur={() => onBlurPreco('precoCusto')} className="input-field mt-1.5 text-xs" placeholder="0,00"/>
               </div>
 
               <div>
-                <label className="text-xs font-semibold text-slate-600 uppercase">Preco venda</label>
-                <input type="number" step="0.01" value={form.precoVenda} onChange={e => setForm({ ...form, precoVenda: e.target.value })} className="input-field mt-1.5 text-xs" placeholder="0,00"/>
+                <label className="text-xs font-semibold text-slate-600 uppercase">Preco venda (R$)</label>
+                <input type="text" inputMode="decimal" value={form.precoVenda} onChange={e => setForm({ ...form, precoVenda: e.target.value })} onBlur={() => onBlurPreco('precoVenda')} className="input-field mt-1.5 text-xs" placeholder="0,00"/>
               </div>
 
               <div>
