@@ -51,7 +51,9 @@ export default function DashboardPremium() {
     async function load() {
       try {
         const res = await fetch('/api/dashboard/premium');
+        if (!res.ok) throw new Error('API error');
         const d = await res.json();
+        if (!d || !d.topCategoriasValor) throw new Error('Invalid response');
         setData(d);
       } catch {
         // Fallback: compute what we can from existing endpoints

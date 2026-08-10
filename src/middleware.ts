@@ -27,7 +27,7 @@ const apiPerms: Record<string, string[]> = {
 	'/api/upload': ['DONO', 'BALCAO', 'ESTOQUE'],
 	// FASE 4 — APIs admin internas
 	'/api/financeiro': ['DONO'],
-	'/api/dashboard': ['DONO'],
+	'/api/dashboard': ['DONO', 'BALCAO', 'ESTOQUE'],
 	'/api/admin': ['DONO'],
 	// C21 — Expandir permissões: notificações, lembretes, eventos, notas, mensagens e configurações
 	// também acessíveis por BALCAO e ESTOQUE (rotas já filtram por usuarioId inline)
