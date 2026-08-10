@@ -24,6 +24,9 @@ export async function GET(req: NextRequest) {
   }
 }
 
+// C20 — Valores de status permitidos para Comissao
+const STATUS_COMISSAO_VALIDOS = ['PENDENTE', 'PAGA'];
+
 // POST — Pagar comissão
 export async function PUT(req: NextRequest) {
   const session = await getSession();
@@ -33,6 +36,11 @@ export async function PUT(req: NextRequest) {
   try {
     const body = await req.json();
     if (!body.id) return NextResponse.json({ error: 'ID obrigatorio' }, { status: 400 });
+
+    // C20 — Validar status contra valores permitidos
+    if (body.status && !STATUS_COMISSAO_VALIDOS.includes(body.status)) {
+      return NextResponse.json({ error: `Status invalido. Valores permitidos: ${STATUS_COMISSAO_VALIDOS.join(', ')}` }, { status: 400 });
+    }
 
     const data: any = { status: body.status || 'PAGA', dataPagamento: body.dataPagamento ? new Date(body.dataPagamento) : new Date(), pagoPor: session.name };
     if (body.observacoes) data.observacoes = body.observacoes;

@@ -70,19 +70,19 @@ export default function ComprovanteVenda({ venda, onFechar }: ComprovanteVendaPr
     `).join('');
 
     return `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Venda #${venda.numero}</title><style>
-      *{margin:0;padding:0;box-sizing:border-box}body{font-family:"Courier New",monospace;font-size:9px;color:#000;width:280px;margin:0 auto;padding:6px 4px;background:#fff}
-      .center{text-align:center}.logo{font-size:15px;font-weight:900;margin-bottom:1px}.ofic{font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:1px}
-      .vn{font-size:20px;font-weight:900;margin:4px 0 2px}.dt{font-size:7px;margin-bottom:4px}
-      .sep{border:none;border-top:1px solid #000;margin:5px 0}.sep-dot{border:none;border-top:1px dotted #000;margin:4px 0}
-      .cliente{font-size:9px;margin:2px 0}.cliente span{font-weight:700}
-      .item{border-bottom:1px dotted #ccc;padding:3px 0}.item-top,.item-mid{display:flex;justify-content:space-between}
-      .item-nome{font-weight:700;max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-      .item-qtd{font-weight:700}.item-cod{font-size:7px;color:#666}.item-preco{font-size:7px;color:#666}
-      .item-desc{font-size:7px;color:#c00;text-align:right}.item-sub{font-size:8px;font-weight:700;text-align:right}
-      .pg-item{display:flex;justify-content:space-between;font-size:8px;padding:1px 0}
-      .total{display:flex;justify-content:space-between;font-size:13px;font-weight:900;padding:3px 0}
-      .qr{text-align:center;margin:6px 0;font-size:7px}
-      .footer{text-align:center;font-size:7px;margin-top:8px;padding-top:4px;border-top:1px solid #000}
+      *{margin:0;padding:0;box-sizing:border-box}body{font-family:"DejaVu Sans Mono","Courier New",monospace;font-size:10px;color:#111;width:280px;margin:0 auto;padding:8px 6px;background:#fff;line-height:1.45}
+      .center{text-align:center}.logo{font-size:17px;font-weight:900;margin-bottom:2px;letter-spacing:-0.5px}.ofic{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#222}
+      .vn{font-size:21px;font-weight:900;margin:6px 0 3px;letter-spacing:-0.5px}.dt{font-size:8px;margin-bottom:6px;color:#444}
+      .sep{border:none;border-top:1.5px solid #000;margin:6px 0}.sep-dot{border:none;border-top:1px dotted #000;margin:5px 0}
+      .cliente{font-size:10px;margin:3px 0;color:#222}.cliente span{font-weight:700}
+      .item{border-bottom:1px dotted #ccc;padding:4px 0}.item-top,.item-mid{display:flex;justify-content:space-between}
+      .item-nome{font-weight:700;max-width:155px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+      .item-qtd{font-weight:700}.item-cod{font-size:8px;color:#555}.item-preco{font-size:8px;color:#555}
+      .item-desc{font-size:8px;color:#c00;text-align:right}.item-sub{font-size:9px;font-weight:700;text-align:right}
+      .pg-item{display:flex;justify-content:space-between;font-size:9px;padding:2px 0}
+      .total{display:flex;justify-content:space-between;font-size:14px;font-weight:900;padding:4px 0}
+      .qr{text-align:center;margin:6px 0;font-size:8px}
+      .footer{text-align:center;font-size:8px;margin-top:10px;padding-top:5px;border-top:1px solid #000;color:#444}
       @media print{body{width:72mm;padding:3mm}@page{margin:0}}
     </style></head><body>
       <div class="center">
@@ -136,16 +136,16 @@ export default function ComprovanteVenda({ venda, onFechar }: ComprovanteVendaPr
     }).join('');
 
     w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Venda #${venda.numero}</title><style>
-      *{margin:0;padding:0;box-sizing:border-box}body{font-family:Arial,sans-serif;font-size:12px;color:#333;padding:40px}
-      .header{text-align:center;margin-bottom:20px}.header h1{font-size:22px}.header p{font-size:12px;color:#666}
-      .info{display:flex;justify-content:space-between;flex-wrap:wrap;margin-bottom:20px;padding:10px;background:#f5f5f5;border-radius:8px}
-      .info div{font-size:12px}.info span{font-weight:700}
-      table{width:100%;border-collapse:collapse;margin-bottom:15px}
-      th{background:#f0f0f0;padding:8px 6px;text-align:left;font-size:11px;text-transform:uppercase;border-bottom:2px solid #ddd}
-      td{padding:6px;border-bottom:1px solid #eee;font-size:11px}
+      *{margin:0;padding:0;box-sizing:border-box}body{font-family:"DejaVu Sans",Arial,Helvetica,sans-serif;font-size:13px;color:#222;padding:40px;line-height:1.5}
+      .header{text-align:center;margin-bottom:25px}.header h1{font-size:24px;font-weight:900;letter-spacing:-0.5px;color:#111}.header p{font-size:13px;color:#555}
+      .info{display:flex;justify-content:space-between;flex-wrap:wrap;margin-bottom:25px;padding:12px 16px;background:#f8f8f8;border-radius:8px}
+      .info div{font-size:12px}.info span{font-weight:700;color:#444}
+      table{width:100%;border-collapse:collapse;margin-bottom:18px}
+      th{background:#f2f2f2;padding:10px 8px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;border-bottom:2px solid #ccc;color:#444}
+      td{padding:8px;border-bottom:1px solid #eee;font-size:12px;color:#333}
       .center{text-align:center}.right{text-align:right}
-      .total-row{font-size:14px;font-weight:700}.total-row td{padding:10px 6px;border-top:2px solid #333}
-      .footer{text-align:center;margin-top:30px;font-size:10px;color:#999}
+      .total-row{font-size:15px;font-weight:700}.total-row td{padding:12px 8px;border-top:2px solid #333}
+      .footer{text-align:center;margin-top:35px;font-size:10px;color:#888}
       @media print{body{padding:20px}}
     </style></head><body>
       <div class="header">
@@ -259,7 +259,7 @@ export default function ComprovanteVenda({ venda, onFechar }: ComprovanteVendaPr
           </div>
 
           {/* Botoes de impressao */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-2">
             <button onClick={imprimir} className="btn-secondary text-xs flex items-center justify-center gap-1 py-2.5">
               <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
               Termica
@@ -271,6 +271,15 @@ export default function ComprovanteVenda({ venda, onFechar }: ComprovanteVendaPr
             <button onClick={enviarWhatsApp} className="btn-secondary text-xs flex items-center justify-center gap-1 py-2.5">
               <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/></svg>
               WhatsApp
+            </button>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={() => window.open(`/dono/nf-manual?refVenda=${venda.numero}`, '_blank')}
+              className="btn-secondary text-xs flex items-center justify-center gap-1 py-2.5 bg-amber-50 border-amber-200 hover:bg-amber-100 text-amber-700"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+              Emitir Nota Fiscal
             </button>
             <button onClick={onFechar} className="btn-primary text-xs py-2.5">
               Nova Venda

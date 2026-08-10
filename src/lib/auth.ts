@@ -1,20 +1,7 @@
 import { SignJWT, jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
-
-// ⚠️ Em produção, JWT_SECRET DEVE estar definido no ambiente.
-// O fallback abaixo existe apenas para desenvolvimento local.
-// Em produção, a ausência de JWT_SECRET causará erro de inicialização.
-const JWT_SECRET_RAW = process.env.JWT_SECRET;
-if (!JWT_SECRET_RAW) {
-  if (process.env.NODE_ENV === 'production') {
-    throw new Error('JWT_SECRET não definido no ambiente de produção.');
-  }
-  console.warn('⚠️ JWT_SECRET não definido. Usando fallback de desenvolvimento (NÃO usar em produção).');
-}
-const JWT_SECRET = new TextEncoder().encode(
-  JWT_SECRET_RAW || crypto.randomUUID()
-);
+import { JWT_SECRET } from '@/lib/jwt-secret';
 
 export interface SessionUser {
   id: string;

@@ -49,7 +49,7 @@ export default function VendaRapida({ onAdicionar, carrinhoItens }: VendaRapidaP
     const v = e.target.value;
     setQuery(v);
     if (debounceRef.current) clearTimeout(debounceRef.current);
-    debounceRef.current = setTimeout(() => buscar(v), 250);
+    debounceRef.current = setTimeout(() => buscar(v.trim()), 250);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {

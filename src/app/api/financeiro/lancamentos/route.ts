@@ -40,6 +40,9 @@ export async function GET(req: NextRequest) {
   }
 }
 
+// C20 — Valores de status permitidos para LancamentoFinanceiro
+const STATUS_LANCAMENTO_VALIDOS = ['EFETIVADO', 'PENDENTE', 'CANCELADO'];
+
 // POST /api/financeiro/lancamentos — Criar lançamento manual
 export async function POST(req: NextRequest) {
   const session = await getSession();
@@ -51,6 +54,12 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     if (!body.tipo || !body.valor || !body.centroCustoId) {
       return NextResponse.json({ error: 'tipo, valor e centroCustoId obrigatorios' }, { status: 400 });
+    }
+
+    // C20 — Validar valor como número positivo
+    const valorNumerico = Number(body.valor);
+    if (isNaN(valorNumerico) || valorNumerico <= 0) {
+      return NextResponse.json({ error: 'Valor deve ser um numero positivo' }, { status: 400 });
     }
 
     const lancamento = await prisma.lancamentoFinanceiro.create({
@@ -97,6 +106,11 @@ export async function PUT(req: NextRequest) {
   try {
     const body = await req.json();
     if (!body.id) return NextResponse.json({ error: 'ID obrigatorio' }, { status: 400 });
+
+    // C20 — Validar status contra valores permitidos
+    if (body.status && !STATUS_LANCAMENTO_VALIDOS.includes(body.status)) {
+      return NextResponse.json({ error: `Status invalido. Valores permitidos: ${STATUS_LANCAMENTO_VALIDOS.join(', ')}` }, { status: 400 });
+    }
 
     const lancamento = await prisma.lancamentoFinanceiro.update({
       where: { id: body.id },

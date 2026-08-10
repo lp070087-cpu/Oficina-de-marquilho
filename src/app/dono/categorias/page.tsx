@@ -58,8 +58,11 @@ export default function CategoriasPage() {
   const [editando, setEditando] = useState<Categoria | null>(null);
   const [form, setForm] = useState({ nome: '', descricao: '', descricaoIa: '', icone: '', ordem: 0, ativa: true, mostrarNaVitrine: true, permiteCadastro: true, parentId: '' });
   const [msg, setMsg] = useState('');
-  const [filtroStatus, setFiltroStatus] = useState<'todas' | 'ativas' | 'inativas'>('todas');
+  const [filtroStatus, setFiltroStatus] = useState<'todas' | 'ativas' | 'inativas' | 'comEstoque'>('todas');
   const [dragId, setDragId] = useState<string | null>(null);
+  const [editingCell, setEditingCell] = useState<{ id: string; field: string } | null>(null);
+  const [editValue, setEditValue] = useState('');
+  const [editMsg, setEditMsg] = useState('');
 
   async function fetchCats() {
     const r = await fetch('/api/categorias');
@@ -121,12 +124,40 @@ export default function CategoriasPage() {
     else { const e = await r.json(); alert(e.error || 'Erro ao duplicar.'); }
   }
 
-  async function excluir(c: Categoria) {
-    if (!confirm(`Excluir categoria "${c.nome}"?`)) return;
-    const r = await fetch(`/api/categorias/${c.id}`, { method: 'DELETE' });
+  async function toggleAtivo(c: Categoria) {
+    const novoStatus = !c.ativa;
+    if (!confirm(`${novoStatus ? 'Ativar' : 'Inativar'} categoria "${c.nome}"?`)) return;
+    const r = await fetch(`/api/categorias/${c.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ nome: c.nome, ativa: novoStatus }),
+    });
     if (r.ok) { fetchCats(); }
-    else { const e = await r.json(); alert(e.error || 'Erro ao excluir.'); }
+    else { const e = await r.json(); alert(e.error || 'Erro ao alterar status.'); }
   }
+
+  async function inlineSave(c: Categoria, field: string) {
+    if (!editingCell) return;
+    const val = editValue.trim();
+    if (field === 'nome' && !val) { setEditMsg('Nome obrigatorio.'); return; }
+    const body: any = { nome: c.nome };
+    if (field === 'nome') body.nome = val;
+    else if (field === 'descricao') body.descricao = val;
+    else if (field === 'ordem') body.ordem = parseInt(val) || 0;
+    else if (field === 'mostrarNaVitrine') body.mostrarNaVitrine = val === 'true';
+    else if (field === 'permiteCadastro') body.permiteCadastro = val === 'true';
+    const r = await fetch(`/api/categorias/${c.id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    if (r.ok) { setEditingCell(null); setEditMsg(''); fetchCats(); }
+    else { const e = await r.json(); setEditMsg(e.error || 'Erro.'); }
+  }
+
+  function startEdit(c: Categoria, field: string, value: string) {
+    setEditingCell({ id: c.id, field });
+    setEditValue(value);
+    setEditMsg('');
+  }
+
+  function cancelEdit() { setEditingCell(null); setEditMsg(''); }
 
   // Drag & Drop
   function handleDragStart(e: React.DragEvent, id: string) {
@@ -170,13 +201,17 @@ export default function CategoriasPage() {
     });
   }
 
-  let flatDisplay = flattenCats(cats);
+  const allFlattened = flattenCats(cats);
+  const comEstoqueCount = allFlattened.filter(c => (c._estoque?.totalEstoque ?? 0) > 0).length;
+
+  let flatDisplay = allFlattened;
   if (busca) {
     const q = busca.toLowerCase();
     flatDisplay = flatDisplay.filter(c => c.nome.toLowerCase().includes(q) || (c.descricao || '').toLowerCase().includes(q));
   }
   if (filtroStatus === 'ativas') flatDisplay = flatDisplay.filter(c => c.ativa);
   if (filtroStatus === 'inativas') flatDisplay = flatDisplay.filter(c => !c.ativa);
+  if (filtroStatus === 'comEstoque') flatDisplay = flatDisplay.filter(c => (c._estoque?.totalEstoque ?? 0) > 0);
 
   const ativasCount = flatDisplay.filter(c => c.ativa).length;
   const inativasCount = flatDisplay.filter(c => !c.ativa).length;
@@ -206,10 +241,10 @@ export default function CategoriasPage() {
       <div className="flex flex-col sm:flex-row gap-3 mb-4">
         <input value={busca} onChange={e => setBusca(e.target.value)} placeholder="Pesquisar por nome ou descricao..." className="input-field max-w-md" />
         <div className="flex flex-wrap gap-1">
-          {(['todas', 'ativas', 'inativas'] as const).map(s => (
+          {(['todas', 'ativas', 'inativas', 'comEstoque'] as const).map(s => (
             <button key={s} onClick={() => setFiltroStatus(s)}
               className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-all ${filtroStatus === s ? 'bg-brand-600 text-white' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'}`}>
-              {s === 'todas' ? 'Todas' : s === 'ativas' ? 'Ativas' : 'Inativas'}
+              {s === 'todas' ? 'Todas' : s === 'ativas' ? 'Ativas' : s === 'inativas' ? 'Inativas' : 'Com estoque'}
             </button>
           ))}
         </div>
@@ -276,9 +311,20 @@ export default function CategoriasPage() {
                               <span className="text-[11px] font-bold" style={{ color: cor }}>{c.nome.charAt(0).toUpperCase()}</span>
                             )}
                           </div>
-                          <div>
-                            <span className="font-medium text-slate-700">{c.nome}</span>
+                          <div className="flex-1 min-w-0">
+                            {editingCell?.id === c.id && editingCell?.field === 'nome' ? (
+                              <div className="flex items-center gap-1">
+                                <input value={editValue} onChange={e => setEditValue(e.target.value)}
+                                  className="text-xs border border-brand-300 rounded px-2 py-0.5 w-full focus:outline-none focus:ring-1 focus:ring-brand-500"
+                                  autoFocus onKeyDown={e => { if (e.key === 'Enter') inlineSave(c, 'nome'); if (e.key === 'Escape') cancelEdit(); }} />
+                                <button onClick={() => inlineSave(c, 'nome')} className="text-emerald-600 hover:text-emerald-700 flex-shrink-0"><svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7"/></svg></button>
+                                <button onClick={cancelEdit} className="text-red-400 hover:text-red-600 flex-shrink-0"><svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg></button>
+                              </div>
+                            ) : (
+                              <span className="font-medium text-slate-700 cursor-pointer hover:text-brand-600 transition-colors" onClick={() => startEdit(c, 'nome', c.nome)} title="Clique para editar">{c.nome}</span>
+                            )}
                             {c.descricao && <p className="text-[11px] text-slate-400 leading-tight">{c.descricao}</p>}
+                            {editMsg && editingCell?.id === c.id && <p className="text-[10px] text-red-500 mt-0.5">{editMsg}</p>}
                           </div>
                         </div>
                       </td>
@@ -322,11 +368,10 @@ export default function CategoriasPage() {
                             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"/></svg>
                           </button>
                           <button onClick={() => abrirEditar(c)} className="text-xs text-brand-600 hover:text-brand-700 font-medium px-1.5 py-1 rounded hover:bg-brand-50">Editar</button>
-                          <button onClick={() => excluir(c)}
-                            className={`text-xs font-medium px-1.5 py-1 rounded ${(c._count?.pecas ?? 0) > 0 ? 'text-slate-300 cursor-not-allowed' : 'text-red-500 hover:text-red-700 hover:bg-red-50'}`}
-                            disabled={(c._count?.pecas ?? 0) > 0}
-                            title={(c._count?.pecas ?? 0) > 0 ? 'Possui pecas vinculadas' : 'Excluir categoria'}>
-                            Excluir
+                          <button onClick={() => toggleAtivo(c)}
+                            className={`text-xs font-medium px-1.5 py-1 rounded ${c.ativa ? 'text-amber-600 hover:text-amber-700 hover:bg-amber-50' : 'text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50'}`}
+                            title={c.ativa ? 'Inativar categoria' : 'Ativar categoria'}>
+                            {c.ativa ? 'Inativo' : 'Ativar'}
                           </button>
                         </div>
                       </td>

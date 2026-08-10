@@ -29,8 +29,9 @@ export async function POST(req: NextRequest) {
     if (existe) {
       // LOGIN
       const valid = await bcrypt.compare(password, existe.password);
+      // C23 — Mensagem genérica: não revela se senha está errada (previne enumeração)
       if (!valid) {
-        return NextResponse.json({ error: 'Senha incorreta.' }, { status: 401 });
+        return NextResponse.json({ error: 'Credenciais inválidas.' }, { status: 401 });
       }
 
       const token = await createVitrineToken({ id: existe.id, nome: existe.nome, telefone: existe.telefone });
@@ -55,10 +56,13 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // CADASTRO — precisa de nome
+    // C23 — Tentativa de LOGIN com telefone inexistente: retorna mensagem genérica
+    // (diferenciado de cadastro pela ausência do campo 'nome')
     if (!nome) {
-      return NextResponse.json({ error: 'Nome é obrigatório para cadastro.' }, { status: 400 });
+      return NextResponse.json({ error: 'Credenciais inválidas.' }, { status: 401 });
     }
+
+    // CADASTRO — prossegue (nome foi informado)
 
     const hash = await bcrypt.hash(password, 10);
     const cliente = await prisma.cliente.create({
@@ -96,9 +100,11 @@ export async function POST(req: NextRequest) {
       },
     }, { status: 201 });
   } catch (e: any) {
+    // C23 — Mensagem genérica para P2002 (telefone duplicado) não revela existência de conta
     if (e.code === 'P2002') {
-      return NextResponse.json({ error: 'Telefone já cadastrado.' }, { status: 409 });
+      return NextResponse.json({ error: 'Erro ao processar solicitação.' }, { status: 409 });
     }
-    return NextResponse.json({ error: e.message }, { status: 500 });
+    console.error('[cliente/auth] Erro:', e);
+    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
   }
 }

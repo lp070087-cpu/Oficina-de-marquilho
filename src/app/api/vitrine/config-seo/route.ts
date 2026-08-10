@@ -4,6 +4,10 @@ import { getSession } from '@/lib/auth';
 
 // GET — obter configuração SEO
 export async function GET(req: NextRequest) {
+  // C26 — Exigir autenticação DONO para leitura de configuração SEO
+  const session = await getSession();
+  if (!session || session.role !== 'DONO') return NextResponse.json({ error: 'Acesso negado' }, { status: 403 });
+
   try {
     const chave = req.nextUrl.searchParams.get('chave');
     if (chave) {

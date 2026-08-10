@@ -38,7 +38,7 @@ export default function BalcaoEstoque() {
 
   useEffect(()=>{Promise.all([fetch('/api/categorias').then(r=>r.json()),fetch('/api/pecas').then(r=>r.json())]).then(([cats,pecasData])=>{setCategorias(cats);setPecas(pecasData);setLoading(false);}).catch(()=>setLoading(false));},[]);
   const fetchPecas=async()=>{const res=await fetch('/api/pecas');setPecas(await res.json());};
-  const pecasFiltradas=pecas.filter(p=>{if(!busca)return true;const q=busca.toLowerCase();return p.nome.toLowerCase().includes(q)||p.codigo.toLowerCase().includes(q)||(p.codigoBarras||'').toLowerCase().includes(q)||(p.marca||'').toLowerCase().includes(q);});
+  const pecasFiltradas=pecas.filter(p=>{const qb=busca.trim();if(!qb)return true;const q=qb.toLowerCase();return p.nome.toLowerCase().includes(q)||p.codigo.toLowerCase().includes(q)||(p.codigoBarras||'').toLowerCase().includes(q)||(p.marca||'').toLowerCase().includes(q);});
   const totalPecas=pecas.reduce((acc,p)=>acc+(p.quantidadeLoja||0),0);const estoqueBaixo=pecas.filter(p=>(p.quantidadeLoja||0)<=p.estoqueMinimo).length;
   const valorTotalEstoque=pecas.reduce((acc,p)=>acc+Number(p.precoCusto)*(p.quantidadeLoja||0),0);
   const categoriasComContagem=useMemo(()=>categorias.map(c=>({...c,_count:{pecas:pecas.filter(p=>p.categoriaId===c.id).length}})).filter(c=>c._count.pecas>0),[categorias,pecas]);

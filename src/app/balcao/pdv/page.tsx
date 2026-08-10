@@ -111,28 +111,6 @@ export default function BalcaoPdvPage() {
       return { ...item, quantidade: qtd, subtotal: novoSub };
     }));
   }, []);
-
-  const updateDescontoPercent = useCallback((id: string, pct: number) => {
-    setItens(prev => prev.map(item => {
-      if (item.id !== id) return item;
-      const descontoReais = item.descontoReais || 0;
-      const descPctValor = item.precoOriginal * pct / 100;
-      const precoVend = item.precoOriginal - descPctValor - descontoReais;
-      const novoSub = Math.max(0, precoVend * item.quantidade);
-      return { ...item, descontoPercent: pct, precoUnitario: Math.max(0, precoVend), subtotal: novoSub };
-    }));
-  }, []);
-
-  const updateDescontoReais = useCallback((id: string, reais: number) => {
-    setItens(prev => prev.map(item => {
-      if (item.id !== id) return item;
-      const descPctValor = item.precoOriginal * item.descontoPercent / 100;
-      const precoVend = item.precoOriginal - descPctValor - reais;
-      const novoSub = Math.max(0, precoVend * item.quantidade);
-      return { ...item, descontoReais: reais, precoUnitario: Math.max(0, precoVend), subtotal: novoSub };
-    }));
-  }, []);
-
   const updateObservacao = useCallback((id: string, obs: string) => {
     setItens(prev => prev.map(item => item.id === id ? { ...item, observacao: obs } : item));
   }, []);
@@ -177,55 +155,71 @@ export default function BalcaoPdvPage() {
     if (itens.length === 0) return;
     setErro('');
 
-    // Cliente rapido: telefone obrigatorio para pedido
-    if (showCliente && !clienteTelefone.trim()) {
-      setErro('Telefone do cliente e obrigatorio para identificar a venda.');
+    // Se pedido ja existe (re-tentativa), vai direto para pagamento
+    if (pedidoId) {
+      setPagamentoOpen(true);
       return;
     }
 
-    // Criar pedido primeiro
-    setShowCliente(true);
-    if (!pedidoId) {
-      setLoading(true);
-      try {
-        const res = await fetch('/api/pedidos', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            tipo: 'VENDA',
-            origem: 'PDV',
-            itens: itens.map(i => ({
-              pecaId: i.pecaId,
-              quantidade: i.quantidade,
-              precoOriginal: i.precoOriginal,
-              descontoPercent: i.descontoPercent,
-              descontoReais: i.descontoReais,
-              precoUnitario: i.precoUnitario,
-              observacao: i.observacao,
-              reservado: i.reservado,
-            })),
-            clienteNome: clienteNome || undefined,
-            clienteTelefone: clienteTelefone || undefined,
-          }),
-        });
-        const pedido = await res.json();
-        if (pedido.error) {
-          setErro(pedido.error);
-          setLoading(false);
-          return;
-        }
-        setPedidoId(pedido.id);
-      } catch {
-        setErro('Erro ao criar pedido');
+    // FASE 5 — Fluxo em dois passos: criar pedido → mostrar cliente → usuario clica "Pagar"
+    setLoading(true);
+    try {
+      const res = await fetch('/api/pedidos', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          tipo: 'VENDA',
+          origem: 'PDV',
+          itens: itens.map(i => ({
+            pecaId: i.pecaId,
+            quantidade: i.quantidade,
+            precoOriginal: i.precoOriginal,
+            descontoPercent: i.descontoPercent,
+            descontoReais: i.descontoReais,
+            precoUnitario: i.precoUnitario,
+            observacao: i.observacao,
+            reservado: i.reservado,
+          })),
+          clienteNome: clienteNome || undefined,
+          clienteTelefone: clienteTelefone || undefined,
+        }),
+      });
+      const pedido = await res.json();
+      if (pedido.error) {
+        setErro(pedido.error);
         setLoading(false);
         return;
       }
+      setPedidoId(pedido.id);
+    } catch {
+      setErro('Erro ao criar pedido');
       setLoading(false);
+      return;
     }
+    setLoading(false);
 
-    // Abrir modal de pagamento
+    // Mostrar formulario de cliente (passo 1) — pagamento so abre quando usuario clicar "Pagar"
+    setShowCliente(true);
+  }, [itens, pedidoId, clienteTelefone, clienteNome]);
+
+  // FASE 5 — Segundo passo do fluxo: usuario preenche (ou nao) dados do cliente e confirma
+  const handleIrParaPagamento = useCallback(async () => {
+    if (!pedidoId) {
+      setErro('Crie o pedido antes de pagar.');
+      return;
+    }
+    // Atualizar pedido com dados do cliente preenchidos
+    if (clienteNome || clienteTelefone) {
+      try {
+        await fetch('/api/pedidos', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: pedidoId, clienteNome, clienteTelefone }),
+        });
+      } catch { /* seguir mesmo se falhar — dados do cliente sao opcionais */ }
+    }
     setPagamentoOpen(true);
-  }, [itens, pedidoId, clienteTelefone, clienteNome, showCliente]);
+  }, [pedidoId, clienteNome, clienteTelefone]);
 
   const handleConfirmarPagamento = useCallback(async (pagamentos: Pagamento[], trocoTotal: number) => {
     setPagamentoOpen(false);
@@ -365,13 +359,13 @@ export default function BalcaoPdvPage() {
           </div>
         )}
 
-        {/* Cliente rapido */}
+        {/* Cliente rapido — FASE 5: fluxo em dois passos com botao "Pagar" explicito */}
         {showCliente && (
           <div className="mx-6 mt-3 p-4 bg-slate-50 rounded-xl border border-slate-200">
-            <p className="text-xs font-bold text-slate-700 mb-3">Dados do Cliente</p>
+            <p className="text-xs font-bold text-slate-700 mb-3">Dados do Cliente (opcional)</p>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="text-[10px] font-semibold text-slate-500 uppercase">Telefone *</label>
+                <label className="text-[10px] font-semibold text-slate-500 uppercase">Telefone</label>
                 <input
                   type="tel"
                   value={clienteTelefone}
@@ -381,7 +375,7 @@ export default function BalcaoPdvPage() {
                 />
               </div>
               <div>
-                <label className="text-[10px] font-semibold text-slate-500 uppercase">Nome (opcional)</label>
+                <label className="text-[10px] font-semibold text-slate-500 uppercase">Nome</label>
                 <input
                   type="text"
                   value={clienteNome}
@@ -390,6 +384,20 @@ export default function BalcaoPdvPage() {
                   className="input-field mt-1 text-sm"
                 />
               </div>
+            </div>
+            <div className="flex items-center gap-2 mt-3 pt-3 border-t border-slate-200">
+              <button
+                onClick={cancelarPedido}
+                className="px-4 py-2 rounded-lg text-xs font-medium text-slate-600 hover:bg-slate-100 transition-colors"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={handleIrParaPagamento}
+                className="px-6 py-2 rounded-lg text-xs font-bold bg-emerald-600 text-white hover:bg-emerald-700 transition-colors shadow-sm shadow-emerald-600/20"
+              >
+                Ir para Pagamento
+              </button>
             </div>
           </div>
         )}
@@ -407,7 +415,7 @@ export default function BalcaoPdvPage() {
                   <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
                 </div>
                 <p className="text-xs font-bold text-slate-700">Cliente</p>
-                <p className="text-[10px] text-slate-400 mt-0.5">Venda com telefone</p>
+                <p className="text-[10px] text-slate-400 mt-0.5">Identificar cliente</p>
               </button>
               <button
                 onClick={() => window.location.href = '/balcao/estoque'}
@@ -449,8 +457,6 @@ export default function BalcaoPdvPage() {
         <CarrinhoPDV
           itens={itens}
           onUpdateQuantidade={updateQuantidade}
-          onUpdateDescontoPercent={updateDescontoPercent}
-          onUpdateDescontoReais={updateDescontoReais}
           onUpdateObservacao={updateObservacao}
           onRemover={removerItem}
           onFinalizar={handleFinalizar}

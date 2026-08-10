@@ -2,9 +2,16 @@
 // Substitui N requisições individuais por 1 única consulta batch
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { getSession } from '@/lib/auth';
 
 export async function POST(req: NextRequest) {
   try {
+    // C9 — Autenticação obrigatória (antes ausente — endpoint público expunha dados de peças)
+    const session = await getSession();
+    if (!session || !['DONO', 'BALCAO', 'ESTOQUE'].includes(session.role)) {
+      return NextResponse.json({ error: 'Nao autorizado' }, { status: 403 });
+    }
+
     const body = await req.json();
     const { codigos = [], codigosBarras = [], eans = [] } = body;
 
@@ -54,7 +61,8 @@ export async function POST(req: NextRequest) {
       total: encontrados.size,
     });
   } catch (error: any) {
+    // C9 — Mensagem genérica para o cliente (sem expor erro interno)
     console.error('[batch] Erro:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
   }
 }

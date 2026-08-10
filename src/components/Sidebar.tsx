@@ -88,6 +88,7 @@ export default function Sidebar({ user, collapsed, onToggle }: SidebarProps) {
     return () => clearInterval(interval);
   }, [isDono]);
 
+  // FASE 5 — Fallback seguro: role desconhecida NÃO mostra menu DONO
   const menuItems = isDono
     ? donoMenu
     : isBalcao && tb === 'SERVICOS'
@@ -95,10 +96,10 @@ export default function Sidebar({ user, collapsed, onToggle }: SidebarProps) {
       : isBalcao && tb === 'VENDA_LOJA'
         ? balcaoVendaMenu
         : isBalcao
-          ? balcaoServicosMenu // fallback
+          ? balcaoServicosMenu // fallback para BALCAO sem tipoBalcao definido
           : isEstoque
             ? estoqueMenu
-            : donoMenu; // fallback seguro
+            : []; // role desconhecida: menu vazio (seguro)
 
   async function handleLogout() {
     await fetch('/api/auth/logout', { method: 'POST' });
@@ -110,6 +111,7 @@ export default function Sidebar({ user, collapsed, onToggle }: SidebarProps) {
     if (onToggle && window.innerWidth < 1024) onToggle();
   }
 
+  // FASE 5 — Fallback seguro: role desconhecida nao assume 'Administrador'
   const roleLabel = isDono
     ? 'Administrador'
     : isBalcao && tb === 'SERVICOS'
@@ -120,9 +122,10 @@ export default function Sidebar({ user, collapsed, onToggle }: SidebarProps) {
           ? 'Balcao'
           : isEstoque
             ? 'Estoque Central'
-            : 'Administrador';
+            : user.role || 'Desconhecido';
 
-  const base = isDono ? '/dono' : isBalcao ? '/balcao' : isEstoque ? '/estoque' : '/dono';
+  // FASE 5 — Fallback seguro: role desconhecida redireciona para raiz (login)
+  const base = isDono ? '/dono' : isBalcao ? '/balcao' : isEstoque ? '/estoque' : '/';
 
   return (
     <>

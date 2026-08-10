@@ -38,14 +38,17 @@ export default function EstoqueDashboardPage() {
   const router = useRouter();
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const { refreshKey } = useEstoqueRefresh();
 
   useEffect(() => {
     async function load() {
-      const [pecasRes, movsRes] = await Promise.all([
-        fetch('/api/pecas').then((r) => r.json()),
-        fetch('/api/relatorios/movimentacao?tipo=').then((r) => r.json()),
-      ]);
+      setError('');
+      try {
+        const [pecasRes, movsRes] = await Promise.all([
+          fetch('/api/pecas').then((r) => r.json()),
+          fetch('/api/relatorios/movimentacao?tipo=').then((r) => r.json()),
+        ]);
       const pecas: PecaRaw[] = Array.isArray(pecasRes) ? pecasRes : [];
       const movs: any[] = Array.isArray(movsRes) ? movsRes : [];
       const hoje = new Date().toISOString().slice(0, 10);
@@ -90,6 +93,10 @@ export default function EstoqueDashboardPage() {
         categoriasCount: categoriasSet.size,
       });
       setLoading(false);
+      } catch {
+        setError('Falha ao carregar dados do painel. Verifique sua conexao.');
+        setLoading(false);
+      }
     }
     load();
   }, [refreshKey]);
@@ -122,7 +129,30 @@ export default function EstoqueDashboardPage() {
     );
   }
 
-  if (!data) return null;
+  if (error) {
+    return (
+      <div className="p-6">
+        <h1 className="text-xl font-bold text-slate-800 tracking-tight mb-2">PAINEL DO ESTOQUE</h1>
+        <div className="card-table text-center py-12">
+          <p className="text-sm text-red-600 font-medium mb-3">{error}</p>
+          <button onClick={() => { setLoading(true); setError(''); window.location.reload(); }} className="btn-primary text-xs">Tentar novamente</button>
+        </div>
+      </div>
+    );
+  }
+
+  // FASE 5 — Fallback seguro: evitar tela branca se dados ainda nao carregaram (edge case)
+  if (!data) {
+    return (
+      <div className="p-6">
+        <h1 className="text-xl font-bold text-slate-800 tracking-tight mb-2">PAINEL DO ESTOQUE</h1>
+        <div className="card-table text-center py-12">
+          <p className="text-sm text-slate-500 font-medium mb-3">Carregando dados do painel...</p>
+          <button onClick={() => { setLoading(true); setError(''); window.location.reload(); }} className="btn-primary text-xs">Recarregar</button>
+        </div>
+      </div>
+    );
+  }
 
   // Score de saude do estoque (0-100)
   const score =

@@ -29,6 +29,18 @@ export async function POST(req: NextRequest) {
       if (pedido.status === 'CANCELADO') throw new Error('Pedido cancelado');
       if (pedido.status === 'PAGO') throw new Error('Pedido ja pago');
 
+      // Validar estoque ANTES de qualquer escrita
+      for (const item of pedido.itens) {
+        const qtd = item.quantidade;
+        if (!Number.isFinite(qtd) || qtd <= 0 || !Number.isInteger(qtd)) {
+          throw new Error(`Quantidade invalida para ${item.peca.nome}: ${qtd}`);
+        }
+        const disponivel = item.peca.quantidadeLoja || 0;
+        if (disponivel < qtd) {
+          throw new Error(`Estoque insuficiente na Loja para ${item.peca.nome}. Disponivel: ${disponivel}, Solicitado: ${qtd}`);
+        }
+      }
+
       // Criar Venda
       const origemMap: Record<string, string> = {
         VENDA: 'VENDA_AVULSA', ORDEM_SERVICO: 'ORDEM_SERVICO', ORCAMENTO: 'ORCAMENTO',
@@ -192,7 +204,12 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(venda, { status: 201 });
   } catch (e: any) {
-    return NextResponse.json({ error: e.message }, { status: 500 });
+    const msg = e?.message || 'Erro ao processar venda';
+    if (msg.includes('Estoque insuficiente') || msg.includes('Quantidade invalida')) {
+      return NextResponse.json({ error: msg }, { status: 400 });
+    }
+    console.error('Erro ao processar venda:', e);
+    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
   }
 }
 
@@ -233,6 +250,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ vendas, total, page, totalPages: Math.ceil(total / limit) });
   } catch (e: any) {
-    return NextResponse.json({ error: e.message }, { status: 500 });
+    console.error('Erro ao listar vendas:', e);
+    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
   }
 }

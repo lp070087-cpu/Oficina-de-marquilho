@@ -39,11 +39,12 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json(pedidos);
   } catch (e: any) {
-    return NextResponse.json({ error: e.message }, { status: 500 });
+    console.error('Erro ao listar pedidos:', e);
+    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
   }
 }
 
-// POST: criar pedido (carrinho → pedido)
+// POST: criar pedido (carrinho → pedido) — atômico com $transaction
 export async function POST(req: NextRequest) {
   const session = await getSession();
   if (!session || !['DONO', 'BALCAO'].includes(session.role)) {
@@ -63,74 +64,87 @@ export async function POST(req: NextRequest) {
 
     const tipoPedido = tipo || 'VENDA';
     const origemPedido = origem || 'PDV';
-    let subtotal = 0;
-    let descontoTotal = 0;
+    const operador = session.name || 'Sistema';
 
-    const pedido = await prisma.pedido.create({
-      data: {
-        tipo: tipoPedido,
-        origem: origemPedido,
-        ordemServicoId: ordemServicoId || null,
-        clienteNome: clienteNome || null,
-        clienteTelefone: clienteTelefone || null,
-        clienteCpf: clienteCpf || null,
-        observacoes: observacoes || null,
-        subtotal: 0,
-        descontoTotal: 0,
-        total: 0,
-        status: 'ABERTO',
-        criadoPor: session.name || session.id,
-        criadoPorId: session.id,
-      },
-    });
+    const result = await prisma.$transaction(async (tx) => {
+      let subtotal = 0;
+      let descontoTotal = 0;
 
-    // Historico: criacao
-    await registrarHistorico(pedido.id, 'CRIADO', `Pedido #${pedido.numero} criado (${tipoPedido})`, session.name || 'Sistema', session.id);
-
-    for (const item of itens) {
-      const qtd = Math.max(1, parseInt(item.quantidade) || 1);
-      const precoOrig = parseFloat(item.precoOriginal) || parseFloat(item.precoUnitario) || 0;
-      const descPct = parseFloat(item.descontoPercent) || 0;
-      const descReais = parseFloat(item.descontoReais) || parseFloat(item.desconto) || 0;
-      const precoVend = precoOrig - (precoOrig * descPct / 100) - descReais;
-      const sub = Math.max(0, precoVend * qtd);
-
-      await prisma.pedidoItem.create({
+      const pedido = await tx.pedido.create({
         data: {
-          pedidoId: pedido.id,
-          pecaId: item.pecaId,
-          quantidade: qtd,
-          precoOriginal: precoOrig,
-          descontoPercent: descPct,
-          descontoReais: descReais,
-          precoVendido: precoVend,
-          subtotal: sub,
-          reservado: item.reservado || false,
-          observacao: item.observacao || null,
+          tipo: tipoPedido,
+          origem: origemPedido,
+          ordemServicoId: ordemServicoId || null,
+          clienteNome: clienteNome || null,
+          clienteTelefone: clienteTelefone || null,
+          clienteCpf: clienteCpf || null,
+          observacoes: observacoes || null,
+          subtotal: 0,
+          descontoTotal: 0,
+          total: 0,
+          status: 'ABERTO',
+          criadoPor: session.name || session.id,
+          criadoPorId: session.id,
         },
       });
 
-      subtotal += sub;
-      descontoTotal += descReais + (precoOrig * descPct / 100) * qtd;
-    }
+      // Historico: criacao
+      await tx.historicoPedido.create({
+        data: {
+          pedidoId: pedido.id,
+          tipo: 'CRIADO',
+          descricao: `Pedido #${pedido.numero} criado (${tipoPedido})`,
+          usuario: operador,
+          usuarioId: session.id || null,
+        },
+      });
 
-    const total = subtotal;
-    await prisma.pedido.update({
-      where: { id: pedido.id },
-      data: { subtotal, descontoTotal, total },
-    });
+      for (const item of itens) {
+        const qtd = Math.max(1, parseInt(item.quantidade) || 1);
+        const precoOrig = parseFloat(item.precoOriginal) || parseFloat(item.precoUnitario) || 0;
+        const descPct = parseFloat(item.descontoPercent) || 0;
+        const descReais = parseFloat(item.descontoReais) || parseFloat(item.desconto) || 0;
+        const precoVend = precoOrig - (precoOrig * descPct / 100) - descReais;
+        const sub = Math.max(0, precoVend * qtd);
 
-    const result = await prisma.pedido.findUnique({
-      where: { id: pedido.id },
-      include: {
-        itens: { include: { peca: { select: { nome: true, codigo: true, imagemUrl: true, quantidadeLoja: true } } } },
-        historico: { orderBy: { createdAt: 'desc' } },
-      },
+        await tx.pedidoItem.create({
+          data: {
+            pedidoId: pedido.id,
+            pecaId: item.pecaId,
+            quantidade: qtd,
+            precoOriginal: precoOrig,
+            descontoPercent: descPct,
+            descontoReais: descReais,
+            precoVendido: precoVend,
+            subtotal: sub,
+            reservado: item.reservado || false,
+            observacao: item.observacao || null,
+          },
+        });
+
+        subtotal += sub;
+        descontoTotal += descReais + (precoOrig * descPct / 100) * qtd;
+      }
+
+      const total = subtotal;
+      await tx.pedido.update({
+        where: { id: pedido.id },
+        data: { subtotal, descontoTotal, total },
+      });
+
+      return tx.pedido.findUnique({
+        where: { id: pedido.id },
+        include: {
+          itens: { include: { peca: { select: { nome: true, codigo: true, imagemUrl: true, quantidadeLoja: true } } } },
+          historico: { orderBy: { createdAt: 'desc' } },
+        },
+      });
     });
 
     return NextResponse.json(result, { status: 201 });
   } catch (e: any) {
-    return NextResponse.json({ error: e.message }, { status: 500 });
+    console.error('Erro ao criar pedido:', e);
+    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
   }
 }
 
@@ -147,19 +161,46 @@ export async function PUT(req: NextRequest) {
 
     if (!id || !status) return NextResponse.json({ error: 'id e status obrigatorios' }, { status: 400 });
 
-    const data: any = { status };
     const operador = session.name || session.id;
 
+    // CANCELADO: atômico — desreserva + historico + update em $transaction
     if (status === 'CANCELADO') {
-      data.canceladoPor = operador;
-      data.canceladoEm = new Date();
-      // Liberar reservas
-      await prisma.pedidoItem.updateMany({
-        where: { pedidoId: id, reservado: true },
-        data: { reservado: false },
+      const pedido = await prisma.$transaction(async (tx) => {
+        // Liberar reservas
+        await tx.pedidoItem.updateMany({
+          where: { pedidoId: id, reservado: true },
+          data: { reservado: false },
+        });
+
+        await tx.historicoPedido.create({
+          data: {
+            pedidoId: id,
+            tipo: 'CANCELADO',
+            descricao: `Pedido cancelado por ${operador}${observacoes ? ': ' + observacoes : ''}`,
+            usuario: operador,
+            usuarioId: session.id || null,
+          },
+        });
+
+        return tx.pedido.update({
+          where: { id },
+          data: {
+            status: 'CANCELADO',
+            canceladoPor: operador,
+            canceladoEm: new Date(),
+            ...(observacoes ? { observacoes } : {}),
+          },
+          include: {
+            itens: { include: { peca: { select: { nome: true, codigo: true } } } },
+            historico: { orderBy: { createdAt: 'desc' } },
+          },
+        });
       });
-      await registrarHistorico(id, 'CANCELADO', `Pedido cancelado por ${operador}${observacoes ? ': ' + observacoes : ''}`, operador, session.id);
+
+      return NextResponse.json(pedido);
     }
+
+    const data: any = { status };
 
     if (status === 'RESERVADO') {
       await prisma.pedidoItem.updateMany({
@@ -191,6 +232,7 @@ export async function PUT(req: NextRequest) {
 
     return NextResponse.json(pedido);
   } catch (e: any) {
-    return NextResponse.json({ error: e.message }, { status: 500 });
+    console.error('Erro ao atualizar pedido:', e);
+    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
   }
 }

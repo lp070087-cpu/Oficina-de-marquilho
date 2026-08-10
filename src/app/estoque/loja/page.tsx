@@ -9,13 +9,20 @@ interface Peca { id:string; nome:string; codigo:string; codigoBarras?:string; qu
 export default function EstoqueLojaPage() {
   const [pecas, setPecas] = useState<Peca[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [busca, setBusca] = useState('');
   const [catSlug, setCatSlug] = useState('');
   const [page, setPage] = useState(1);
   const PER_PAGE = 20;
   const { refreshKey } = useEstoqueRefresh();
 
-  useEffect(() => { fetch('/api/pecas').then(r=>r.json()).then(d=>{setPecas(d);setLoading(false);}); }, [refreshKey]);
+  useEffect(() => {
+    setError('');
+    fetch('/api/pecas')
+      .then(r => { if (!r.ok) throw new Error('Erro ao carregar'); return r.json(); })
+      .then(d => { setPecas(Array.isArray(d) ? d : []); setLoading(false); })
+      .catch(() => { setError('Falha ao carregar produtos. Verifique sua conexao.'); setLoading(false); });
+  }, [refreshKey]);
 
   const filter = pecas.filter(p => {
     if (catSlug && p.categoria?.slug !== catSlug) return false;
@@ -41,7 +48,12 @@ export default function EstoqueLojaPage() {
         <div className="card-stat"><p className="text-[11px] text-slate-500 uppercase">Valor loja</p><p className="text-2xl font-bold">{fm(filter.reduce((s,p)=>s+Number(p.precoVenda)*(p.quantidadeLoja||0),0))}</p></div>
       </div>
 
-      {loading?<p className="text-sm text-slate-400">Carregando...</p>:(
+      {loading?<p className="text-sm text-slate-400">Carregando...</p>:error?(
+        <div className="card-table text-center py-10">
+          <p className="text-sm text-red-600 font-medium mb-2">{error}</p>
+          <button onClick={() => { setLoading(true); setError(''); fetch('/api/pecas').then(r=>r.json()).then(d=>{setPecas(Array.isArray(d)?d:[]);setLoading(false);}).catch(()=>{setError('Falha ao carregar produtos.');setLoading(false);}); }} className="btn-primary text-xs">Tentar novamente</button>
+        </div>
+      ):(
         <div className="card-table overflow-auto"><table className="w-full text-sm">
           <thead><tr className="border-b border-slate-100 bg-slate-50/60"><th className="text-left py-2.5 px-3 text-xs font-semibold text-slate-500 uppercase">SKU</th><th className="text-left py-2.5 px-3 text-xs font-semibold text-slate-500 uppercase">Nome</th><th className="text-center py-2.5 px-3 text-xs font-semibold text-slate-500 uppercase">Central</th><th className="text-center py-2.5 px-3 text-xs font-semibold text-slate-500 uppercase">Loja</th><th className="text-right py-2.5 px-3 text-xs font-semibold text-slate-500 uppercase">Preco</th></tr></thead>
           <tbody>{paginated.map((p,i)=>(

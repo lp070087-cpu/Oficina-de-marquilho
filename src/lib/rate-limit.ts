@@ -35,7 +35,9 @@ function cleanup() {
 }
 
 function getClientIp(request: Request): string {
-  // Em produção, usar x-forwarded-for (proxy/Vercel)
+  // C22 — Em produção, usar x-forwarded-for (proxy confiável/Vercel/Nginx)
+  // O header x-forwarded-for é seguro quando atrás de proxy reverso confiável
+  // (Nginx/Vercel definem o primeiro IP como o real do cliente)
   const forwarded = request.headers.get('x-forwarded-for');
   if (forwarded) {
     return forwarded.split(',')[0].trim();

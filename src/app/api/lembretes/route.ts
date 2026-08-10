@@ -37,6 +37,12 @@ export async function POST(req: NextRequest) {
     if (!titulo) return NextResponse.json({ error: 'título obrigatório' }, { status: 400 });
     if (!dataHora) return NextResponse.json({ error: 'dataHora obrigatória' }, { status: 400 });
 
+    // C20 — Validar dataHora como data válida
+    const dataHoraParsed = new Date(dataHora);
+    if (isNaN(dataHoraParsed.getTime())) {
+      return NextResponse.json({ error: 'dataHora inválida' }, { status: 400 });
+    }
+
     const lembrete = await prisma.lembreteSistema.create({
       data: {
         usuarioId: session.id,

@@ -32,6 +32,20 @@ const ICONES_SERVICO: Record<string, string> = {
 
 const TIPOS_SERVICO = ['Revisao','Troca de oleo','Freios','Motor','Suspensao','Eletrica','Transmissao','Pneus','Diagnostico','Outros'];
 
+// Mapeamento servico → palavras-chave para busca de peças relacionadas
+const SERVICO_PECAS_MAP: Record<string, string[]> = {
+  'Troca de oleo': ['oleo', 'óleo', 'lubrificante', 'filtro oleo', 'filtro de oleo'],
+  'Freios': ['freio', 'pastilha', 'disco freio', 'lonha', 'cabo freio', 'fluido freio', 'cilindro freio'],
+  'Motor': ['motor', 'pistao', 'anel', 'valvula', 'junta', 'cabeçote', 'cilindro', 'embreagem'],
+  'Suspensao': ['suspensao', 'amortecedor', 'bengala', 'retentor', 'oleo suspensao', 'mola', 'balança'],
+  'Eletrica': ['bateria', 'vela', 'cabo vela', 'bobina', 'retificador', 'estator', 'farol', 'lanterna', 'pisca', 'relé', 'chicote', 'interruptor'],
+  'Transmissao': ['corrente', 'relação', 'pinhão', 'coroa', 'transmissao', 'embreagem', 'cabo embreagem'],
+  'Pneus': ['pneu', 'camara', 'aro', 'raios', 'bucha roda'],
+  'Revisao': ['oleo', 'filtro', 'vela', 'pastilha', 'bateria', 'corrente', 'pneu', 'fluido'],
+  'Diagnostico': [],
+  'Outros': [],
+};
+
 const STATUS_BADGE: Record<string, { label: string; color: string; dot: string }> = {
   ABERTA: { label: 'Aberta', color: 'bg-sky-50 text-sky-700 border-sky-200', dot: 'bg-sky-500' },
   EM_ANDAMENTO: { label: 'Em andamento', color: 'bg-amber-50 text-amber-700 border-amber-200', dot: 'bg-amber-500' },
@@ -72,6 +86,11 @@ export default function OrdensPage() {
   const [msg, setMsg] = useState('');
   const [erros, setErros] = useState<Record<string, string>>({});
   const [toast, setToast] = useState<string | null>(null);
+  const [pecasRelacionadas, setPecasRelacionadas] = useState<any[]>([]);
+  const [pecasQtd, setPecasQtd] = useState<Record<string, string>>({});
+  const [adicionandoPecas, setAdicionandoPecas] = useState<Set<string>>(new Set());
+  const [pecasSelecionadas, setPecasSelecionadas] = useState<Set<string>>(new Set());
+  const abortRef = useRef<AbortController | null>(null);
 
   // Combobox
   const [motoBusca, setMotoBusca] = useState('');
@@ -99,6 +118,45 @@ export default function OrdensPage() {
   useEffect(() => {
     if (toast) { const t = setTimeout(() => setToast(null), 3000); return () => clearTimeout(t); }
   }, [toast]);
+
+  // Buscar pecas relacionadas aos servicos selecionados (com AbortController)
+  useEffect(() => {
+    // Cancela busca anterior
+    if (abortRef.current) { abortRef.current.abort(); abortRef.current = null; }
+    if (servicos.length === 0) { setPecasRelacionadas([]); setPecasQtd({}); return; }
+
+    const keywords = servicos.flatMap(s => SERVICO_PECAS_MAP[s] || []);
+    const unique = [...new Set(keywords)];
+    if (unique.length === 0) { setPecasRelacionadas([]); setPecasQtd({}); return; }
+
+    const controller = new AbortController();
+    abortRef.current = controller;
+
+    const buscar = async () => {
+      try {
+        const promises = unique.map(kw =>
+          fetch(`/api/pecas/pesquisa?q=${encodeURIComponent(kw)}&loja=true`, { signal: controller.signal }).then(r => r.json())
+        );
+        const results = await Promise.all(promises);
+        if (controller.signal.aborted) return;
+        const merged = results.flatMap((r: any) => r.pecas || []);
+        const seen = new Set<string>();
+        const uniq = merged.filter((p: any) => { if (seen.has(p.id)) return false; seen.add(p.id); return true; }).slice(0, 12);
+        if (!controller.signal.aborted) {
+          setPecasRelacionadas(uniq);
+          // Inicializa qtd 1 para cada peca
+          const qtds: Record<string, string> = {};
+          uniq.forEach((p: any) => { qtds[p.id] = '1'; });
+          setPecasQtd(qtds);
+        }
+      } catch {
+        if (!controller.signal.aborted) setPecasRelacionadas([]);
+      }
+    };
+    buscar();
+
+    return () => { controller.abort(); abortRef.current = null; };
+  }, [servicos]);
 
   // Filtragem e ordenação
   const hoje = new Date().toISOString().slice(0, 10);
@@ -156,6 +214,64 @@ export default function OrdensPage() {
   function selecionarMoto(m: string) { setForm({ ...form, modeloMoto: m }); setMotoBusca(''); setMotoAberta(false); setMotoIndex(-1); }
   function toggleServico(s: string) { setServicos(prev => prev.includes(s) ? prev.filter(x => x !== s) : [...prev, s]); }
 
+  function togglePecaSelecionada(pecaId: string) {
+    setPecasSelecionadas(prev => {
+      const next = new Set(prev);
+      if (next.has(pecaId)) next.delete(pecaId); else next.add(pecaId);
+      return next;
+    });
+  }
+
+  interface ResultadoPeca { pecaId: string; nome: string; sucesso: boolean; erro?: string; }
+
+  async function adicionarPecasNaOS(osId: string): Promise<{ adicionadas: number; falhas: number; detalhes: ResultadoPeca[] }> {
+    const selecionadas = pecasRelacionadas.filter(p => pecasSelecionadas.has(p.id));
+    if (selecionadas.length === 0) return { adicionadas: 0, falhas: 0, detalhes: [] };
+
+    // Marca todas como "adicionando"
+    const novoSet = new Set<string>();
+    for (const peca of selecionadas) { novoSet.add(peca.id); }
+    setAdicionandoPecas(novoSet);
+
+    const resultados: ResultadoPeca[] = [];
+    let adicionadas = 0;
+    let falhas = 0;
+
+    for (const peca of selecionadas) {
+      const qtdRaw = (pecasQtd[peca.id] || '').trim();
+      const qtd = Number(qtdRaw);
+
+      // Validação de quantidade no frontend
+      if (!qtdRaw || !Number.isFinite(qtd) || !Number.isInteger(qtd) || qtd <= 0) {
+        falhas++;
+        resultados.push({ pecaId: peca.id, nome: peca.nome, sucesso: false, erro: 'Quantidade invalida. Use um numero inteiro maior que zero.' });
+        continue;
+      }
+
+      try {
+        const res = await fetch(`/api/ordens/${osId}/itens`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pecaId: peca.id, quantidade: qtd }),
+        });
+        if (res.ok) {
+          adicionadas++;
+          resultados.push({ pecaId: peca.id, nome: peca.nome, sucesso: true });
+        } else {
+          const err = await res.json().catch(() => ({ error: 'Erro desconhecido' }));
+          falhas++;
+          const msg = err?.error || 'Erro ao adicionar peca';
+          resultados.push({ pecaId: peca.id, nome: peca.nome, sucesso: false, erro: msg });
+        }
+      } catch {
+        falhas++;
+        resultados.push({ pecaId: peca.id, nome: peca.nome, sucesso: false, erro: 'Erro de conexao ao adicionar peca' });
+      }
+    }
+
+    setAdicionandoPecas(new Set());
+    return { adicionadas, falhas, detalhes: resultados };
+  }
+
   function getStatusKey(os: OS) {
     if (os.statusPagamento === 'AGUARDANDO_PAGAMENTO') return 'AGUARDANDO_PAGAMENTO';
     if (os.statusPagamento === 'PAGO') return 'PAGO';
@@ -166,10 +282,6 @@ export default function OrdensPage() {
   async function criarOS() {
     const errs: Record<string, string> = {};
     if (!form.nomeCliente.trim()) errs.nomeCliente = 'Informe o nome do cliente';
-    if (!form.modeloMoto.trim()) errs.modeloMoto = 'Selecione o modelo';
-    if (!form.mecanicoId) errs.mecanicoId = 'Selecione um mecanico';
-    if (!form.placaMoto.trim()) errs.placaMoto = 'Informe a placa';
-    if (!form.anoMoto.trim()) errs.anoMoto = 'Informe o ano';
     if (Object.keys(errs).length > 0) { setErros(errs); return; }
 
     const body: any = {
@@ -188,11 +300,28 @@ export default function OrdensPage() {
 
     const res = await fetch('/api/ordens', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).catch(() => null);
     if (res?.ok) {
+      const osCriada = await res.json();
+      // Adiciona pecas selecionadas a OS recem-criada
+      let resumoPecas = '';
+      if (pecasSelecionadas.size > 0) {
+        const resultado = await adicionarPecasNaOS(osCriada.id);
+        const partes: string[] = [];
+        partes.push(`OS #${osCriada.numero} criada.`);
+        if (resultado.adicionadas > 0) partes.push(`Pecas adicionadas: ${resultado.adicionadas}.`);
+        if (resultado.falhas > 0) {
+          partes.push(`Pecas NAO adicionadas: ${resultado.falhas}.`);
+          for (const r of resultado.detalhes) {
+            if (!r.sucesso) partes.push(`${r.nome} — ${r.erro}.`);
+          }
+        }
+        resumoPecas = partes.join(' ');
+      }
       setModal({ open: false, tipo: 'nova' });
       setForm({ nomeCliente: '', telefoneCliente: '', cpf: '', marcaMoto: '', modeloMoto: '', anoMoto: '', placaMoto: '', km: '', descricaoProblema: '', observacoes: '', mecanicoId: '', revisaoId: '', valorMaoDeObra: '0' });
       setServicos([]); setMotoBusca(''); setMsg(''); setErros({});
+      setPecasSelecionadas(new Set());
       fetchOrdens();
-      setToast('Ordem de Servico criada com sucesso!');
+      setToast(resumoPecas || 'Ordem de Servico criada com sucesso!');
     } else { const e = await res?.json(); setMsg(e?.error || 'Erro ao criar OS.'); }
   }
 
@@ -230,7 +359,7 @@ export default function OrdensPage() {
       ? servicosList.map((s: string) => '<div class="ck"><span class="cb"></span> ' + esc(s) + '</div>').join('')
       : '';
     const linhasExecucao = [1, 2, 3].map(() => '<div style="border-bottom:1px dotted #000;height:18px;margin-bottom:4px"></div>').join('');
-    w.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>OS #' + os.numero + '</title><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:"Courier New",monospace;font-size:10px;color:#000;width:280px;margin:0 auto;padding:6px 4px;background:#fff}.center{text-align:center}.logo{font-size:15px;font-weight:900;margin-bottom:1px}.oficina{font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:1px}.tel{font-size:7px;margin-bottom:6px}.os-num{font-size:18px;font-weight:900;margin:4px 0 2px}.dt{font-size:7px;margin-bottom:6px}.sep{border:none;border-top:1px solid #000;margin:6px 0}.sep-dot{border:none;border-top:1px dotted #000;margin:5px 0}.s-title{font-size:8px;font-weight:900;text-transform:uppercase;letter-spacing:1px;margin:8px 0 3px;padding-bottom:2px;border-bottom:1px solid #000}.big{font-size:12px;font-weight:900;margin:2px 0}.big-label{font-size:7px;text-transform:uppercase;letter-spacing:1px;margin-top:5px}.grid{display:flex;flex-wrap:wrap}.g-item{width:50%;padding:2px 0}.g-label{font-size:7px;text-transform:uppercase;letter-spacing:.5px}.g-val{font-size:11px;font-weight:700}.ck{display:flex;align-items:center;gap:6px;padding:2px 0;font-size:9px}.cb{width:14px;height:14px;border:1.5px solid #000;display:inline-block;flex-shrink:0}.desc{font-size:9px;padding:4px 0;line-height:1.4}.tf{display:flex;justify-content:space-between;align-items:center;padding:3px 0;font-size:10px;font-weight:700}.tf span:last-child{border-bottom:1px solid #000;min-width:70px;text-align:center}.sign{margin-top:12px;text-align:center}.sign .sig-line{border-top:1px solid #000;margin:30px 20px 4px}.sign .sig-label{font-size:8px;text-transform:uppercase;letter-spacing:1px;font-weight:700}.footer{text-align:center;font-size:7px;margin-top:10px;padding-top:6px;border-top:1px solid #000}@media print{body{width:72mm;padding:3mm}@page{margin:0}}</style></head><body><div class="center"><div class="logo">MARQUINHO</div><div class="oficina">Moto Pecas</div><div class="tel">Atacado &amp; Varejo</div><hr class="sep"><div class="os-num">OS #' + os.numero + '</div><div class="dt">' + data + ' — ' + hora + '</div><hr class="sep"><div class="big-label">Cliente</div><div class="big">' + esc(os.nomeCliente) + '</div><div class="grid"><div class="g-item"><div class="g-label">Placa</div><div class="g-val">' + (os.placaMoto || '-') + '</div></div><div class="g-item"><div class="g-label">Ano</div><div class="g-val">' + (os.anoMoto || '-') + '</div></div><div class="g-item"><div class="g-label">Moto</div><div class="g-val" style="font-size:9px">' + esc(os.modeloMoto) + '</div></div><div class="g-item"><div class="g-label">Mecanico</div><div class="g-val" style="font-size:9px">' + esc(os.mecanico?.name || '-') + '</div></div></div>' + (linhasServicos ? '<hr class="sep-dot"><div class="s-title">Tipos de Servico</div>' + linhasServicos : '') + (os.descricaoProblema ? '<hr class="sep-dot"><div class="s-title">Problema</div><div class="desc">' + esc(os.descricaoProblema) + '</div>' : '') + '<hr class="sep-dot"><div class="s-title">Pecas</div>' + linhasPecas + '<hr class="sep-dot"><div class="s-title">Execucao</div>' + linhasExecucao + '<hr class="sep-dot"><div class="tf"><span>Inicio:</span><span>____:____</span></div><div class="tf"><span>Termino:</span><span>____:____</span></div><div class="sign"><div class="sig-line"></div><div class="sig-label">Assinatura do Mecanico</div></div><div class="footer">Marquinho Moto Pecas — ' + data + '</div><script>setTimeout(function(){window.print();},300);</script></body></html>');
+    w.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>OS #' + os.numero + '</title><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:"DejaVu Sans Mono","Courier New",monospace;font-size:10px;color:#111;width:280px;margin:0 auto;padding:8px 6px;background:#fff;line-height:1.45}.center{text-align:center}.logo{font-size:17px;font-weight:900;margin-bottom:2px;letter-spacing:-0.5px}.oficina{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#222}.tel{font-size:8px;margin-bottom:6px;color:#555}.os-num{font-size:19px;font-weight:900;margin:5px 0 3px;letter-spacing:-0.5px}.dt{font-size:8px;margin-bottom:6px;color:#444}.sep{border:none;border-top:1.5px solid #000;margin:7px 0}.sep-dot{border:none;border-top:1px dotted #000;margin:6px 0}.s-title{font-size:9px;font-weight:900;text-transform:uppercase;letter-spacing:1px;margin:9px 0 4px;padding-bottom:2px;border-bottom:1.5px solid #000;color:#222}.big{font-size:13px;font-weight:900;margin:3px 0;color:#222}.big-label{font-size:8px;text-transform:uppercase;letter-spacing:1px;margin-top:5px;color:#555}.grid{display:flex;flex-wrap:wrap}.g-item{width:50%;padding:3px 0}.g-label{font-size:8px;text-transform:uppercase;letter-spacing:.5px;color:#555}.g-val{font-size:12px;font-weight:700;color:#222}.ck{display:flex;align-items:center;gap:6px;padding:3px 0;font-size:10px}.cb{width:14px;height:14px;border:1.5px solid #000;display:inline-block;flex-shrink:0}.desc{font-size:10px;padding:5px 0;line-height:1.5;color:#333}.tf{display:flex;justify-content:space-between;align-items:center;padding:4px 0;font-size:10px;font-weight:700}.tf span:last-child{border-bottom:1px solid #000;min-width:70px;text-align:center}.sign{margin-top:14px;text-align:center}.sign .sig-line{border-top:1px solid #000;margin:35px 20px 5px}.sign .sig-label{font-size:9px;text-transform:uppercase;letter-spacing:1px;font-weight:700}.footer{text-align:center;font-size:8px;margin-top:12px;padding-top:6px;border-top:1px solid #000;color:#555}@media print{body{width:72mm;padding:3mm}@page{margin:0}}</style></head><body><div class="center"><div class="logo">MARQUINHO</div><div class="oficina">Moto Pecas</div><div class="tel">Atacado &amp; Varejo</div><hr class="sep"><div class="os-num">OS #' + os.numero + '</div><div class="dt">' + data + ' — ' + hora + '</div><hr class="sep"><div class="big-label">Cliente</div><div class="big">' + esc(os.nomeCliente) + '</div><div class="grid"><div class="g-item"><div class="g-label">Placa</div><div class="g-val">' + (os.placaMoto || '-') + '</div></div><div class="g-item"><div class="g-label">Ano</div><div class="g-val">' + (os.anoMoto || '-') + '</div></div><div class="g-item"><div class="g-label">Moto</div><div class="g-val" style="font-size:10px">' + esc(os.modeloMoto) + '</div></div><div class="g-item"><div class="g-label">Mecanico</div><div class="g-val" style="font-size:10px">' + esc(os.mecanico?.name || '-') + '</div></div></div>' + (linhasServicos ? '<hr class="sep-dot"><div class="s-title">Tipos de Servico</div>' + linhasServicos : '') + (os.descricaoProblema ? '<hr class="sep-dot"><div class="s-title">Problema</div><div class="desc">' + esc(os.descricaoProblema) + '</div>' : '') + '<hr class="sep-dot"><div class="s-title">Pecas</div>' + linhasPecas + '<hr class="sep-dot"><div class="s-title">Execucao</div>' + linhasExecucao + '<hr class="sep-dot"><div class="tf"><span>Inicio:</span><span>____:____</span></div><div class="tf"><span>Termino:</span><span>____:____</span></div><div class="sign"><div class="sig-line"></div><div class="sig-label">Assinatura do Mecanico</div></div><div class="footer">Marquinho Moto Pecas — ' + data + '</div><script>setTimeout(function(){window.print();},300);</script></body></html>');
     w.document.close();
   }
 
@@ -408,7 +537,7 @@ export default function OrdensPage() {
                     <input value={form.marcaMoto} onChange={e => setForm({ ...form, marcaMoto: e.target.value })} className="input-field mt-1" placeholder="Ex: Honda" />
                   </div>
                   <div className="sm:col-span-2 relative">
-                    <label className="text-xs font-semibold text-slate-500 uppercase">Modelo <span className="text-red-500">*</span></label>
+                    <label className="text-xs font-semibold text-slate-500 uppercase">Modelo</label>
                     <div className="relative">
                       <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
                       <input ref={motoInputRef} value={motoBusca || form.modeloMoto}
@@ -435,12 +564,12 @@ export default function OrdensPage() {
                     )}
                   </div>
                   <div>
-                    <label className="text-xs font-semibold text-slate-500 uppercase">Ano <span className="text-red-500">*</span></label>
+                    <label className="text-xs font-semibold text-slate-500 uppercase">Ano</label>
                     <input value={form.anoMoto} onChange={e => setForm({ ...form, anoMoto: e.target.value })} className={inputClass('anoMoto')} placeholder="Ex: 2022" />
                     {renderErro('anoMoto')}
                   </div>
                   <div>
-                    <label className="text-xs font-semibold text-slate-500 uppercase">Placa <span className="text-red-500">*</span></label>
+                    <label className="text-xs font-semibold text-slate-500 uppercase">Placa</label>
                     <input value={form.placaMoto} onChange={e => setForm({ ...form, placaMoto: e.target.value })} className={inputClass('placaMoto')} placeholder="AAA-0000" />
                     {renderErro('placaMoto')}
                   </div>
@@ -458,7 +587,7 @@ export default function OrdensPage() {
                   <h3 className="text-sm font-bold text-slate-700 uppercase tracking-wide">Responsavel</h3>
                 </div>
                 <div className="max-w-sm">
-                  <label className="text-xs font-semibold text-slate-500 uppercase">Mecanico <span className="text-red-500">*</span></label>
+                  <label className="text-xs font-semibold text-slate-500 uppercase">Mecanico</label>
                   <select value={form.mecanicoId} onChange={e => setForm({ ...form, mecanicoId: e.target.value })} className={inputClass('mecanicoId')}>
                     <option value="">Selecionar mecanico...</option>
                     {mecanicos.map(m => (<option key={m.id} value={m.id}>{m.name}{m.emAlmoco ? ' (em almoco)' : ''}</option>))}
@@ -493,6 +622,50 @@ export default function OrdensPage() {
                     {revisoes.map(r => (<option key={r.id} value={r.id}>{r.nome} — {fm(r.valor)}</option>))}
                   </select>
                 </div>
+                {/* Pecas relacionadas aos servicos selecionados */}
+                {pecasRelacionadas.length > 0 && (
+                  <div className="mt-4 p-4 bg-amber-50 rounded-xl border border-amber-200">
+                    <div className="flex items-center gap-2 mb-3">
+                      <svg className="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
+                      <p className="text-xs font-bold text-amber-800 uppercase tracking-wide">Pecas relacionadas</p>
+                      <span className="text-[10px] text-amber-500">({pecasRelacionadas.length})</span>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                      {pecasRelacionadas.map((p: any) => {
+                        const selecionada = pecasSelecionadas.has(p.id);
+                        const adicionando = adicionandoPecas.has(p.id);
+                        return (
+                        <div key={p.id} className={'bg-white rounded-lg p-2 border text-xs transition-all duration-200 ' + (selecionada ? 'border-emerald-400 ring-1 ring-emerald-200 bg-emerald-50/30' : 'border-amber-100')}>
+                          <p className="font-semibold text-slate-700 truncate">{p.nome}</p>
+                          <p className="text-[10px] text-slate-400 font-mono">{p.codigo}</p>
+                          <div className="flex items-center justify-between mt-1">
+                            <span className="text-[11px] font-bold text-slate-800">{fm(p.precoVenda)}</span>
+                            <span className="text-[10px] text-slate-400">Loja: {p.quantidadeLoja || 0}</span>
+                          </div>
+                          <div className="flex items-center gap-1.5 mt-2">
+                            <input
+                              type="number" min="1" max={p.quantidadeLoja || 1}
+                              value={pecasQtd[p.id] || '1'}
+                              onChange={e => setPecasQtd(prev => ({ ...prev, [p.id]: e.target.value }))}
+                              className="w-12 h-7 text-center text-[11px] border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-brand-400"
+                              disabled={adicionando}
+                            />
+                            <button
+                              type="button"
+                              onClick={() => togglePecaSelecionada(p.id)}
+                              disabled={adicionando}
+                              className={'flex-1 h-7 rounded-lg text-[10px] font-semibold transition-all duration-200 ' + (selecionada
+                                ? 'bg-emerald-500 text-white hover:bg-emerald-600'
+                                : 'bg-slate-100 text-slate-600 hover:bg-brand-100 hover:text-brand-700')}>
+                              {adicionando ? '...' : selecionada ? 'Selecionado' : '+ Adicionar'}
+                            </button>
+                          </div>
+                        </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* PROBLEMA + OBSERVACOES */}

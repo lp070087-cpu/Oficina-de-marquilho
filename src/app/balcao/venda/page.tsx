@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 
-interface Peca { id:string; nome:string; codigo:string; codigoBarras?:string; precoVenda:number; quantidadeLoja:number; quantidade:number; marca?:string; categoria:{nome:string}; }
+interface Peca { id:string; nome:string; codigo:string; codigoBarras?:string; precoVenda:number; quantidadeLoja:number; quantidade:number; marca?:string; categoriaId:string; categoria:{nome:string}; }
 
 export default function VendaAvulsaPage() {
   const [busca, setBusca] = useState('');
@@ -16,7 +16,9 @@ export default function VendaAvulsaPage() {
 
   async function buscar() {
     setLoading(true); setMsg(''); setSelected(null);
-    const q = barcode ? `barcode=${encodeURIComponent(barcode)}` : `q=${encodeURIComponent(busca)}`;
+    const term = (barcode ? barcode : busca).trim();
+    if (!term) { setPecas([]); setLoading(false); return; }
+    const q = barcode ? `barcode=${encodeURIComponent(term)}` : `q=${encodeURIComponent(term)}`;
     const res = await fetch(`/api/pecas?${q}`);
     const data = await res.json();
     setPecas(Array.isArray(data)?data:[]);
@@ -29,17 +31,33 @@ export default function VendaAvulsaPage() {
     const qv = parseInt(qtd)||1;
     const disp = selected.quantidadeLoja || selected.quantidade;
     if (qv > disp) { setMsg(`Estoque insuficiente. Disponivel: ${disp}`); return; }
-    setLoading(true);
-    await fetch(`/api/pecas/${selected.id}`, {
-      method:'PUT', headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({ ...selected, quantidadeLoja: Math.max(0,(selected.quantidadeLoja||selected.quantidade)-qv), quantidade: selected.quantidadeLoja>0?selected.quantidade:selected.quantidade-qv, categoriaId:selected.categoria.nome })
-    });
-    await fetch('/api/relatorios/movimentacao', {
-      method:'POST', headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({ pecaId:selected.id, tipo:'VENDA', quantidade:qv, valorUnitario:selected.precoVenda, origem:'LOJA' })
-    });
-    setSelected(null); setQtd('1'); setBusca(''); setBarcode('');
-    setMsgOk(`Venda registrada: ${qv}x ${selected.nome} — ${(Number(selected.precoVenda)*qv).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}`);
+    if (qv <= 0) { setMsg('Quantidade deve ser maior que zero.'); return; }
+    setLoading(true); setMsg(''); setMsgOk('');
+    try {
+      const resPeca = await fetch(`/api/pecas/${selected.id}`, {
+        method:'PUT', headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({ ...selected, quantidadeLoja: Math.max(0,(selected.quantidadeLoja||selected.quantidade)-qv), quantidade: selected.quantidadeLoja>0?selected.quantidade:selected.quantidade-qv, categoriaId:selected.categoriaId })
+      });
+      if (!resPeca.ok) {
+        const err = await resPeca.json().catch(() => ({}));
+        setMsg(err.error || 'Erro ao atualizar estoque.');
+        setLoading(false);
+        return;
+      }
+      const resMov = await fetch('/api/relatorios/movimentacao', {
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({ pecaId:selected.id, tipo:'VENDA', quantidade:qv, valorUnitario:selected.precoVenda, origem:'LOJA' })
+      });
+      if (!resMov.ok) {
+        setMsg('Venda registrada no estoque, mas falha ao registrar movimentacao.');
+        setLoading(false);
+        return;
+      }
+      setSelected(null); setQtd('1'); setBusca(''); setBarcode('');
+      setMsgOk(`Venda registrada: ${qv}x ${selected.nome} — ${(Number(selected.precoVenda)*qv).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}`);
+    } catch {
+      setMsg('Erro de conexao ao registrar venda.');
+    }
     setLoading(false);
   }
 
@@ -53,7 +71,7 @@ export default function VendaAvulsaPage() {
       {msg&&<div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-xs mb-4">{msg}</div>}
 
       <div className="flex flex-wrap gap-2 mb-4">
-        <input value={busca} onChange={e=>setBusca(e.target.value)} className="input-field" placeholder="Nome ou SKU..." onKeyDown={e=>{if(e.key==='Enter')buscar();}}/>
+        <input value={busca} onChange={e=>setBusca(e.target.value)} className="input-field" placeholder="Nome, codigo (SKU) ou codigo de barras..." onKeyDown={e=>{if(e.key==='Enter')buscar();}}/>
         <input value={barcode} onChange={e=>setBarcode(e.target.value)} className="input-field flex-1 min-w-[120px]" placeholder="Cod. barras..." onKeyDown={e=>{if(e.key==='Enter')buscar();}}/>
         <button onClick={buscar} disabled={loading} className="btn-primary text-xs">Buscar</button>
       </div>

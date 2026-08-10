@@ -55,6 +55,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     });
     return NextResponse.json(updated);
   } catch (e: any) {
-    return NextResponse.json({ error: e.message }, { status: 500 });
+    console.error('Erro ao atualizar usuario:', e);
+    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
   }
 }

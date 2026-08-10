@@ -22,19 +22,15 @@ interface PagamentoModalProps {
 const TIPOS: { key: TipoPagamento; label: string; icon: string; precisaTroco: boolean }[] = [
   { key: 'DINHEIRO', label: 'Dinheiro', icon: '💵', precisaTroco: true },
   { key: 'PIX', label: 'PIX', icon: '📱', precisaTroco: false },
-  { key: 'CARTAO_DEBITO', label: 'Debito', icon: '💳', precisaTroco: false },
-  { key: 'CARTAO_CREDITO', label: 'Credito', icon: '💳', precisaTroco: false },
+  { key: 'CARTAO_DEBITO', label: 'Débito', icon: '💳', precisaTroco: false },
+  { key: 'CARTAO_CREDITO', label: 'Crédito', icon: '💳', precisaTroco: false },
   { key: 'TRANSFERENCIA', label: 'Transf.', icon: '🏦', precisaTroco: false },
 ];
-
-const BANDEIRAS = ['VISA', 'MASTERCARD', 'ELO', 'AMEX', 'HIPERCARD', 'Outra'];
 
 export default function PagamentoModal({ open, total, onClose, onConfirmar }: PagamentoModalProps) {
   const [pagamentos, setPagamentos] = useState<Pagamento[]>([]);
   const [tipoAtual, setTipoAtual] = useState<TipoPagamento>('DINHEIRO');
   const [valorAtual, setValorAtual] = useState('');
-  const [bandeira, setBandeira] = useState('');
-  const [parcelas, setParcelas] = useState('1');
 
   const totalPago = pagamentos.reduce((s, p) => s + p.valor, 0);
   const restante = Math.max(0, total - totalPago);
@@ -45,8 +41,6 @@ export default function PagamentoModal({ open, total, onClose, onConfirmar }: Pa
       setPagamentos([]);
       setTipoAtual('DINHEIRO');
       setValorAtual('');
-      setBandeira('');
-      setParcelas('1');
     }
   }, [open]);
 
@@ -60,17 +54,8 @@ export default function PagamentoModal({ open, total, onClose, onConfirmar }: Pa
       troco: tipoAtual === 'DINHEIRO' ? Math.max(0, totalPago + valor - total) : 0,
     };
 
-    if (['CARTAO_DEBITO', 'CARTAO_CREDITO'].includes(tipoAtual) && bandeira) {
-      p.bandeira = bandeira;
-    }
-    if (tipoAtual === 'CARTAO_CREDITO' && parcelas) {
-      p.parcelas = parseInt(parcelas) || 1;
-    }
-
     setPagamentos([...pagamentos, p]);
     setValorAtual('');
-    setBandeira('');
-    setParcelas('1');
   }
 
   function removerPagamento(index: number) {
@@ -86,10 +71,9 @@ export default function PagamentoModal({ open, total, onClose, onConfirmar }: Pa
     if (totalPago < total) {
       // Tenta completar com o tipo atual
       const v = Math.round(restante * 100) / 100;
-      setPagamentos([...pagamentos, { tipo: tipoAtual, valor: v, troco: tipoAtual === 'DINHEIRO' ? 0 : 0, bandeira, parcelas: tipoAtual === 'CARTAO_CREDITO' ? parseInt(parcelas) || 1 : undefined }]);
-      // Chama onConfirmar depois de setState
+      setPagamentos([...pagamentos, { tipo: tipoAtual, valor: v, troco: tipoAtual === 'DINHEIRO' ? 0 : 0 }]);
       setTimeout(() => {
-        const novos = [...pagamentos, { tipo: tipoAtual, valor: v, troco: tipoAtual === 'DINHEIRO' ? 0 : 0, bandeira, parcelas: tipoAtual === 'CARTAO_CREDITO' ? parseInt(parcelas) || 1 : undefined }];
+        const novos = [...pagamentos, { tipo: tipoAtual, valor: v, troco: tipoAtual === 'DINHEIRO' ? 0 : 0 }];
         onConfirmar(novos, Math.max(0, novos.reduce((s, p) => s + p.valor, 0) - total));
       }, 50);
       return;
@@ -152,27 +136,6 @@ export default function PagamentoModal({ open, total, onClose, onConfirmar }: Pa
           </div>
 
           {/* Cartao: bandeira + parcelas */}
-          {['CARTAO_DEBITO', 'CARTAO_CREDITO'].includes(tipoAtual) && (
-            <div className="grid grid-cols-2 gap-2">
-              <div>
-                <label className="text-[10px] font-bold text-slate-500 uppercase">Bandeira</label>
-                <select value={bandeira} onChange={e => setBandeira(e.target.value)} className="input-field text-xs mt-1">
-                  <option value="">Selecionar...</option>
-                  {BANDEIRAS.map(b => <option key={b} value={b}>{b}</option>)}
-                </select>
-              </div>
-              {tipoAtual === 'CARTAO_CREDITO' && (
-                <div>
-                  <label className="text-[10px] font-bold text-slate-500 uppercase">Parcelas</label>
-                  <select value={parcelas} onChange={e => setParcelas(e.target.value)} className="input-field text-xs mt-1">
-                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(n => (
-                      <option key={n} value={n}>{n}x {n === 1 ? '(a vista)' : `de ${fm(total / n)}`}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
-            </div>
-          )}
 
           {/* Valor */}
           <div>

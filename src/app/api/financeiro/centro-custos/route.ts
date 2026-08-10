@@ -19,6 +19,9 @@ export async function GET() {
   }
 }
 
+// C20 — Valores de tipo permitidos para CentroCusto
+const TIPO_CENTRO_CUSTO_VALIDOS = ['LOJA', 'OFICINA', 'ADMINISTRATIVO', 'GERAL'];
+
 // POST /api/financeiro/centro-custos
 export async function POST(req: NextRequest) {
   const session = await getSession();
@@ -29,6 +32,11 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     if (!body.nome || !body.tipo) {
       return NextResponse.json({ error: 'nome e tipo obrigatorios' }, { status: 400 });
+    }
+
+    // C20 — Validar tipo contra valores permitidos
+    if (!TIPO_CENTRO_CUSTO_VALIDOS.includes(body.tipo)) {
+      return NextResponse.json({ error: `Tipo invalido. Valores permitidos: ${TIPO_CENTRO_CUSTO_VALIDOS.join(', ')}` }, { status: 400 });
     }
     const centro = await prisma.centroCusto.create({ data: { nome: body.nome, tipo: body.tipo, descricao: body.descricao } });
     return NextResponse.json(centro, { status: 201 });

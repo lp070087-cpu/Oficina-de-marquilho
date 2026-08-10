@@ -6,6 +6,14 @@ import { getSession } from '@/lib/auth';
 export async function GET(req: NextRequest) {
   try {
     const isAdmin = req.nextUrl.searchParams.get('admin') === '1';
+    // C3 — Exigir autenticação DONO para acesso administrativo (admin=1)
+    if (isAdmin) {
+      const session = await getSession();
+      if (!session || session.role !== 'DONO') {
+        return NextResponse.json({ error: 'Acesso negado' }, { status: 403 });
+      }
+    }
+
     let where: any = { ativo: true };
     if (!isAdmin) {
       const now = new Date();
@@ -15,7 +23,8 @@ export async function GET(req: NextRequest) {
     const cupons = await prisma.cupom.findMany({ where, orderBy: { createdAt: 'desc' } });
     return NextResponse.json(cupons);
   } catch (e: any) {
-    return NextResponse.json({ error: e.message }, { status: 500 });
+    console.error('Erro ao listar cupons:', e);
+    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
   }
 }
 

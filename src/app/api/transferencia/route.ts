@@ -14,19 +14,33 @@ export async function POST(req: NextRequest) {
 
     // Transacao
     const result = await prisma.$transaction(async (tx) => {
-      const peca = await tx.peca.findUnique({ where: { id: pecaId } });
-      if (!peca) throw new Error('Peca nao encontrada');
-
       const qtd = parseInt(quantidade) || 0;
-      if (de === 'CENTRAL' && peca.quantidade < qtd) throw new Error('Saldo insuficiente no estoque central');
 
-      const updated = await tx.peca.update({
-        where: { id: pecaId },
-        data: {
-          quantidade: de === 'CENTRAL' ? peca.quantidade - qtd : peca.quantidade,
-          quantidadeLoja: para === 'LOJA' ? (peca.quantidadeLoja || 0) + qtd : (peca.quantidadeLoja || 0),
-        },
-      });
+      // C5 — Substituir read-then-write por updateMany atômico condicional (previne race condition)
+      let updateResult;
+      if (de === 'CENTRAL') {
+        updateResult = await tx.peca.updateMany({
+          where: { id: pecaId, quantidade: { gte: qtd } },
+          data: {
+            quantidade: { decrement: qtd },
+            ...(para === 'LOJA' ? { quantidadeLoja: { increment: qtd } } : {}),
+          },
+        });
+      } else {
+        updateResult = await tx.peca.updateMany({
+          where: { id: pecaId, quantidadeLoja: { gte: qtd } },
+          data: {
+            quantidadeLoja: { decrement: qtd },
+            ...(para === 'CENTRAL' ? { quantidade: { increment: qtd } } : {}),
+          },
+        });
+      }
+      if (updateResult.count === 0) {
+        throw new Error(`Saldo insuficiente no estoque ${de === 'CENTRAL' ? 'central' : 'da loja'}`);
+      }
+
+      const updated = await tx.peca.findUnique({ where: { id: pecaId } });
+      if (!updated) throw new Error('Peca nao encontrada');
 
       await tx.transferenciaEstoque.create({
         data: { pecaId, quantidade: qtd, de: de || 'CENTRAL', para: para || 'LOJA', usuario: session.name },
@@ -41,6 +55,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(result, { status: 201 });
   } catch (e: any) {
-    return NextResponse.json({ error: e.message }, { status: 500 });
+    console.error('Erro na transferencia:', e);
+    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
   }
 }

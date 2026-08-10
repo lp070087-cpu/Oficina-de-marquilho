@@ -30,6 +30,17 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Array "produtos" é obrigatório' }, { status: 400 });
     }
 
+    // C20 — Validar strategy contra valores permitidos
+    const STRATEGY_VALIDAS = ['skip', 'update', 'create'];
+    if (strategy && !STRATEGY_VALIDAS.includes(strategy)) {
+      return NextResponse.json({ error: `Estratégia inválida. Valores permitidos: ${STRATEGY_VALIDAS.join(', ')}` }, { status: 400 });
+    }
+
+    // C20 — Limitar quantidade de produtos a 1000 por lote
+    if (produtos.length > 1000) {
+      return NextResponse.json({ error: 'Máximo de 1000 produtos por lote' }, { status: 400 });
+    }
+
     // ─── Categorias ───
     const cats = await prisma.categoria.findMany({
       where: { ativa: true },

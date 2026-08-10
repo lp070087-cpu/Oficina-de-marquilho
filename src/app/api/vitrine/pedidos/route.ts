@@ -138,13 +138,33 @@ export async function POST(req: NextRequest) {
       const cupom = await prisma.cupom.findFirst({
         where: { codigo: cupomCodigo.toUpperCase(), ativo: true, dataInicio: { lte: new Date() }, dataFim: { gte: new Date() } },
       });
-      if (cupom) {
-        if (cupom.tipo === 'PERCENTUAL') {
-          descontoTotal = subtotal * (Number(cupom.valor) / 100);
-        } else {
-          descontoTotal = Number(cupom.valor);
+      if (!cupom) {
+        return NextResponse.json({ error: 'Cupom inválido ou expirado.' }, { status: 400 });
+      }
+
+      // C4 — Validar regras de negócio do cupom
+      // quantidadeMax: rejeitar se já atingiu o limite de usos
+      if (cupom.quantidadeMax !== null && cupom.quantidadeMax > 0 && cupom.quantidadeUsada >= cupom.quantidadeMax) {
+        return NextResponse.json({ error: 'Cupom esgotado.' }, { status: 400 });
+      }
+      // valorMinimo: rejeitar se subtotal não atinge o mínimo
+      if (cupom.valorMinimo !== null && subtotal < Number(cupom.valorMinimo)) {
+        return NextResponse.json({ error: `Pedido mínimo para este cupom: R$ ${Number(cupom.valorMinimo).toFixed(2).replace('.', ',')}` }, { status: 400 });
+      }
+      // primeiraCompra: verificar se cliente já tem pedidos anteriores (excluindo cancelados)
+      if (cupom.primeiraCompra) {
+        const pedidosAnteriores = await prisma.pedido.count({
+          where: { clienteId: cliente.clienteId, status: { not: 'CANCELADO' } },
+        });
+        if (pedidosAnteriores > 0) {
+          return NextResponse.json({ error: 'Cupom válido apenas para a primeira compra.' }, { status: 400 });
         }
-        await prisma.cupom.update({ where: { id: cupom.id }, data: { quantidadeUsada: { increment: 1 } } });
+      }
+
+      if (cupom.tipo === 'PERCENTUAL') {
+        descontoTotal = subtotal * (Number(cupom.valor) / 100);
+      } else {
+        descontoTotal = Number(cupom.valor);
       }
     }
 
@@ -201,6 +221,25 @@ export async function POST(req: NextRequest) {
         usuario: clienteData.nome,
       },
     });
+
+    // C4 — Incrementar quantidadeUsada do cupom após pedido criado com sucesso
+    // Não reverte o pedido em caso de falha (try/catch separado)
+    if (cupomCodigo) {
+      try {
+        const cupomAtual = await prisma.cupom.findFirst({
+          where: { codigo: cupomCodigo.toUpperCase(), ativo: true },
+        });
+        if (cupomAtual) {
+          await prisma.cupom.update({
+            where: { id: cupomAtual.id },
+            data: { quantidadeUsada: { increment: 1 } },
+          });
+        }
+      } catch (cupomErr) {
+        console.error('Erro ao incrementar uso do cupom:', cupomErr);
+        // Não falha o pedido — o pedido já foi criado
+      }
+    }
 
     // FASE 15-J: Emitir evento de pedido criado
     emitEvent({

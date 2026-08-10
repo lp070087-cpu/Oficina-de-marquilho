@@ -75,6 +75,16 @@ export async function PUT(req: NextRequest) {
     const body = await req.json();
     if (!body.id) return NextResponse.json({ error: 'ID obrigatorio' }, { status: 400 });
 
+    // C6 — Verificar idempotência: rejeitar se conta já está no status alvo
+    const contaAtual = await prisma.contaPagar.findUnique({ where: { id: body.id } });
+    if (!contaAtual) return NextResponse.json({ error: 'Conta nao encontrada' }, { status: 404 });
+    if (body.status === 'PAGO' && contaAtual.status === 'PAGO') {
+      return NextResponse.json({ error: 'Conta ja paga' }, { status: 400 });
+    }
+    if (body.status === 'CANCELADO' && contaAtual.status === 'CANCELADO') {
+      return NextResponse.json({ error: 'Conta ja cancelada' }, { status: 400 });
+    }
+
     const data: any = {};
     if (body.status) {
       data.status = body.status;
@@ -89,28 +99,34 @@ export async function PUT(req: NextRequest) {
     if (body.valorPago !== undefined) data.valorPago = body.valorPago;
     if (body.observacoes !== undefined) data.observacoes = body.observacoes;
 
-    const conta = await prisma.contaPagar.update({ where: { id: body.id }, data, include: { centroCusto: { select: { nome: true } } } });
+    // C6 — Envolver update + auditoria + lançamento em $transaction (previne double-counting)
+    const result = await prisma.$transaction(async (tx) => {
+      const conta = await tx.contaPagar.update({ where: { id: body.id }, data, include: { centroCusto: { select: { nome: true } } } });
 
-    await prisma.auditoriaFinanceira.create({
-      data: { entidade: 'ContaPagar', entidadeId: conta.id, acao: body.status === 'PAGO' ? 'PAGO' : 'ALTERADO',
-        descricao: `Conta ${conta.fornecedor || 'despesa'} status: ${conta.status}`,
-        usuario: session.name, usuarioId: session.id },
+      await tx.auditoriaFinanceira.create({
+        data: { entidade: 'ContaPagar', entidadeId: conta.id, acao: body.status === 'PAGO' ? 'PAGO' : 'ALTERADO',
+          descricao: `Conta ${conta.fornecedor || 'despesa'} status: ${conta.status}`,
+          usuario: session.name, usuarioId: session.id },
+      });
+
+      // Se paga, criar lançamento de despesa
+      if (body.status === 'PAGO') {
+        await tx.lancamentoFinanceiro.create({
+          data: {
+            tipo: 'DESPESA', categoria: conta.categoria || 'OUTROS', valor: Number(conta.valorPago || conta.valor),
+            data: new Date(), descricao: `Pagamento: ${conta.fornecedor || ''} — ${conta.descricao || ''}`,
+            centroCustoId: conta.centroCustoId, origem: conta.origem || 'MANUAL',
+            formaPagamento: conta.formaPagamento, criadoPor: session.name, criadoPorId: session.id, status: 'EFETIVADO',
+          },
+        });
+      }
+
+      return conta;
     });
 
-    // Se paga, criar lançamento de despesa
-    if (body.status === 'PAGO') {
-      await prisma.lancamentoFinanceiro.create({
-        data: {
-          tipo: 'DESPESA', categoria: conta.categoria || 'OUTROS', valor: Number(conta.valorPago || conta.valor),
-          data: new Date(), descricao: `Pagamento: ${conta.fornecedor || ''} — ${conta.descricao || ''}`,
-          centroCustoId: conta.centroCustoId, origem: conta.origem || 'MANUAL',
-          formaPagamento: conta.formaPagamento, criadoPor: session.name, criadoPorId: session.id, status: 'EFETIVADO',
-        },
-      });
-    }
-
-    return NextResponse.json(conta);
+    return NextResponse.json(result);
   } catch (error) {
+    console.error('Erro ao atualizar conta a pagar:', error);
     return NextResponse.json({ error: 'Erro interno' }, { status: 500 });
   }
 }

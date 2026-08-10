@@ -34,9 +34,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Este perfil nao tem permissao de login.' }, { status: 403 });
     }
 
-    // Verifica se a conta está bloqueada
+    // C22 — Verifica se a conta está bloqueada (lockout após 5 falhas por 15 min)
     if (user.lockedUntil && new Date(user.lockedUntil) > new Date()) {
-      return NextResponse.json({ error: 'Conta temporariamente bloqueada. Tente novamente mais tarde.' }, { status: 423 });
+      const minutosRestantes = Math.ceil((new Date(user.lockedUntil).getTime() - Date.now()) / 60_000);
+      const horaDesbloqueio = new Date(user.lockedUntil).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+      return NextResponse.json({
+        error: `Conta temporariamente bloqueada. Tente novamente em ${minutosRestantes} minuto(s) (após ${horaDesbloqueio}).`
+      }, { status: 423 });
     }
 
     // Validate perfil match

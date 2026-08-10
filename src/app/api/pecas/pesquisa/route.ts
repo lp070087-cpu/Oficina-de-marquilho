@@ -9,8 +9,9 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'Nao autorizado' }, { status: 403 });
     }
 
-    const q = req.nextUrl.searchParams.get('q') || '';
-    if (!q || q.length < 2) return NextResponse.json([]);
+    const q = (req.nextUrl.searchParams.get('q') || '').trim();
+    const loja = req.nextUrl.searchParams.get('loja') === 'true';
+    if (!q || q.length < 2) return NextResponse.json({ pecas: [] });
 
     const termo = q.toLowerCase();
 
@@ -18,6 +19,7 @@ export async function GET(req: NextRequest) {
     const pecas = await prisma.peca.findMany({
       where: {
         ativo: true,
+        ...(loja ? { quantidadeLoja: { gt: 0 } } : {}),
         OR: [
           { nome: { contains: termo, mode: 'insensitive' } },
           { codigo: { contains: termo, mode: 'insensitive' } },
@@ -40,6 +42,6 @@ export async function GET(req: NextRequest) {
       take: 50,
     });
 
-    return NextResponse.json(pecas);
+    return NextResponse.json({ pecas });
   } catch (e: any) { return NextResponse.json({ error: e.message }, { status: 500 }); }
 }

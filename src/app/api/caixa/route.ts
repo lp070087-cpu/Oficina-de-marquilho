@@ -62,7 +62,8 @@ export async function GET(req: NextRequest) {
       },
     });
   } catch (e: any) {
-    return NextResponse.json({ error: e.message }, { status: 500 });
+    console.error('Erro ao consultar caixa:', e);
+    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
   }
 }
 
@@ -79,34 +80,47 @@ export async function POST(req: NextRequest) {
     const operador = session.name || session.id;
 
     if (acao === 'ABRIR_CAIXA') {
-      const aberto = await prisma.caixa.findFirst({ where: { status: 'ABERTO' } });
-      if (aberto) return NextResponse.json({ error: 'Ja existe um caixa aberto' }, { status: 400 });
-
-      const caixa = await prisma.caixa.create({ data: { status: 'ABERTO' } });
+      // Atômico: evita race condition com duas requisições simultâneas
+      const caixa = await prisma.$transaction(async (tx) => {
+        const aberto = await tx.caixa.findFirst({ where: { status: 'ABERTO' } });
+        if (aberto) throw new Error('CAIXA_JA_ABERTO');
+        return tx.caixa.create({ data: { status: 'ABERTO' } });
+      });
       return NextResponse.json({ ok: true, caixa });
     }
 
     if (acao === 'ABRIR_SESSAO') {
-      const caixa = await prisma.caixa.findFirst({ where: { status: 'ABERTO' } });
-      if (!caixa) return NextResponse.json({ error: 'Abra o caixa primeiro' }, { status: 400 });
+      // Atômico: evita race condition com duas requisições simultâneas
+      const result = await prisma.$transaction(async (tx) => {
+        const caixa = await tx.caixa.findFirst({ where: { status: 'ABERTO' } });
+        if (!caixa) throw new Error('CAIXA_NAO_ABERTO');
 
-      const saldoIni = parseFloat(valor) || 0;
-      const sessao = await prisma.sessaoCaixa.create({
-        data: {
-          caixaId: caixa.id,
-          status: 'ABERTA',
-          operador,
-          saldoInicial: saldoIni,
-          saldoDinheiro: saldoIni,
-          abertoEm: new Date(),
-        },
+        const existente = await tx.sessaoCaixa.findFirst({
+          where: { caixaId: caixa.id, status: 'ABERTA' },
+          orderBy: { abertoEm: 'desc' },
+        });
+        if (existente) throw new Error('SESSAO_JA_ABERTA');
+
+        const saldoIni = parseFloat(valor) || 0;
+        const sessao = await tx.sessaoCaixa.create({
+          data: {
+            caixaId: caixa.id,
+            status: 'ABERTA',
+            operador,
+            saldoInicial: saldoIni,
+            saldoDinheiro: saldoIni,
+            abertoEm: new Date(),
+          },
+        });
+
+        await tx.movimentacaoCaixa.create({
+          data: { sessaoId: sessao.id, tipo: 'ABERTURA', valor: saldoIni, descricao: `Sessao aberta por ${operador}`, usuario: operador },
+        });
+
+        return { sessao };
       });
 
-      await prisma.movimentacaoCaixa.create({
-        data: { sessaoId: sessao.id, tipo: 'ABERTURA', valor: saldoIni, descricao: `Sessao aberta por ${operador}`, usuario: operador },
-      });
-
-      return NextResponse.json({ ok: true, sessao });
+      return NextResponse.json({ ok: true, sessao: result.sessao });
     }
 
     if (acao === 'FECHAR_SESSAO') {
@@ -198,6 +212,16 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({ error: 'Acao invalida. Use: ABRIR_CAIXA, ABRIR_SESSAO, FECHAR_SESSAO, FECHAR_CAIXA, SANGRIA, SUPRIMENTO' }, { status: 400 });
   } catch (e: any) {
-    return NextResponse.json({ error: e.message }, { status: 500 });
+    console.error('Erro na operacao de caixa:', e);
+    if (e?.message === 'CAIXA_JA_ABERTO') {
+      return NextResponse.json({ error: 'Ja existe um caixa aberto' }, { status: 400 });
+    }
+    if (e?.message === 'CAIXA_NAO_ABERTO') {
+      return NextResponse.json({ error: 'Abra o caixa primeiro' }, { status: 400 });
+    }
+    if (e?.message === 'SESSAO_JA_ABERTA') {
+      return NextResponse.json({ error: 'Ja existe uma sessao aberta neste caixa' }, { status: 400 });
+    }
+    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
   }
 }

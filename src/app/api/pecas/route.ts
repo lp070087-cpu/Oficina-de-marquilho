@@ -8,22 +8,30 @@ export async function GET(req: NextRequest) {
     if (!session || !['DONO', 'BALCAO', 'ESTOQUE'].includes(session.role)) {
       return NextResponse.json({ error: 'Nao autorizado' }, { status: 403 });
     }
-    const q = req.nextUrl.searchParams.get('q') || '';
+    const q = (req.nextUrl.searchParams.get('q') || '').trim();
     const cat = req.nextUrl.searchParams.get('categoria') || '';
     const baixo = req.nextUrl.searchParams.get('baixo') === '1';
     const modelo = req.nextUrl.searchParams.get('modelo') || '';
     const todas = req.nextUrl.searchParams.get('todas') === '1';
-    const barcode = req.nextUrl.searchParams.get('barcode') || '';
+    const barcode = (req.nextUrl.searchParams.get('barcode') || '').trim();
 
     const where: any = { ativo: true };
-    // Busca unificada: Nome, SKU (codigo) e Codigo de Barras
+    const andConditions: any[] = [];
+
+    // Busca unificada: Nome, SKU (codigo), Codigo de Barras, Marca, Descricao
     if (q) {
-      where.OR = [
-        { nome: { contains: q, mode: 'insensitive' } },
-        { codigo: { contains: q, mode: 'insensitive' } },
-        { codigoBarras: { contains: q, mode: 'insensitive' } },
-        { marca: { contains: q, mode: 'insensitive' } },
-      ];
+      andConditions.push({
+        OR: [
+          { nome: { contains: q, mode: 'insensitive' } },
+          { codigo: { contains: q, mode: 'insensitive' } },
+          { codigoBarras: { contains: q, mode: 'insensitive' } },
+          { marca: { contains: q, mode: 'insensitive' } },
+          { descricao: { contains: q, mode: 'insensitive' } },
+          { subcategoria: { contains: q, mode: 'insensitive' } },
+          { compatibilidade: { contains: q, mode: 'insensitive' } },
+          { descricaoCurta: { contains: q, mode: 'insensitive' } },
+        ],
+      });
     }
     if (cat) where.categoriaId = cat;
     if (barcode) where.codigoBarras = barcode;
@@ -34,10 +42,17 @@ export async function GET(req: NextRequest) {
 
     // Filtrar por compatibilidade com modelo de moto
     if (modelo && !todas) {
-      where.OR = [
-        { compatibilidade: { contains: modelo, mode: 'insensitive' } },
-        { compatibilidade: { contains: 'Universal', mode: 'insensitive' } },
-      ];
+      andConditions.push({
+        OR: [
+          { compatibilidade: { contains: modelo, mode: 'insensitive' } },
+          { compatibilidade: { contains: 'Universal', mode: 'insensitive' } },
+        ],
+      });
+    }
+
+    // Combina multiplos OR via AND para evitar overwrite
+    if (andConditions.length > 0) {
+      where.AND = andConditions;
     }
 
     const pecas = await prisma.peca.findMany({

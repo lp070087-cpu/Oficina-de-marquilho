@@ -1,6 +1,5 @@
 'use client';
 
-import { useState, useCallback } from 'react';
 
 interface ItemCarrinho {
   id: string;
@@ -21,8 +20,6 @@ interface ItemCarrinho {
 interface CarrinhoPDVProps {
   itens: ItemCarrinho[];
   onUpdateQuantidade: (id: string, qtd: number) => void;
-  onUpdateDescontoPercent: (id: string, pct: number) => void;
-  onUpdateDescontoReais: (id: string, reais: number) => void;
   onUpdateObservacao: (id: string, obs: string) => void;
   onRemover: (id: string) => void;
   onFinalizar: () => void;
@@ -34,16 +31,13 @@ interface CarrinhoPDVProps {
 export type { ItemCarrinho };
 
 export default function CarrinhoPDV({
-  itens, onUpdateQuantidade, onUpdateDescontoPercent, onUpdateDescontoReais,
-  onUpdateObservacao, onRemover, onFinalizar, onCancelar, onReservar, onLiberarReserva,
+  itens, onUpdateQuantidade, onUpdateObservacao, onRemover, onFinalizar, onCancelar, onReservar, onLiberarReserva,
 }: CarrinhoPDVProps) {
   const subtotalGeral = itens.reduce((s, i) => s + i.subtotal, 0);
   const totalDescontos = itens.reduce((s, i) => s + (i.descontoReais + (i.precoOriginal * i.descontoPercent / 100) * i.quantidade), 0);
   const totalGeral = subtotalGeral;
   const totalItens = itens.reduce((s, i) => s + i.quantidade, 0);
   const temReservas = itens.some(i => i.reservado);
-  const [editDescontoPercent, setEditDescontoPercent] = useState<string | null>(null);
-  const [editDescontoReais, setEditDescontoReais] = useState<string | null>(null);
 
   const fm = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
@@ -138,48 +132,6 @@ export default function CarrinhoPDV({
                         {item.precoOriginal !== item.precoUnitario && (
                           <span className="text-[9px] text-slate-400 line-through">{fm(item.precoOriginal)}</span>
                         )}
-                      </div>
-
-                      {/* Descontos */}
-                      <div className="flex items-center gap-1 ml-auto">
-                        <div className="flex items-center gap-0.5">
-                          <span className="text-[9px] text-slate-400">%</span>
-                          {editDescontoPercent === item.id ? (
-                            <input
-                              type="number" min="0" max="100" step="0.1"
-                              value={item.descontoPercent || ''}
-                              onChange={e => onUpdateDescontoPercent(item.id, parseFloat(e.target.value) || 0)}
-                              onBlur={() => setEditDescontoPercent(null)}
-                              onKeyDown={e => { if (e.key === 'Enter') setEditDescontoPercent(null); }}
-                              className="w-11 text-[10px] font-bold text-amber-600 bg-amber-50 border border-amber-200 rounded px-1 py-0.5 text-center"
-                              autoFocus
-                            />
-                          ) : (
-                            <button onClick={() => setEditDescontoPercent(item.id)}
-                              className="text-[10px] font-bold text-amber-600 bg-amber-50 hover:bg-amber-100 rounded px-1.5 py-0.5 transition-colors">
-                              {item.descontoPercent > 0 ? `${item.descontoPercent}%` : '0%'}
-                            </button>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-0.5">
-                          <span className="text-[9px] text-slate-400">R$</span>
-                          {editDescontoReais === item.id ? (
-                            <input
-                              type="number" min="0" step="0.01"
-                              value={item.descontoReais || ''}
-                              onChange={e => onUpdateDescontoReais(item.id, parseFloat(e.target.value) || 0)}
-                              onBlur={() => setEditDescontoReais(null)}
-                              onKeyDown={e => { if (e.key === 'Enter') setEditDescontoReais(null); }}
-                              className="w-12 sm:w-16 text-[10px] font-bold text-red-500 bg-red-50 border border-red-200 rounded px-1 py-0.5 text-center"
-                              autoFocus
-                            />
-                          ) : (
-                            <button onClick={() => setEditDescontoReais(item.id)}
-                              className="text-[10px] font-bold text-red-500 bg-red-50 hover:bg-red-100 rounded px-1.5 py-0.5 transition-colors">
-                              {item.descontoReais > 0 ? fm(item.descontoReais) : '0,00'}
-                            </button>
-                          )}
-                        </div>
                       </div>
                     </div>
 

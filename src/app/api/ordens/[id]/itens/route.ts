@@ -11,13 +11,22 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   const body = await req.json();
   const { pecaId, quantidade, adaptado } = body;
 
+  // Validação de quantidade ANTES de qualquer acesso ao banco/estoque
+  if (quantidade === undefined || quantidade === null) {
+    return NextResponse.json({ error: 'Quantidade e obrigatoria' }, { status: 400 });
+  }
+  const qtd = Number(quantidade);
+  if (!Number.isFinite(qtd) || !Number.isInteger(qtd) || qtd <= 0) {
+    return NextResponse.json({ error: 'Quantidade deve ser um número inteiro maior que zero' }, { status: 400 });
+  }
+
   try {
     const ordemAtualizada = await prisma.$transaction(async (tx) => {
       // Ler estoque DENTRO da transação (evita TOCTOU)
       const peca = await tx.peca.findUnique({ where: { id: pecaId } });
       if (!peca) throw new Error('Peca nao encontrada');
 
-      const qtdNecessaria = quantidade;
+      const qtdNecessaria = qtd;
 
       // Verificar se a peça já existe na OS (incrementar em vez de duplicar)
       const itemExistente = await tx.itemOS.findFirst({
@@ -92,7 +101,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
         const isAdaptado = adaptado === true || (!isCompativel && !isUniversal);
 
         await tx.itemOS.create({
-          data: { ordemServicoId: id, pecaId, quantidade, precoUnitario: peca.precoVenda, adaptado: isAdaptado },
+          data: { ordemServicoId: id, pecaId, quantidade: qtd, precoUnitario: peca.precoVenda, adaptado: isAdaptado },
         });
 
         // Update stock (atômico com create)

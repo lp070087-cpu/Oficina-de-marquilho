@@ -70,6 +70,16 @@ export async function PUT(req: NextRequest) {
     const body = await req.json();
     if (!body.id) return NextResponse.json({ error: 'ID obrigatorio' }, { status: 400 });
 
+    // C6 — Verificar idempotência: rejeitar se conta já está no status alvo
+    const contaAtual = await prisma.contaReceber.findUnique({ where: { id: body.id } });
+    if (!contaAtual) return NextResponse.json({ error: 'Conta nao encontrada' }, { status: 404 });
+    if (body.status === 'RECEBIDO' && contaAtual.status === 'RECEBIDO') {
+      return NextResponse.json({ error: 'Conta ja recebida' }, { status: 400 });
+    }
+    if (body.status === 'CANCELADO' && contaAtual.status === 'CANCELADO') {
+      return NextResponse.json({ error: 'Conta ja cancelada' }, { status: 400 });
+    }
+
     const data: any = {};
     if (body.status) {
       data.status = body.status;
@@ -84,32 +94,37 @@ export async function PUT(req: NextRequest) {
     if (body.valorRecebido !== undefined) data.valorRecebido = body.valorRecebido;
     if (body.observacoes !== undefined) data.observacoes = body.observacoes;
 
-    const conta = await prisma.contaReceber.update({ where: { id: body.id }, data });
+    // C6 — Envolver update + auditoria + lançamento em $transaction (previne double-counting)
+    const result = await prisma.$transaction(async (tx) => {
+      const conta = await tx.contaReceber.update({ where: { id: body.id }, data });
 
-    await prisma.auditoriaFinanceira.create({
-      data: { entidade: 'ContaReceber', entidadeId: conta.id, acao: body.status === 'RECEBIDO' ? 'RECEBIDO' : 'ALTERADO',
-        descricao: `Conta ${conta.cliente} status: ${conta.status}`,
-        usuario: session.name, usuarioId: session.id },
+      await tx.auditoriaFinanceira.create({
+        data: { entidade: 'ContaReceber', entidadeId: conta.id, acao: body.status === 'RECEBIDO' ? 'RECEBIDO' : 'ALTERADO',
+          descricao: `Conta ${conta.cliente} status: ${conta.status}`,
+          usuario: session.name, usuarioId: session.id },
+      });
+
+      // Se recebida, criar lançamento financeiro
+      if (body.status === 'RECEBIDO') {
+        const centro = await tx.centroCusto.findFirst({ where: { tipo: 'LOJA' } });
+        if (centro) {
+          await tx.lancamentoFinanceiro.create({
+            data: {
+              tipo: 'RECEITA', categoria: 'OUTROS', valor: conta.valorRecebido,
+              data: new Date(), descricao: `Recebimento: ${conta.cliente} — ${conta.descricao || ''}`,
+              centroCustoId: centro.id, origem: 'MANUAL',
+              formaPagamento: body.formaPagamento, criadoPor: session.name, criadoPorId: session.id, status: 'EFETIVADO',
+            },
+          });
+        }
+      }
+
+      return conta;
     });
 
-    // Se recebida, criar lançamento financeiro
-    if (body.status === 'RECEBIDO') {
-      // Buscar centro de custo padrão
-      const centro = await prisma.centroCusto.findFirst({ where: { tipo: 'LOJA' } });
-      if (centro) {
-        await prisma.lancamentoFinanceiro.create({
-          data: {
-            tipo: 'RECEITA', categoria: 'OUTROS', valor: conta.valorRecebido,
-            data: new Date(), descricao: `Recebimento: ${conta.cliente} — ${conta.descricao || ''}`,
-            centroCustoId: centro.id, origem: 'MANUAL',
-            formaPagamento: body.formaPagamento, criadoPor: session.name, criadoPorId: session.id, status: 'EFETIVADO',
-          },
-        });
-      }
-    }
-
-    return NextResponse.json(conta);
+    return NextResponse.json(result);
   } catch (error) {
+    console.error('Erro ao atualizar conta a receber:', error);
     return NextResponse.json({ error: 'Erro interno' }, { status: 500 });
   }
 }

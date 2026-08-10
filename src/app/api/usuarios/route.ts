@@ -17,7 +17,8 @@ export async function GET() {
     });
     return NextResponse.json(users);
   } catch (e: any) {
-    return NextResponse.json({ error: e.message }, { status: 500 });
+    console.error('Erro ao listar usuarios:', e);
+    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
   }
 }
 
@@ -49,12 +50,13 @@ export async function POST(req: Request) {
         cargo: body.cargo || null,
         telefone: body.telefone || null,
         observacoes: body.observacoes || null,
-        createdBy: 'DONO',
+        createdBy: session.name,
       },
       select: { id: true, name: true, email: true, username: true, role: true, active: true, tipoBalcao: true },
     });
     return NextResponse.json(user, { status: 201 });
   } catch (e: any) {
-    return NextResponse.json({ error: e.message }, { status: 500 });
+    console.error('Erro ao criar usuario:', e);
+    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
   }
 }

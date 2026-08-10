@@ -102,20 +102,8 @@ export default function EstoqueCentralPage() {
 
   useEffect(() => { if (categorias.length > 0 || catSlug === '') fetchData(); }, [fetchData]);
 
-  // Sorting + filtro cliente (multi-campo pois API só busca nome)
-  const filtered = pecas.filter(p => {
-    if (!debouncedBusca) return true;
-    const q = debouncedBusca.toLowerCase();
-    return (
-      p.nome.toLowerCase().includes(q) ||
-      p.codigo.toLowerCase().includes(q) ||
-      (p.codigoBarras || '').toLowerCase().includes(q) ||
-      (p.marca || '').toLowerCase().includes(q) ||
-      (p.compatibilidade || '').toLowerCase().includes(q)
-    );
-  });
-
-  const sorted = [...filtered].sort((a, b) => {
+  // FASE 5 — Filtragem removida: API /api/pecas ja busca por q em todos os campos (nome, codigo, codigoBarras, marca, descricao, subcategoria, compatibilidade, descricaoCurta)
+  const sorted = [...pecas].sort((a, b) => {
     const dir = sortDir === 'asc' ? 1 : -1;
     if (sortField === 'nome') return dir * a.nome.localeCompare(b.nome);
     if (sortField === 'codigo') return dir * a.codigo.localeCompare(b.codigo);
@@ -220,11 +208,20 @@ export default function EstoqueCentralPage() {
   }
 
   async function remover(peca: Peca) {
-    await fetch(`/api/pecas/${peca.id}`, { method: 'DELETE' });
+    try {
+      const res = await fetch(`/api/pecas/${peca.id}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        setToast({ type: 'error', message: err.error || 'Erro ao remover produto.' });
+      } else {
+        fetchData();
+        triggerRefresh();
+        setToast({ type: 'success', message: `"${peca.nome}" removido.` });
+      }
+    } catch {
+      setToast({ type: 'error', message: 'Erro de conexao ao remover.' });
+    }
     setDeleteConfirm(null);
-    fetchData();
-    triggerRefresh();
-    setToast({ type: 'success', message: `"${peca.nome}" removido.` });
   }
 
   function exportar(tipo: 'todos' | 'baixo') {

@@ -21,16 +21,18 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    const saved = localStorage.getItem('marquinho-saved-email');
-    if (saved) { setEmail(saved); setLembrarEmail(true); }
+    const savedEmail = localStorage.getItem('marquinho-saved-email');
+    if (savedEmail) { setEmail(savedEmail); setLembrarEmail(true); }
+    const savedPerfil = localStorage.getItem('marquinho-saved-perfil');
+    if (savedPerfil) { setPerfil(savedPerfil); }
   }, []);
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault();
     if (!perfil) { setError('Selecione um perfil.'); return; }
     setError(''); setLoading(true);
-    if (lembrarEmail) localStorage.setItem('marquinho-saved-email', email);
-    else localStorage.removeItem('marquinho-saved-email');
+    if (lembrarEmail) { localStorage.setItem('marquinho-saved-email', email); localStorage.setItem('marquinho-saved-perfil', perfil); }
+    else { localStorage.removeItem('marquinho-saved-email'); localStorage.removeItem('marquinho-saved-perfil'); }
 
     try {
       const res = await fetch('/api/auth/login', {

@@ -54,7 +54,8 @@ export async function POST(req: NextRequest) {
     }
 
     const pergunta = await prisma.pergunta.create({
-      data: { pecaId, clienteId: vitrineSession.clienteId, texto, aprovada: true },
+      // C24 — Perguntas agora exigem aprovação manual (antes: aprovada: true)
+      data: { pecaId, clienteId: vitrineSession.clienteId, texto, aprovada: false },
     });
     return NextResponse.json(pergunta);
   } catch (e: any) {

@@ -35,17 +35,17 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Nao autorizado' }, { status: 403 });
   }
   const body = await req.json();
-  if (!body.nomeCliente || !body.modeloMoto || !body.descricaoProblema) {
-    return NextResponse.json({ error: 'Cliente, modelo e descrição do problema são obrigatórios' }, { status: 400 });
+  if (!body.nomeCliente) {
+    return NextResponse.json({ error: 'Nome do cliente e obrigatorio' }, { status: 400 });
   }
   const os = await prisma.ordemServico.create({
     data: {
       nomeCliente: body.nomeCliente,
-      telefoneCliente: body.telefoneCliente,
-      modeloMoto: body.modeloMoto,
+      telefoneCliente: body.telefoneCliente || null,
+      modeloMoto: body.modeloMoto || '',
       placaMoto: body.placaMoto || null,
       anoMoto: body.anoMoto || null,
-      descricaoProblema: body.descricaoProblema,
+      descricaoProblema: body.descricaoProblema || null,
       status: 'ABERTA',
       tipoServico: body.tipoServico || null,
       mecanicoId: body.mecanicoId || null,

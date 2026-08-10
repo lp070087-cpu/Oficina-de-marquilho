@@ -3,70 +3,79 @@ import prisma from '@/lib/prisma';
 import { getSession } from '@/lib/auth';
 import { emitEvent } from '@/lib/event-bus';
 
+// FASE 5 — Status válidos conforme enum StatusOS do Prisma
+const STATUS_VALIDOS = ['ABERTA', 'EM_ANDAMENTO', 'AGUARDANDO_PECAS', 'PRONTA', 'CONCLUIDA', 'CANCELADA', 'AGUARDANDO_MECANICO', 'EM_SERVICO', 'TESTE', 'LAVAGEM'];
+
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
   if (!session || !['DONO', 'BALCAO'].includes(session.role)) return NextResponse.json({ error: 'Nao autorizado' }, { status: 403 });
-  const { id } = await params;
-  const body = await req.json();
-  const { status, mecanicoId, diagnostico, valorMaoDeObra, statusPagamento, valorPago, formaPagamento, dataPagamento,
-    // FASE 15-F
-    garantiaDias, dataAgendamento, horaAgendamento, previsaoEntrega, kmAtual, tempoEstimado } = body;
-  const data: any = {};
-  if (status !== undefined) data.status = status;
-  if (mecanicoId !== undefined) data.mecanicoId = mecanicoId;
-  if (diagnostico !== undefined) data.diagnostico = diagnostico;
-
-  // Pagamento: DONO e BALCAO podem marcar como PAGO
-  // BALCAO pode marcar como AGUARDANDO_PAGAMENTO (finalizar servico) e ENTREGUE (liberar moto)
-  if (statusPagamento === 'PAGO' && !['DONO', 'BALCAO'].includes(session.role)) {
-    return NextResponse.json({ error: 'Apenas Dono ou Balcao pode marcar como PAGO.' }, { status: 403 });
-  }
-  if (statusPagamento !== undefined) {
-    data.statusPagamento = statusPagamento;
-    if (statusPagamento === 'PAGO') {
-      data.dataPagamento = dataPagamento ? new Date(dataPagamento) : new Date();
-      data.usuarioPagamento = session.name;
-      data.valorPago = valorPago !== undefined ? valorPago : undefined;
-      data.formaPagamento = formaPagamento || null;
-    }
-    // Quando Balcao finaliza servico, registrar data e responsavel
-    if (statusPagamento === 'AGUARDANDO_PAGAMENTO') {
-      data.finalizadoEm = new Date();
-      data.finalizadoPor = session.name;
-    }
-    // Quando Balcao (ou qualquer um) entrega a moto
-    if (statusPagamento === 'ENTREGUE') {
-      data.finalizadoEm = data.finalizadoEm || new Date();
-    }
-  }
-  if (valorPago !== undefined) data.valorPago = valorPago;
-
-  // FASE 15-F: Oficina Premium fields
-  if (garantiaDias !== undefined) {
-    data.garantiaDias = garantiaDias;
-    // Calcular garantiaAte baseado na data de pagamento
-    if (garantiaDias > 0 && dataPagamento) {
-      const dt = new Date(dataPagamento);
-      dt.setDate(dt.getDate() + garantiaDias);
-      data.garantiaAte = dt;
-    } else if (garantiaDias > 0) {
-      // Se nao tem dataPagamento explicita, usa hoje (OS ja estava paga)
-      const dt = new Date();
-      dt.setDate(dt.getDate() + garantiaDias);
-      data.garantiaAte = dt;
-    }
-  }
-  if (dataAgendamento !== undefined) data.dataAgendamento = dataAgendamento ? new Date(dataAgendamento) : null;
-  if (horaAgendamento !== undefined) data.horaAgendamento = horaAgendamento;
-  if (previsaoEntrega !== undefined) data.previsaoEntrega = previsaoEntrega ? new Date(previsaoEntrega) : null;
-  if (kmAtual !== undefined) data.kmAtual = kmAtual;
-  if (tempoEstimado !== undefined) data.tempoEstimado = tempoEstimado;
-
-  if (Object.keys(data).length === 0 && !valorMaoDeObra && garantiaDias === undefined && !dataAgendamento && !previsaoEntrega && !kmAtual && tempoEstimado === undefined) {
-    return NextResponse.json({ error: 'Nada para atualizar' }, { status: 400 });
-  }
 
   try {
+    const { id } = await params;
+    const body = await req.json();
+    const { status, mecanicoId, diagnostico, valorMaoDeObra, statusPagamento, valorPago, formaPagamento, dataPagamento,
+      garantiaDias, dataAgendamento, horaAgendamento, previsaoEntrega, kmAtual, tempoEstimado } = body;
+    const data: any = {};
+    if (status !== undefined) {
+      // FASE 5 — validar status contra o enum StatusOS do Prisma
+      if (!STATUS_VALIDOS.includes(status)) {
+        return NextResponse.json({ error: `Status invalido: ${status}. Valores permitidos: ${STATUS_VALIDOS.join(', ')}` }, { status: 400 });
+      }
+      data.status = status;
+    }
+    if (mecanicoId !== undefined) data.mecanicoId = mecanicoId;
+    if (diagnostico !== undefined) data.diagnostico = diagnostico;
+
+    // Pagamento: DONO e BALCAO podem marcar como PAGO
+    // BALCAO pode marcar como AGUARDANDO_PAGAMENTO (finalizar servico) e ENTREGUE (liberar moto)
+    if (statusPagamento === 'PAGO' && !['DONO', 'BALCAO'].includes(session.role)) {
+      return NextResponse.json({ error: 'Apenas Dono ou Balcao pode marcar como PAGO.' }, { status: 403 });
+    }
+    if (statusPagamento !== undefined) {
+      data.statusPagamento = statusPagamento;
+      if (statusPagamento === 'PAGO') {
+        data.dataPagamento = dataPagamento ? new Date(dataPagamento) : new Date();
+        data.usuarioPagamento = session.name;
+        data.valorPago = valorPago !== undefined ? valorPago : undefined;
+        data.formaPagamento = formaPagamento || null;
+      }
+      // Quando Balcao finaliza servico, registrar data e responsavel
+      if (statusPagamento === 'AGUARDANDO_PAGAMENTO') {
+        data.finalizadoEm = new Date();
+        data.finalizadoPor = session.name;
+      }
+      // Quando Balcao (ou qualquer um) entrega a moto
+      if (statusPagamento === 'ENTREGUE') {
+        data.finalizadoEm = data.finalizadoEm || new Date();
+      }
+    }
+    if (valorPago !== undefined) data.valorPago = valorPago;
+
+    // FASE 15-F: Oficina Premium fields
+    if (garantiaDias !== undefined) {
+      data.garantiaDias = garantiaDias;
+      // Calcular garantiaAte baseado na data de pagamento
+      if (garantiaDias > 0 && dataPagamento) {
+        const dt = new Date(dataPagamento);
+        dt.setDate(dt.getDate() + garantiaDias);
+        data.garantiaAte = dt;
+      } else if (garantiaDias > 0) {
+        // Se nao tem dataPagamento explicita, usa hoje (OS ja estava paga)
+        const dt = new Date();
+        dt.setDate(dt.getDate() + garantiaDias);
+        data.garantiaAte = dt;
+      }
+    }
+    if (dataAgendamento !== undefined) data.dataAgendamento = dataAgendamento ? new Date(dataAgendamento) : null;
+    if (horaAgendamento !== undefined) data.horaAgendamento = horaAgendamento;
+    if (previsaoEntrega !== undefined) data.previsaoEntrega = previsaoEntrega ? new Date(previsaoEntrega) : null;
+    if (kmAtual !== undefined) data.kmAtual = kmAtual;
+    if (tempoEstimado !== undefined) data.tempoEstimado = tempoEstimado;
+
+    if (Object.keys(data).length === 0 && !valorMaoDeObra && garantiaDias === undefined && !dataAgendamento && !previsaoEntrega && !kmAtual && tempoEstimado === undefined) {
+      return NextResponse.json({ error: 'Nada para atualizar' }, { status: 400 });
+    }
+
     // Transação atômica: ler itens + atualizar OS + criar historico
     const os = await prisma.$transaction(async (tx) => {
       if (valorMaoDeObra !== undefined) {
@@ -151,6 +160,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     return NextResponse.json(os);
   } catch (e: any) {
     if (e?.message === 'Nada para atualizar') return NextResponse.json({ error: e.message }, { status: 400 });
+    console.error('Erro ao atualizar status da OS:', e);
     return NextResponse.json({ error: 'Erro ao atualizar status' }, { status: 500 });
   }
 }
