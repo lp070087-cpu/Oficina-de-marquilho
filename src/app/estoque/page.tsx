@@ -245,7 +245,6 @@ export default function EstoqueDashboardPage() {
               { label: 'Entrada Scanner', href: '/estoque/scanner', icon: '📷', desc: 'Escanear codigo de barras', cor: 'hover:bg-sky-50 hover:border-sky-200' },
               { label: 'Cadastro Inteligente', href: '/estoque/central', icon: '🧠', desc: 'Cadastrar novo produto', cor: 'hover:bg-brand-50 hover:border-brand-200' },
               { label: 'Transferir p/ Loja', href: '/estoque/transferencia', icon: '🚚', desc: 'Enviar produtos para loja', cor: 'hover:bg-violet-50 hover:border-violet-200' },
-              { label: 'Assistente IA', href: '/estoque/assistente', icon: '🤖', desc: 'Pergunte ao assistente', cor: 'hover:bg-emerald-50 hover:border-emerald-200' },
               { label: 'Estoque Central', href: '/estoque/central', icon: '📋', desc: 'Gerenciar inventario', cor: 'hover:bg-amber-50 hover:border-amber-200' },
               { label: 'Relatorios', href: '/estoque/relatorios', icon: '📊', desc: 'Ver saidas e metricas', cor: 'hover:bg-indigo-50 hover:border-indigo-200' },
             ].map((a, i) => (

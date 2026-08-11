@@ -16,7 +16,7 @@ const pageTitles: Record<string, string> = {
   '/dono': 'Painel', '/dono/estoque': 'Estoque', '/dono/categorias': 'Categorias', '/dono/ordens': 'Ordens de Servico',
   '/dono/notas': 'Nota Fiscal', '/dono/nf-manual': 'Nota Fiscal Manual',
   '/dono/mecanicos': 'Funcionarios', '/dono/balcoes': 'Balcoes', '/dono/vitrine': 'Vitrine',
-  '/dono/assistente': 'Assistente Gerencial', '/dono/fornecedores': 'Fornecedores',
+  '/dono/fornecedores': 'Fornecedores',
   '/dono/pedidos-loja': 'Pedidos da Loja',
   '/dono/financeiro': 'Financeiro Premium',
   '/dono/notificacoes': 'Central de Notificações',
@@ -27,7 +27,7 @@ const pageTitles: Record<string, string> = {
   '/balcao/retirada-qrcode': 'Retirada QR Code',
   '/estoque': 'Painel Estoque', '/estoque/central': 'Estoque Central', '/estoque/loja': 'Estoque da Loja',
   '/estoque/transferencia': 'Transferir p/ Loja', '/estoque/scanner': 'Entrada Scanner',
-  '/estoque/importar': 'Entrada Intel. Estoque', '/estoque/assistente': 'Assistente IA',
+  '/estoque/importar': 'Entrada Intel. Estoque',
   '/estoque/relatorios': 'Relatorios',
 };
 
