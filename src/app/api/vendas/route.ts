@@ -99,23 +99,27 @@ export async function POST(req: NextRequest) {
         });
 
         // BAIXA DO ESTOQUE DA LOJA (nunca central)
-        await tx.peca.update({
-          where: { id: item.pecaId },
-          data: { quantidadeLoja: { decrement: item.quantidade } },
-        });
+        // C1: Para pedidos ORDEM_SERVICO o estoque já foi baixado ao adicionar
+        // peças à OS (POST /api/ordens/[id]/itens) com MovimentacaoEstoque USO_OS.
+        if (pedido.tipo !== 'ORDEM_SERVICO') {
+          await tx.peca.update({
+            where: { id: item.pecaId },
+            data: { quantidadeLoja: { decrement: item.quantidade } },
+          });
 
-        // Registrar movimentacao
-        await tx.movimentacaoEstoque.create({
-          data: {
-            pecaId: item.pecaId,
-            tipo: 'VENDA',
-            quantidade: item.quantidade,
-            origem: 'LOJA',
-            destino: 'VENDA_PDV',
-            usuario: session.name || 'Balcao',
-            observacao: `Venda #${v.numero}`,
-          },
-        });
+          // Registrar movimentacao
+          await tx.movimentacaoEstoque.create({
+            data: {
+              pecaId: item.pecaId,
+              tipo: 'VENDA',
+              quantidade: item.quantidade,
+              origem: 'LOJA',
+              destino: 'VENDA_PDV',
+              usuario: session.name || 'Balcao',
+              observacao: `Venda #${v.numero}`,
+            },
+          });
+        }
       }
 
       // Criar pagamentos
