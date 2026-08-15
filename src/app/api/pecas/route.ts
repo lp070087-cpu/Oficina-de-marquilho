@@ -59,7 +59,7 @@ export async function GET(req: NextRequest) {
       where,
       include: { categoria: { select: { nome: true } } },
       orderBy: { nome: 'asc' },
-      take: 500,
+      take: 5000,
     });
     return NextResponse.json(pecas);
   } catch (e: any) { return NextResponse.json({ error: e.message }, { status: 500 }); }

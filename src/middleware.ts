@@ -48,7 +48,7 @@ const apiPerms: Record<string, string[]> = {
 	'/api/pedidos': ['DONO', 'BALCAO'],
 	'/api/caixa': ['DONO', 'BALCAO'],
 	'/api/ordens': ['DONO', 'BALCAO'],
-	'/api/estoque': ['DONO', 'ESTOQUE'],
+	'/api/estoque': ['DONO', 'ESTOQUE', 'BALCAO'],
 };
 
 const publicPaths = [

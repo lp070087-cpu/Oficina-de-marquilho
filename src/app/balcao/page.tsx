@@ -16,14 +16,15 @@ export default function BalcaoDashboard() {
 
   const load = async () => {
     try {
-      const [pecasRes, ordensRes] = await Promise.all([
-        fetch('/api/pecas').then(r => r.json()),
+      const [statsRes, ordensRes] = await Promise.all([
+        fetch('/api/estoque/stats').then(r => r.json()),
         fetch('/api/ordens').then(r => r.json()),
       ]);
-      const pecas = Array.isArray(pecasRes) ? pecasRes : [];
+      // Contador real de produtos (agregado no banco, ativo: true)
+      const statsData = statsRes && !statsRes.error ? statsRes : null;
       const ordensData = Array.isArray(ordensRes) ? ordensRes : [];
       setStats({
-        totalPecas: pecas.length,
+        totalPecas: statsData ? Number(statsData.totalProdutos) || 0 : 0,
         osAbertas: ordensData.filter((o: any) => o.status === 'ABERTA').length,
         osEmAndamento: ordensData.filter((o: any) =>
           ['EM_ANDAMENTO', 'AGUARDANDO_PECAS'].includes(o.status)

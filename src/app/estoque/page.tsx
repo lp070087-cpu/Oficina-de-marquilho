@@ -45,23 +45,26 @@ export default function EstoqueDashboardPage() {
     async function load() {
       setError('');
       try {
-        const [pecasRes, movsRes] = await Promise.all([
+        const [pecasRes, movsRes, statsRes] = await Promise.all([
           fetch('/api/pecas').then((r) => r.json()),
           fetch('/api/relatorios/movimentacao?tipo=').then((r) => r.json()),
+          fetch('/api/estoque/stats').then((r) => r.json()),
         ]);
       const pecas: PecaRaw[] = Array.isArray(pecasRes) ? pecasRes : [];
       const movs: any[] = Array.isArray(movsRes) ? movsRes : [];
+      // Contadores reais (agregados no banco, ativo: true) — NÃO reduzir a listagem limitada
+      const stats = statsRes && !statsRes.error ? statsRes : null;
       const hoje = new Date().toISOString().slice(0, 10);
 
-      const totalUnidades = pecas.reduce((s, p) => s + (p.quantidade || 0), 0);
-      const totalUnidadesLoja = pecas.reduce((s, p) => s + (p.quantidadeLoja || 0), 0);
+      const totalUnidades = stats ? Number(stats.unidadesCentral) || 0 : pecas.reduce((s, p) => s + (p.quantidade || 0), 0);
+      const totalUnidadesLoja = stats ? Number(stats.unidadesLoja) || 0 : pecas.reduce((s, p) => s + (p.quantidadeLoja || 0), 0);
       const valorTotalEstoque = pecas.reduce((s, p) => s + (Number(p.precoVenda) || 0) * (p.quantidade || 0), 0);
       const valorTotalCusto = pecas.reduce((s, p) => s + (Number(p.precoCusto) || 0) * (p.quantidade || 0), 0);
       const margemLucro = valorTotalEstoque - valorTotalCusto;
       const margemPercentual = valorTotalEstoque > 0 ? Math.round((margemLucro / valorTotalEstoque) * 100) : 0;
 
-      const estoqueBaixo = pecas.filter((p) => p.estoqueMinimo > 0 && p.quantidade < p.estoqueMinimo && p.quantidade > 0).length;
-      const semEstoque = pecas.filter((p) => p.quantidade <= 0).length;
+      const estoqueBaixo = stats ? Number(stats.estoqueBaixo) || 0 : pecas.filter((p) => p.estoqueMinimo > 0 && p.quantidade < p.estoqueMinimo && p.quantidade > 0).length;
+      const semEstoque = stats ? Number(stats.semEstoque) || 0 : pecas.filter((p) => p.quantidade <= 0).length;
       const produtosParados = pecas.filter((p) => p.quantidade > 15).length;
       const giroEstimado = pecas.filter((p) => p.quantidade > 0 && p.estoqueMinimo > 0 && p.quantidade < p.estoqueMinimo * 2).length;
 
@@ -74,7 +77,7 @@ export default function EstoqueDashboardPage() {
       const categoriasSet = new Set(pecas.map((p) => p.categoria?.id).filter(Boolean));
 
       setData({
-        totalProdutos: pecas.length,
+        totalProdutos: stats ? Number(stats.totalProdutos) || 0 : pecas.length,
         totalUnidades,
         totalUnidadesLoja,
         valorTotalEstoque,

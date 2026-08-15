@@ -37,6 +37,12 @@ export default function EstoquePage() {
   const [loading, setLoading] = useState(true);
   const [busca, setBusca] = useState('');
 
+  // Contadores reais (agregados no banco via /api/estoque/stats)
+  const [statsApi, setStatsApi] = useState({
+    totalProdutos: 0, unidadesCentral: 0, unidadesLoja: 0, unidadesTotal: 0,
+    estoqueBaixo: 0, semEstoque: 0,
+  });
+
   const [view, setView] = useState<View>('categorias');
   const [categoriaSelecionada, setCategoriaSelecionada] = useState<Categoria | null>(null);
   const [subcategoriaSelecionada, setSubcategoriaSelecionada] = useState<string | null>(null);
@@ -46,16 +52,22 @@ export default function EstoquePage() {
   const [msg, setMsg] = useState('');
 
   useEffect(() => {
-    Promise.all([fetch('/api/categorias').then(r=>r.json()), fetch('/api/pecas').then(r=>r.json())])
-      .then(([cats,pecasData])=>{setCategorias(cats);setPecas(pecasData);setLoading(false);})
+    Promise.all([fetch('/api/categorias').then(r=>r.json()), fetch('/api/pecas').then(r=>r.json()), fetch('/api/estoque/stats').then(r=>r.json())])
+      .then(([cats,pecasData,statsData])=>{
+        setCategorias(cats);
+        setPecas(pecasData);
+        if (statsData && !statsData.error) setStatsApi(statsData);
+        setLoading(false);
+      })
       .catch(()=>setLoading(false));
   }, []);
 
   const fetchPecas = async () => { const res = await fetch('/api/pecas'); setPecas(await res.json()); };
 
   const pecasFiltradas = pecas.filter(p=>{if(!busca)return true;const q=busca.toLowerCase();return p.nome.toLowerCase().includes(q)||p.codigo.toLowerCase().includes(q)||(p.codigoBarras||'').toLowerCase().includes(q)||(p.marca||'').toLowerCase().includes(q);});
-  const totalPecas = pecas.length;
-  const estoqueBaixo = pecas.filter(p=>p.estoqueMinimo > 0 && p.quantidade < p.estoqueMinimo).length;
+  // Contadores reais (agregados no banco) com fallback para a listagem enquanto a API não carrega
+  const totalPecas = statsApi.totalProdutos > 0 ? statsApi.totalProdutos : pecas.length;
+  const estoqueBaixo = statsApi.totalProdutos > 0 ? statsApi.estoqueBaixo : pecas.filter(p=>p.estoqueMinimo > 0 && p.quantidade < p.estoqueMinimo).length;
   const valorTotalEstoque = pecas.reduce((acc,p)=>acc+Number(p.precoCusto)*p.quantidade,0);
 
   const categoriasComContagem = useMemo(() => categorias.map(c=>({...c,_count:{pecas:pecas.filter(p=>p.categoriaId===c.id).length}})).filter(c=>(c._count?.pecas??0)>0), [categorias, pecas]);

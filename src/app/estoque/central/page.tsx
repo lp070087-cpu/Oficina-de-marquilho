@@ -25,6 +25,12 @@ export default function EstoqueCentralPage() {
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Stats reais (agregados no banco via /api/estoque/stats)
+  const [statsApi, setStatsApi] = useState({
+    totalProdutos: 0, unidadesCentral: 0, unidadesLoja: 0, unidadesTotal: 0,
+    estoqueBaixo: 0, semEstoque: 0,
+  });
+
   // Filtros
   const [busca, setBusca] = useState('');
   const [catSlug, setCatSlug] = useState('');
@@ -81,6 +87,16 @@ export default function EstoqueCentralPage() {
       .catch(() => {});
   }, []);
 
+  // Busca stats reais (agregados no banco)
+  useEffect(() => {
+    fetch('/api/estoque/stats')
+      .then(r => r.json())
+      .then(d => {
+        if (d && !d.error) setStatsApi(d);
+      })
+      .catch(() => {});
+  }, [refreshKey]);
+
   // Busca peças
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -116,14 +132,23 @@ export default function EstoqueCentralPage() {
   const totalPages = Math.ceil(sorted.length / perPage);
   const paginated = sorted.slice((page - 1) * perPage, page * perPage);
 
-  // Stats
-  const stats = {
-    total: pecas.length,
-    unidades: pecas.reduce((s, p) => s + p.quantidade, 0),
-    baixo: pecas.filter(p => p.estoqueMinimo > 0 && p.quantidade < p.estoqueMinimo && p.quantidade > 0).length,
-    zerado: pecas.filter(p => p.quantidade <= 0).length,
-    naLoja: pecas.reduce((s, p) => s + (p.quantidadeLoja || 0), 0),
-  };
+  // Stats — vêm de /api/estoque/stats (agregados no banco, ativo: true)
+  // Fallback: se a API ainda não carregou, calcula a partir da listagem (corrige o flash inicial)
+  const stats = statsApi.totalProdutos > 0
+    ? {
+        total: statsApi.totalProdutos,
+        unidades: statsApi.unidadesCentral,
+        baixo: statsApi.estoqueBaixo,
+        zerado: statsApi.semEstoque,
+        naLoja: statsApi.unidadesLoja,
+      }
+    : {
+        total: pecas.length,
+        unidades: pecas.reduce((s, p) => s + p.quantidade, 0),
+        baixo: pecas.filter(p => p.estoqueMinimo > 0 && p.quantidade < p.estoqueMinimo && p.quantidade > 0).length,
+        zerado: pecas.filter(p => p.quantidade <= 0).length,
+        naLoja: pecas.reduce((s, p) => s + (p.quantidadeLoja || 0), 0),
+      };
 
   // Handlers
   function toggleSort(field: SortField) {
@@ -529,7 +554,7 @@ export default function EstoqueCentralPage() {
                 className="w-full text-left p-4 rounded-xl border border-slate-200 hover:border-brand-300 hover:bg-brand-50/50 transition-all duration-200 group"
               >
                 <strong className="text-sm text-slate-800 group-hover:text-brand-700">Todos os produtos</strong>
-                <p className="text-[11px] text-slate-400 mt-0.5">{pecas.length} produtos no total</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">{stats.total} produtos no total</p>
               </button>
             </div>
             <button onClick={() => setExportModal(false)} className="btn-secondary w-full mt-4 text-xs">Cancelar</button>

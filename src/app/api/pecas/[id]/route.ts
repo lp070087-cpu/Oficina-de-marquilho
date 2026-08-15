@@ -41,7 +41,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const session = await getSession();
-    if (!session || !['DONO', 'BALCAO', 'ESTOQUE'].includes(session.role)) return NextResponse.json({ error: 'Nao autorizado' }, { status: 403 });
+    if (!session || !['DONO'].includes(session.role)) return NextResponse.json({ error: 'Nao autorizado' }, { status: 403 });
     const { id } = await params;
     await prisma.peca.update({ where: { id }, data: { ativo: false } });
     return NextResponse.json({ ok: true });
