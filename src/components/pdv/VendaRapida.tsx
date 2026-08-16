@@ -59,7 +59,19 @@ export default function VendaRapida({ onAdicionar, carrinhoItens }: VendaRapidaP
     }
   };
 
+  const [erroPreco, setErroPreco] = useState('');
+
   const adicionarPeca = (peca: PecaBasica) => {
+    // Bloqueia peça SEM PREÇO (R$ 0,00) — não inventar preço, impedir venda acidental
+    const preco = Number(peca.precoVenda);
+    if (!Number.isFinite(preco) || preco <= 0) {
+      setErroPreco(`"${peca.nome}" não tem preço cadastrado (R$ 0,00). Corrija o cadastro antes de vender.`);
+      setQuery('');
+      setResultados([]);
+      setResultadoAberto(false);
+      return;
+    }
+    setErroPreco('');
     const jaNoCarrinho = carrinhoItens.find(i => i.pecaId === peca.id);
     const item: ItemCarrinho = {
       id: jaNoCarrinho ? `${peca.id}-${Date.now()}` : peca.id,
@@ -172,6 +184,12 @@ export default function VendaRapida({ onAdicionar, carrinhoItens }: VendaRapidaP
         <div className="absolute top-full left-0 right-0 mt-1 bg-white rounded-xl border border-slate-200 shadow-lg z-40 p-6 text-center">
           <p className="text-sm text-slate-500">Nenhum produto encontrado</p>
           <p className="text-xs text-slate-400 mt-1">Tente outro termo de busca</p>
+        </div>
+      )}
+
+      {erroPreco && (
+        <div className="mt-2 p-3 bg-red-50 border border-red-200 text-red-700 rounded-xl text-xs font-medium">
+          {erroPreco}
         </div>
       )}
 

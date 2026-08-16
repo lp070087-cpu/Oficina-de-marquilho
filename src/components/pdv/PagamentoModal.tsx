@@ -28,57 +28,31 @@ const TIPOS: { key: TipoPagamento; label: string; icon: string; precisaTroco: bo
 ];
 
 export default function PagamentoModal({ open, total, onClose, onConfirmar }: PagamentoModalProps) {
-  const [pagamentos, setPagamentos] = useState<Pagamento[]>([]);
   const [tipoAtual, setTipoAtual] = useState<TipoPagamento>('DINHEIRO');
-  const [valorAtual, setValorAtual] = useState('');
-
-  const totalPago = pagamentos.reduce((s, p) => s + p.valor, 0);
-  const restante = Math.max(0, total - totalPago);
-  const trocoTotal = Math.max(0, totalPago - total);
 
   useEffect(() => {
     if (open) {
-      setPagamentos([]);
       setTipoAtual('DINHEIRO');
-      setValorAtual('');
     }
   }, [open]);
 
-  function adicionarPagamento() {
-    const valor = parseFloat(valorAtual) || 0;
-    if (valor <= 0) return;
-
-    const p: Pagamento = {
-      tipo: tipoAtual,
-      valor,
-      troco: tipoAtual === 'DINHEIRO' ? Math.max(0, totalPago + valor - total) : 0,
-    };
-
-    setPagamentos([...pagamentos, p]);
-    setValorAtual('');
-  }
-
-  function removerPagamento(index: number) {
-    setPagamentos(pagamentos.filter((_, i) => i !== index));
-  }
-
   function handleConfirmar() {
-    if (totalPago < total && pagamentos.length === 0) {
-      // Adiciona o valor restante automaticamente se nenhum pagamento foi adicionado
-      adicionarPagamento();
+    // FASE 15-N: bloqueia venda de R$ 0,00 — não pode finalizar sem valor
+    if (!Number.isFinite(total) || total <= 0) {
       return;
     }
-    if (totalPago < total) {
-      // Tenta completar com o tipo atual
-      const v = Math.round(restante * 100) / 100;
-      setPagamentos([...pagamentos, { tipo: tipoAtual, valor: v, troco: tipoAtual === 'DINHEIRO' ? 0 : 0 }]);
-      setTimeout(() => {
-        const novos = [...pagamentos, { tipo: tipoAtual, valor: v, troco: tipoAtual === 'DINHEIRO' ? 0 : 0 }];
-        onConfirmar(novos, Math.max(0, novos.reduce((s, p) => s + p.valor, 0) - total));
-      }, 50);
-      return;
-    }
-    onConfirmar(pagamentos, trocoTotal);
+
+    // Pagamento integral simples: constrói automaticamente o pagamento com o
+    // método selecionado + o valor total da venda. Não exige "valor recebido",
+    // nem botão "Adicionar", nem atalhos de valores.
+    // - Dinheiro: envia valor = total (troco 0); o caixa trata troco se necessário.
+    // - Demais formas: valor = total, sem troco.
+    const pagamentoUnico: Pagamento = {
+      tipo: tipoAtual,
+      valor: Math.round(total * 100) / 100,
+      troco: 0,
+    };
+    onConfirmar([pagamentoUnico], 0);
   }
 
   const fm = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -101,20 +75,9 @@ export default function PagamentoModal({ open, total, onClose, onConfirmar }: Pa
 
         {/* Corpo */}
         <div className="p-4 space-y-4">
-          {/* Barra de progresso */}
-          <div>
-            <div className="flex justify-between text-xs mb-1">
-              <span className="text-slate-500">Pago: {fm(totalPago)}</span>
-              <span className={`font-bold ${restante > 0 ? 'text-red-500' : 'text-emerald-600'}`}>
-                {restante > 0 ? `Restante: ${fm(restante)}` : 'Pago! ✅'}
-              </span>
-            </div>
-            <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
-              <div
-                className={`h-full rounded-full transition-all duration-300 ${restante <= 0 ? 'bg-emerald-500' : 'bg-brand-500'}`}
-                style={{ width: `${Math.min(100, (totalPago / total) * 100)}%` }}
-              />
-            </div>
+          <div className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-center">
+            <p className="text-[11px] text-slate-500">Total da venda</p>
+            <p className="text-2xl font-extrabold text-slate-800">{fm(total)}</p>
           </div>
 
           {/* Tipos de pagamento */}
@@ -133,102 +96,26 @@ export default function PagamentoModal({ open, total, onClose, onConfirmar }: Pa
                 </button>
               ))}
             </div>
+            <p className="text-[10px] text-slate-400 mt-2">
+              O pagamento será registrado pelo total da venda ({fm(total)}).
+            </p>
           </div>
-
-          {/* Cartao: bandeira + parcelas */}
-
-          {/* Valor */}
-          <div>
-            <label className="text-[10px] font-bold text-slate-500 uppercase">
-              {tipoAtual === 'DINHEIRO' ? 'Valor recebido' : 'Valor'}
-            </label>
-            <div className="flex flex-wrap gap-2 mt-1">
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                value={valorAtual}
-                onChange={e => setValorAtual(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') adicionarPagamento(); }}
-                className="input-field text-sm font-bold flex-1"
-                placeholder="0,00"
-                autoFocus
-              />
-              <button onClick={adicionarPagamento} disabled={!valorAtual || parseFloat(valorAtual) <= 0}
-                className="btn-primary text-xs px-3 disabled:opacity-50">
-                Adicionar
-              </button>
-            </div>
-            {tipoAtual === 'DINHEIRO' && valorAtual && parseFloat(valorAtual) > 0 && (
-              <p className="text-[10px] text-slate-400 mt-1">
-                Troco: {fm(Math.max(0, totalPago + parseFloat(valorAtual) - total))}
-              </p>
-            )}
-          </div>
-
-          {/* Atalhos para Dinheiro */}
-          {tipoAtual === 'DINHEIRO' && (
-            <div className="flex flex-wrap gap-1">
-              {[2, 5, 10, 20, 50, 100, 200].map(v => {
-                const totalComEsse = Math.ceil(total / v) * v;
-                return (
-                  <button key={v}
-                    onClick={() => { setValorAtual(String(totalComEsse)); }}
-                    className="text-[10px] px-2 py-1 rounded bg-slate-100 text-slate-600 hover:bg-brand-50 hover:text-brand-600 font-medium transition-colors"
-                  >
-                    R$ {totalComEsse.toFixed(2)}
-                  </button>
-                );
-              })}
-            </div>
-          )}
-
-          {/* Lista de pagamentos */}
-          {pagamentos.length > 0 && (
-            <div>
-              <label className="text-[10px] font-bold text-slate-500 uppercase mb-1.5 block">
-                Pagamentos ({pagamentos.length})
-              </label>
-              <div className="space-y-1">
-                {pagamentos.map((p, i) => {
-                  const tipo = TIPOS.find(t => t.key === p.tipo);
-                  return (
-                    <div key={i} className="flex items-center justify-between p-2 rounded-lg bg-slate-50 text-xs">
-                      <div className="flex items-center gap-2">
-                        <span>{tipo?.icon}</span>
-                        <span className="font-medium text-slate-700">{tipo?.label}</span>
-                        {p.bandeira && <span className="text-[10px] text-slate-400">({p.bandeira})</span>}
-                        {p.parcelas && p.parcelas > 1 && <span className="text-[10px] text-slate-400">{p.parcelas}x</span>}
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="font-bold text-slate-800">{fm(p.valor)}</span>
-                        {p.troco > 0 && <span className="text-[10px] text-amber-600">Troco: {fm(p.troco)}</span>}
-                        <button onClick={() => removerPagamento(i)} className="text-slate-300 hover:text-red-500 ml-1">×</button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Troco */}
-          {trocoTotal > 0 && (
-            <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 text-center">
-              <p className="text-xs text-amber-600 font-bold">Troco: {fm(trocoTotal)}</p>
-            </div>
-          )}
         </div>
 
         {/* Footer */}
         <div className="flex flex-wrap gap-2 p-4 border-t border-slate-100">
+          {(!Number.isFinite(total) || total <= 0) && (
+            <div className="w-full p-2.5 bg-red-50 border border-red-200 text-red-700 rounded-lg text-[11px] font-medium">
+              ⛔ Total R$ 0,00. Não é possível receber pagamento de uma venda sem valor. Corrija os itens.
+            </div>
+          )}
           <button onClick={onClose} className="btn-secondary text-xs flex-1">Cancelar</button>
           <button
             onClick={handleConfirmar}
-            disabled={totalPago < total && pagamentos.length === 0 && !valorAtual}
+            disabled={!Number.isFinite(total) || total <= 0}
             className="btn-primary text-xs flex-1 disabled:opacity-50"
           >
-            {totalPago >= total ? `Confirmar · ${fm(totalPago)}` : restante > 0 ? `Falta ${fm(restante)}` : 'Confirmar'}
+            {!Number.isFinite(total) || total <= 0 ? 'Valor inválido' : `Confirmar Pagamento · ${fm(total)}`}
           </button>
         </div>
       </div>

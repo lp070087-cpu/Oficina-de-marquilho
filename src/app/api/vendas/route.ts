@@ -148,6 +148,44 @@ export async function POST(req: NextRequest) {
         },
       });
 
+      // ============================================================
+      // EMISSÃO AUTOMÁTICA DE NOTA NO PAGAMENTO
+      //  - ORDEM_SERVICO → Nota de Serviço (ligada à OS)
+      //  - VENDA/PDV → Nota de Venda (ligada à venda)
+      // Sempre verifica se já existe para NUNCA duplicar.
+      // ============================================================
+      try {
+        if (pedido.tipo === 'ORDEM_SERVICO' && pedido.ordemServicoId) {
+          const osInfo = await tx.ordemServico.findUnique({
+            where: { id: pedido.ordemServicoId },
+            select: { numero: true, createdAt: true },
+          });
+          const jaTem = await tx.notaFiscal.findUnique({ where: { ordemServicoId: pedido.ordemServicoId } });
+          if (!jaTem && osInfo) {
+            await tx.notaFiscal.create({
+              data: {
+                ordemServicoId: pedido.ordemServicoId,
+                numero: `OS-${String(osInfo.numero).padStart(4, '0')}`,
+                dataServico: osInfo.createdAt,
+              },
+            });
+          }
+        } else {
+          const jaTem = await tx.notaFiscal.findUnique({ where: { vendaId: v.id } });
+          if (!jaTem) {
+            await tx.notaFiscal.create({
+              data: {
+                vendaId: v.id,
+                numero: `V-${String(v.numero).padStart(4, '0')}`,
+                dataServico: new Date(),
+              },
+            });
+          }
+        }
+      } catch (e) {
+        console.error('Falha ao emitir nota automatica:', e);
+      }
+
       // Sessao de caixa: registrar vendas
       const sessao = await tx.sessaoCaixa.findFirst({
         where: { status: 'ABERTA' },
@@ -190,6 +228,7 @@ export async function POST(req: NextRequest) {
           itens: { include: { peca: { select: { nome: true, codigo: true, imagemUrl: true, marca: true } } } },
           pagamentos: true,
           pedido: { select: { numero: true } },
+          notaFiscal: { select: { numero: true } },
         },
       });
     });

@@ -195,14 +195,19 @@ model ServicoOrdem {
 }
 
 model NotaFiscal {
-  id             String       @id @default(cuid())
-  ordemServicoId String       @unique
-  numero         String       @unique
+  id             String        @id @default(cuid())
+  ordemServicoId String?       @unique
+  vendaId        String?       @unique
+  numero         String        @unique
   chaveAcesso    String?
   pdfUrl         String?
-  emitidaEm      DateTime     @default(now())
-  createdAt      DateTime     @default(now())
-  ordemServico   OrdemServico @relation(fields: [ordemServicoId], references: [id], onDelete: Cascade)
+  dataServico    DateTime?
+  emitidaEm      DateTime      @default(now())
+  createdAt      DateTime      @default(now())
+  ordemServico   OrdemServico? @relation(fields: [ordemServicoId], references: [id], onDelete: Cascade)
+  venda          Venda?        @relation(fields: [vendaId], references: [id], onDelete: Cascade)
+
+  @@index([vendaId])
 }
 
 model NotaManual {
@@ -764,6 +769,7 @@ model Venda {
   pagamentos             PagamentoVenda[]
   pedido                 Pedido                 @relation(fields: [pedidoId], references: [id])
   itens                  VendaItem[]
+  notaFiscal             NotaFiscal?
 
   @@index([numero])
   @@index([pedidoId])

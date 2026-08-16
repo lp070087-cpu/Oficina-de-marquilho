@@ -1,97 +1,210 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { imprimirNotaServico, imprimirNotaVenda } from '@/lib/imprimirNotaServico';
 
-interface OS {
-  id: string; numero: number; nomeCliente: string; telefoneCliente: string;
-  modeloMoto: string; placaMoto?: string; valorTotal: number; status: string;
-  statusPagamento?: string; formaPagamento?: string; createdAt: string;
-  mecanico?: { name: string };
+interface Nota {
+  id: string;
+  numero: string;
+  chaveAcesso?: string | null;
+  dataServico?: string | null;
+  emitidaEm: string;
+  ordemServicoId?: string | null;
+  vendaId?: string | null;
+  ordemServico?: {
+    numero: number; nomeCliente: string; telefoneCliente: string; valorTotal: number;
+    modeloMoto: string; placaMoto?: string | null; anoMoto?: string | null;
+    valorMaoDeObra: number; desconto?: number; formaPagamento?: string | null;
+    tipoServico?: string | null; status?: string; inicioServico?: string | null; fimServico?: string | null;
+    mecanico?: { name: string } | null;
+    itens?: { peca: { codigo?: string | null; nome: string }; quantidade: number; precoUnitario: number }[];
+    servicos?: { nome: string; valor: number | string }[] | null;
+  } | null;
+  venda?: {
+    numero: number; clienteNome?: string | null; clienteTelefone?: string | null; clienteCpf?: string | null;
+    subtotal: number; descontoTotal: number; total: number; createdAt: string;
+    itens: { peca: { nome: string; codigo?: string | null }; quantidade: number; precoVendido: number; subtotal: number }[];
+    pagamentos: { tipo: string; valor: number; troco: number; bandeira?: string | null; parcelas?: number | null }[];
+  } | null;
 }
 
-export default function NotasPage() {
-  const [ordens, setOrdens] = useState<OS[]>([]);
+export default function NotasBalcaoPage() {
+  const [notas, setNotas] = useState<Nota[]>([]);
   const [loading, setLoading] = useState(true);
+  const [erro, setErro] = useState('');
 
-  useEffect(() => {
-    fetch('/api/ordens')
-      .then(r => r.json())
-      .then((data: OS[]) => {
-        // Mostrar apenas OS com statusPagamento relevante
-        const filtradas = data.filter(
-          o =>
-            o.statusPagamento === 'AGUARDANDO_PAGAMENTO' ||
-            o.statusPagamento === 'PAGO' ||
-            o.statusPagamento === 'ENTREGUE' ||
-            (o.status === 'CONCLUIDA' && !o.statusPagamento)
-        );
-        setOrdens(filtradas);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
-  }, []);
+  async function fetchNotas() {
+    setLoading(true);
+    try {
+      const res = await fetch('/api/notas').catch(() => null);
+      if (!res) { setErro('Erro ao carregar notas.'); setLoading(false); return; }
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        setNotas(data);
+        setErro('');
+      } else {
+        setNotas([]);
+        setErro(data?.error || 'Erro ao carregar notas.');
+      }
+    } catch {
+      setNotas([]);
+      setErro('Erro ao carregar notas.');
+    }
+    setLoading(false);
+  }
+  useEffect(() => { fetchNotas(); }, []);
 
-  const fm = (v: number) =>
-    v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  const fm = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
-  function getStatusLabel(os: OS) {
-    if (os.statusPagamento === 'PAGO') return '🟢 Pago';
-    if (os.statusPagamento === 'ENTREGUE') return '✅ Entregue';
-    return '🔴 Pendente';
+  function origem(n: Nota): 'ORDEM_DE_SERVICO' | 'VENDA_PDV' {
+    return n.vendaId || n.venda ? 'VENDA_PDV' : 'ORDEM_DE_SERVICO';
+  }
+  function clienteDe(n: Nota): string {
+    if (origem(n) === 'VENDA_PDV') return n.venda?.clienteNome || 'Cliente avulso';
+    return n.ordemServico?.nomeCliente || '—';
+  }
+  function valorDe(n: Nota): number {
+    if (origem(n) === 'VENDA_PDV') return Number(n.venda?.total) || 0;
+    return Number(n.ordemServico?.valorTotal) || 0;
+  }
+  function refDe(n: Nota): string {
+    if (origem(n) === 'VENDA_PDV') return `Venda #${n.venda?.numero ?? ''}`;
+    return `OS #${n.ordemServico?.numero ?? ''}`;
+  }
+  function dataExibicao(n: Nota): string {
+    const raw = n.dataServico || n.emitidaEm;
+    if (!raw) return '—';
+    const d = new Date(raw);
+    return isNaN(d.getTime()) ? '—' : d.toLocaleDateString('pt-BR');
   }
 
-  function getStatusColor(os: OS) {
-    if (os.statusPagamento === 'PAGO') return 'bg-emerald-50 text-emerald-700';
-    if (os.statusPagamento === 'ENTREGUE') return 'bg-blue-50 text-blue-700';
-    return 'bg-red-50 text-red-700';
+  // Mesmo módulo compartilhado da Central de Notas (DONA) — DOCUMENTO B, sem terceira versão
+  function imprimirNota(n: Nota) {
+    if (origem(n) === 'VENDA_PDV' && n.venda) {
+      imprimirNotaVenda({
+        numero: n.venda.numero,
+        notaNumero: n.numero,
+        clienteNome: n.venda.clienteNome,
+        clienteTelefone: n.venda.clienteTelefone,
+        clienteCpf: n.venda.clienteCpf,
+        subtotal: Number(n.venda.subtotal) || 0,
+        descontoTotal: Number(n.venda.descontoTotal) || 0,
+        total: Number(n.venda.total) || 0,
+        createdAt: n.venda.createdAt,
+        itens: (n.venda.itens || []).map(i => ({
+          nome: i.peca?.nome || '—',
+          codigo: i.peca?.codigo || '',
+          quantidade: i.quantidade,
+          precoUnitario: Number(i.precoVendido) || 0,
+          subtotal: Number(i.subtotal) || 0,
+        })),
+        pagamentos: (n.venda.pagamentos || []).map(p => ({
+          tipo: p.tipo,
+          valor: Number(p.valor) || 0,
+          troco: Number(p.troco) || 0,
+          bandeira: p.bandeira || undefined,
+          parcelas: p.parcelas || undefined,
+        })),
+      });
+      return;
+    }
+    imprimirNotaServico({
+      id: n.ordemServicoId || n.id,
+      numero: n.ordemServico?.numero,
+      nomeCliente: n.ordemServico?.nomeCliente,
+      telefoneCliente: n.ordemServico?.telefoneCliente,
+      modeloMoto: n.ordemServico?.modeloMoto,
+      placaMoto: n.ordemServico?.placaMoto || '',
+      anoMoto: n.ordemServico?.anoMoto || '',
+      tipoServico: n.ordemServico?.tipoServico || '',
+      status: n.ordemServico?.status,
+      valorTotal: n.ordemServico?.valorTotal,
+      valorMaoDeObra: n.ordemServico?.valorMaoDeObra,
+      desconto: n.ordemServico?.desconto,
+      formaPagamento: n.ordemServico?.formaPagamento,
+      mecanico: n.ordemServico?.mecanico || undefined,
+      itens: (n.ordemServico?.itens || []).map(i => ({
+        peca: { codigo: i.peca?.codigo || '', nome: i.peca?.nome || '' },
+        quantidade: i.quantidade,
+        precoUnitario: Number(i.precoUnitario) || 0,
+      })),
+      servicos: (n.ordemServico?.servicos || []).map(s => ({ nome: s.nome, valor: s.valor })),
+      inicioServico: n.ordemServico?.inicioServico || null,
+      fimServico: n.ordemServico?.fimServico || null,
+      notaFiscal: {
+        numero: n.numero,
+        chaveAcesso: n.chaveAcesso,
+        dataServico: n.dataServico,
+        emitidaEm: n.emitidaEm,
+      },
+    });
   }
+
+  const badgesOrigem: Record<string, string> = {
+    ORDEM_DE_SERVICO: 'bg-sky-50 text-sky-700',
+    VENDA_PDV: 'bg-violet-50 text-violet-700',
+  };
 
   return (
     <div className="p-6">
-      <h1 className="text-xl font-bold text-slate-800 tracking-tight mb-1">COBRANCAS</h1>
-      <p className="text-sm text-slate-500 mb-6">Ordens de servico finalizadas aguardando pagamento</p>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
+        <div>
+          <h1 className="text-xl font-bold text-slate-800 tracking-tight">NOTAS DO BALCÃO</h1>
+          <p className="text-sm text-slate-500 mt-0.5">Consulta e reimpressão das Notas do Cliente (Ordens de Serviço e Vendas do PDV)</p>
+        </div>
+        <button onClick={fetchNotas} className="btn-secondary text-xs px-3 py-2">
+          Atualizar
+        </button>
+      </div>
+
+      {erro && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-2.5 rounded-lg text-xs mb-4">{erro}</div>}
+
       {loading ? (
         <p className="text-sm text-slate-400">Carregando...</p>
-      ) : ordens.length === 0 ? (
+      ) : notas.length === 0 ? (
         <div className="card text-center py-16">
-          <p className="text-sm text-slate-400">Nenhuma cobranca pendente.</p>
+          <p className="text-sm text-slate-400">Nenhuma nota emitida ainda. As notas são emitidas automaticamente no pagamento de Ordens de Serviço e Vendas do PDV.</p>
         </div>
       ) : (
         <div className="card overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-slate-100">
-                <th className="text-left py-2.5 px-3 text-xs font-semibold text-slate-500 uppercase">OS</th>
+                <th className="text-left py-2.5 px-3 text-xs font-semibold text-slate-500 uppercase">NF</th>
+                <th className="text-left py-2.5 px-3 text-xs font-semibold text-slate-500 uppercase">Origem</th>
+                <th className="text-left py-2.5 px-3 text-xs font-semibold text-slate-500 uppercase">Ref.</th>
                 <th className="text-left py-2.5 px-3 text-xs font-semibold text-slate-500 uppercase">Cliente</th>
-                <th className="text-left py-2.5 px-3 text-xs font-semibold text-slate-500 uppercase">Moto</th>
-                <th className="text-left py-2.5 px-3 text-xs font-semibold text-slate-500 uppercase">Placa</th>
-                <th className="text-right py-2.5 px-3 text-xs font-semibold text-slate-500 uppercase">Valor</th>
                 <th className="text-left py-2.5 px-3 text-xs font-semibold text-slate-500 uppercase">Data</th>
-                <th className="text-center py-2.5 px-3 text-xs font-semibold text-slate-500 uppercase">Status</th>
+                <th className="text-right py-2.5 px-3 text-xs font-semibold text-slate-500 uppercase">Valor</th>
+                <th className="text-right py-2.5 px-3 text-xs font-semibold text-slate-500 uppercase">Ações</th>
               </tr>
             </thead>
             <tbody>
-              {ordens.map(os => (
-                <tr key={os.id} className="border-b border-slate-50 hover:bg-slate-50/50">
-                  <td className="py-2 px-3 font-medium text-brand-600">#{os.numero}</td>
-                  <td className="py-2 px-3 text-slate-700 font-medium">{os.nomeCliente}</td>
-                  <td className="py-2 px-3 text-slate-500 text-xs">{os.modeloMoto}</td>
-                  <td className="py-2 px-3 text-slate-500 text-xs">{os.placaMoto || '-'}</td>
-                  <td className="py-2 px-3 text-right font-bold text-slate-700">
-                    {fm(Number(os.valorTotal) || 0)}
-                  </td>
-                  <td className="py-2 px-3 text-xs text-slate-500">
-                    {new Date(os.createdAt).toLocaleDateString('pt-BR')}
-                  </td>
-                  <td className="py-2 px-3 text-center">
-                    <span
-                      className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold ${getStatusColor(os)}`}
-                    >
-                      {getStatusLabel(os)}
-                    </span>
-                  </td>
-                </tr>
-              ))}
+              {notas.map(n => {
+                const orig = origem(n);
+                return (
+                  <tr key={n.id} className="border-b border-slate-50 hover:bg-slate-50/50 transition-colors">
+                    <td className="py-2.5 px-3 font-mono text-brand-600 font-medium">{n.numero}</td>
+                    <td className="py-2.5 px-3">
+                      <span className={`inline-flex px-2 py-0.5 rounded text-[10px] font-bold ${badgesOrigem[orig]}`}>
+                        {orig === 'VENDA_PDV' ? 'VENDA / PDV' : 'ORDEM DE SERVIÇO'}
+                      </span>
+                    </td>
+                    <td className="py-2.5 px-3 text-slate-500 text-xs">{refDe(n)}</td>
+                    <td className="py-2.5 px-3 text-slate-700 font-medium">{clienteDe(n)}</td>
+                    <td className="py-2.5 px-3 text-xs text-slate-500">{dataExibicao(n)}</td>
+                    <td className="py-2.5 px-3 text-right font-bold text-slate-700">{fm(valorDe(n))}</td>
+                    <td className="py-2.5 px-3 text-right">
+                      <button
+                        onClick={() => imprimirNota(n)}
+                        className="text-xs text-brand-600 hover:text-brand-700 font-medium px-2 py-1 rounded hover:bg-brand-50"
+                      >
+                        Imprimir / Reimprimir
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

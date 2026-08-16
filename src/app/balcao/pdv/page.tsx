@@ -68,6 +68,10 @@ export default function BalcaoPdvPage() {
           if (!res.ok) { console.warn('[PDV] Peca nao encontrada ou erro:', pre.pecaId, res.status); continue; }
           const peca = await res.json();
           if (!peca || !peca.id || !peca.ativo) { console.warn('[PDV] Peca inativa ou invalida:', pre.pecaId); continue; }
+          if (!Number.isFinite(Number(peca.precoVenda)) || Number(peca.precoVenda) <= 0) {
+            setErro(`"${peca.nome}" não tem preço cadastrado (R$ 0,00). Corrija o cadastro antes de vender.`);
+            continue;
+          }
           novosItems.push({
             id: `${peca.id}-${Date.now()}-${Math.random().toString(36).slice(2,7)}`,
             pecaId: peca.id,
@@ -154,14 +158,35 @@ export default function BalcaoPdvPage() {
   const handleFinalizar = useCallback(async () => {
     if (itens.length === 0) return;
     setErro('');
+    // FASE 15-N: impede venda com itens sem preço (R$ 0,00) — não inventar preço
+    const semPreco = itens.filter(i => !Number.isFinite(i.precoUnitario) || i.precoUnitario <= 0);
+    if (semPreco.length > 0) {
+      setErro(`${semPreco.length} ${semPreco.length === 1 ? 'item' : 'itens'} sem preço cadastrado (R$ 0,00). Corrija o cadastro antes de vender.`);
+      return;
+    }
+    if (!Number.isFinite(total) || total <= 0) {
+      setErro('Venda sem valor (R$ 0,00). Não é possível finalizar.');
+      return;
+    }
 
     // Se pedido ja existe (re-tentativa), vai direto para pagamento
     if (pedidoId) {
+      // Atualiza cliente se preenchido (opcional, discreto)
+      if (clienteNome || clienteTelefone) {
+        try {
+          await fetch('/api/pedidos', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: pedidoId, clienteNome, clienteTelefone }),
+          });
+        } catch { /* dados do cliente sao opcionais */ }
+      }
       setPagamentoOpen(true);
       return;
     }
 
-    // FASE 5 — Fluxo em dois passos: criar pedido → mostrar cliente → usuario clica "Pagar"
+    // FLUXO DIRETO: cria pedido → abre o modal de pagamento imediatamente.
+    // Sem etapa intermediária de cliente (cliente é opcional e discreto).
     setLoading(true);
     try {
       const res = await fetch('/api/pedidos', {
@@ -198,28 +223,9 @@ export default function BalcaoPdvPage() {
     }
     setLoading(false);
 
-    // Mostrar formulario de cliente (passo 1) — pagamento so abre quando usuario clicar "Pagar"
-    setShowCliente(true);
-  }, [itens, pedidoId, clienteTelefone, clienteNome]);
-
-  // FASE 5 — Segundo passo do fluxo: usuario preenche (ou nao) dados do cliente e confirma
-  const handleIrParaPagamento = useCallback(async () => {
-    if (!pedidoId) {
-      setErro('Crie o pedido antes de pagar.');
-      return;
-    }
-    // Atualizar pedido com dados do cliente preenchidos
-    if (clienteNome || clienteTelefone) {
-      try {
-        await fetch('/api/pedidos', {
-          method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ id: pedidoId, clienteNome, clienteTelefone }),
-        });
-      } catch { /* seguir mesmo se falhar — dados do cliente sao opcionais */ }
-    }
+    // Abre o modal de pagamento direto (mesmo fluxo que antes era "Ir para Pagamento")
     setPagamentoOpen(true);
-  }, [pedidoId, clienteNome, clienteTelefone]);
+  }, [itens, pedidoId, clienteTelefone, clienteNome]);
 
   const handleConfirmarPagamento = useCallback(async (pagamentos: Pagamento[], trocoTotal: number) => {
     setPagamentoOpen(false);
@@ -267,6 +273,10 @@ export default function BalcaoPdvPage() {
       const data = await res.json();
       if (data.pecas && data.pecas.length > 0) {
         const peca = data.pecas[0];
+        if (!Number.isFinite(Number(peca.precoVenda)) || Number(peca.precoVenda) <= 0) {
+          setErro(`"${peca.nome}" não tem preço cadastrado (R$ 0,00). Corrija o cadastro antes de vender.`);
+          return;
+        }
         const novo: ItemCarrinho = {
           id: `${peca.id}-${Date.now()}`,
           pecaId: peca.id,
@@ -359,7 +369,8 @@ export default function BalcaoPdvPage() {
           </div>
         )}
 
-        {/* Cliente rapido — FASE 5: fluxo em dois passos com botao "Pagar" explicito */}
+        {/* Cliente rapido — OPCIONAL e discreto. Não bloqueia o pagamento:
+            FINALIZAR VENDA já abre o modal de pagamento direto. */}
         {showCliente && (
           <div className="mx-6 mt-3 p-4 bg-slate-50 rounded-xl border border-slate-200">
             <p className="text-xs font-bold text-slate-700 mb-3">Dados do Cliente (opcional)</p>
@@ -385,20 +396,9 @@ export default function BalcaoPdvPage() {
                 />
               </div>
             </div>
-            <div className="flex items-center gap-2 mt-3 pt-3 border-t border-slate-200">
-              <button
-                onClick={cancelarPedido}
-                className="px-4 py-2 rounded-lg text-xs font-medium text-slate-600 hover:bg-slate-100 transition-colors"
-              >
-                Cancelar
-              </button>
-              <button
-                onClick={handleIrParaPagamento}
-                className="px-6 py-2 rounded-lg text-xs font-bold bg-emerald-600 text-white hover:bg-emerald-700 transition-colors shadow-sm shadow-emerald-600/20"
-              >
-                Ir para Pagamento
-              </button>
-            </div>
+            <p className="text-[10px] text-slate-400 mt-2">
+              Os dados são opcionais. Ao finalizar a venda, o pagamento abre direto.
+            </p>
           </div>
         )}
 

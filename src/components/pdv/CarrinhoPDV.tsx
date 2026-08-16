@@ -38,6 +38,8 @@ export default function CarrinhoPDV({
   const totalGeral = subtotalGeral;
   const totalItens = itens.reduce((s, i) => s + i.quantidade, 0);
   const temReservas = itens.some(i => i.reservado);
+  // FASE 15-N: impede venda com itens sem preço (R$ 0,00) — não inventar preço
+  const itensSemPreco = itens.filter(i => !Number.isFinite(i.precoUnitario) || i.precoUnitario <= 0);
 
   const fm = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
@@ -180,11 +182,19 @@ export default function CarrinhoPDV({
             </div>
           </div>
 
+          {itensSemPreco.length > 0 && (
+            <div className="p-2.5 bg-red-50 border border-red-200 text-red-700 rounded-lg text-[11px] font-medium">
+              ⛔ {itensSemPreco.length} {itensSemPreco.length === 1 ? 'item' : 'itens'} sem preço cadastrado (R$ 0,00).
+              Corrija o cadastro antes de vender.
+            </div>
+          )}
           <button
             onClick={onFinalizar}
-            className="btn-primary w-full py-3 text-sm font-bold"
+            disabled={itensSemPreco.length > 0}
+            className="btn-primary w-full py-3 text-sm font-bold disabled:opacity-50 disabled:cursor-not-allowed"
+            title={itensSemPreco.length > 0 ? 'Impossível finalizar: há itens sem preço (R$ 0,00)' : ''}
           >
-            FINALIZAR VENDA · {fm(totalGeral)}
+            {itensSemPreco.length > 0 ? 'REMOVIDA — item sem preço' : `FINALIZAR VENDA · ${fm(totalGeral)}`}
           </button>
         </div>
       )}

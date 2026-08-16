@@ -1,5 +1,7 @@
 'use client';
 
+import { imprimirNotaVenda } from '@/lib/imprimirNotaServico';
+
 interface ItemComprovante {
   nome: string;
   codigo: string;
@@ -25,6 +27,7 @@ interface PagamentoComprovante {
 interface ComprovanteVendaProps {
   venda: {
     numero: number;
+    notaFiscal?: { numero?: string } | null;
     clienteNome?: string | null;
     clienteTelefone?: string | null;
     clienteCpf?: string | null;
@@ -32,7 +35,7 @@ interface ComprovanteVendaProps {
     descontoTotal: number;
     total: number;
     createdAt: string;
-    itens: ItemComprovante[];
+    itens: any[];
     pagamentos: PagamentoComprovante[];
   };
   onFechar: () => void;
@@ -42,15 +45,41 @@ const TIPO_LABEL: Record<string, string> = {
   DINHEIRO: 'Dinheiro', PIX: 'PIX', CARTAO_DEBITO: 'Debito', CARTAO_CREDITO: 'Credito', TRANSFERENCIA: 'Transferencia',
 };
 
+// Normaliza os itens vindos da API (VendaItem: peca.nome/peca.codigo/precoVendido)
+// para o formato de exibição (nome/codigo/precoUnitario). Aceita também o
+// formato já mapeado, para ser resiliente nos dois casos.
+function normalizarItens(itens: any[]): ItemComprovante[] {
+  return (itens || []).map(i => {
+    const precoUnit =
+      Number.isFinite(Number(i.precoUnitario)) && Number(i.precoUnitario) !== 0
+        ? Number(i.precoUnitario)
+        : Number(i.precoVendido) || 0;
+    return {
+      nome: i.nome || i.peca?.nome || '—',
+      codigo: i.codigo || i.peca?.codigo || '',
+      quantidade: Number(i.quantidade) || 0,
+      precoOriginal: Number.isFinite(Number(i.precoOriginal)) ? Number(i.precoOriginal) : precoUnit,
+      precoUnitario: precoUnit,
+      descontoPercent: Number(i.descontoPercent) || 0,
+      descontoReais: Number(i.descontoReais) || 0,
+      subtotal: Number(i.subtotal) || 0,
+      precoCusto: i.precoCusto != null ? Number(i.precoCusto) : undefined,
+      lucroUnitario: i.lucroUnitario != null ? Number(i.lucroUnitario) : undefined,
+      lucroTotal: i.lucroTotal != null ? Number(i.lucroTotal) : undefined,
+    };
+  });
+}
+
 export default function ComprovanteVenda({ venda, onFechar }: ComprovanteVendaProps) {
   const fm = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   const data = new Date(venda.createdAt);
   const dataStr = data.toLocaleDateString('pt-BR');
   const horaStr = data.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  const itens = normalizarItens(venda.itens);
 
   function gerarTermicoHTML() {
     function esc(s: string) { return (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
-    const linhasItens = venda.itens.map(i => `
+    const linhasItens = itens.map(i => `
       <div class="item">
         <div class="item-top">
           <span class="item-nome">${esc(i.nome)}</span>
@@ -66,7 +95,7 @@ export default function ComprovanteVenda({ venda, onFechar }: ComprovanteVendaPr
     `).join('');
 
     const linhasPg = venda.pagamentos.map(p => `
-      <div class="pg-item"><span>${TIPO_LABEL[p.tipo] || p.tipo}${p.bandeira ? ' (' + esc(p.bandeira) + ')' : ''}${p.parcelas ? ' ' + p.parcelas + 'x' : ''}</span><span>${fm(p.valor)}</span></div>
+      <div class="pg-item"><span>${TIPO_LABEL[p.tipo] || p.tipo}${p.bandeira ? ' (' + esc(p.bandeira) + ')' : ''}${p.parcelas ? ' ' + p.parcelas + 'x' : ''}</span><span>${fm(Number(p.valor))}</span></div>
     `).join('');
 
     return `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Venda #${venda.numero}</title><style>
@@ -81,7 +110,6 @@ export default function ComprovanteVenda({ venda, onFechar }: ComprovanteVendaPr
       .item-desc{font-size:8px;color:#c00;text-align:right}.item-sub{font-size:9px;font-weight:700;text-align:right}
       .pg-item{display:flex;justify-content:space-between;font-size:9px;padding:2px 0}
       .total{display:flex;justify-content:space-between;font-size:14px;font-weight:900;padding:4px 0}
-      .qr{text-align:center;margin:6px 0;font-size:8px}
       .footer{text-align:center;font-size:8px;margin-top:10px;padding-top:5px;border-top:1px solid #000;color:#444}
       @media print{body{width:72mm;padding:3mm}@page{margin:0}}
     </style></head><body>
@@ -96,13 +124,12 @@ export default function ComprovanteVenda({ venda, onFechar }: ComprovanteVendaPr
       <div>ITENS</div>
       ${linhasItens}
       <hr class="sep-dot">
-      ${venda.descontoTotal > 0 ? `<div style="display:flex;justify-content:space-between;font-size:8px;color:#c00"><span>Descontos</span><span>− ${fm(venda.descontoTotal)}</span></div>` : ''}
-      <div class="total"><span>TOTAL</span><span>${fm(venda.total)}</span></div>
+      ${venda.descontoTotal > 0 ? `<div style="display:flex;justify-content:space-between;font-size:8px;color:#c00"><span>Descontos</span><span>− ${fm(Number(venda.descontoTotal))}</span></div>` : ''}
+      <div class="total"><span>TOTAL</span><span>${fm(Number(venda.total))}</span></div>
       <hr class="sep-dot">
       <div>PAGAMENTO</div>
       ${linhasPg}
       <hr class="sep">
-      <div class="qr">QR Code: V${String(venda.numero).padStart(8,'0')}</div>
       <div class="footer">Marquinho Moto Pecas — ${dataStr}<br>Obrigado pela preferencia!</div>
       <script>setTimeout(function(){window.print();},300);</script>
     </body></html>`;
@@ -116,68 +143,37 @@ export default function ComprovanteVenda({ venda, onFechar }: ComprovanteVendaPr
   }
 
   function imprimirA4() {
-    const w = window.open('', '_blank', 'width=800,height=900');
-    if (!w) return;
-    function esc(s: string) { return (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
-    const linhasItens = venda.itens.map(i => `
-      <tr>
-        <td>${esc(i.codigo)}</td>
-        <td>${esc(i.nome)}</td>
-        <td class="center">${i.quantidade}</td>
-        <td class="right">${fm(i.precoUnitario)}</td>
-        <td class="right">${(i.descontoPercent > 0 || i.descontoReais > 0) ? (i.descontoPercent > 0 ? i.descontoPercent + '%' : '') + ' ' + (i.descontoReais > 0 ? fm(i.descontoReais) : '') : '-'}</td>
-        <td class="right">${fm(i.subtotal)}</td>
-      </tr>
-    `).join('');
-
-    const linhasPg = venda.pagamentos.map(p => {
-      const trocoTexto = p.troco > 0 ? ` (Troco: ${fm(p.troco)})` : '';
-      return `<tr><td colspan="3">${TIPO_LABEL[p.tipo] || p.tipo}${p.bandeira ? ' - ' + p.bandeira : ''}${p.parcelas ? ' ' + p.parcelas + 'x' : ''}${trocoTexto}</td><td class="right">${fm(p.valor)}</td></tr>`;
-    }).join('');
-
-    w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Venda #${venda.numero}</title><style>
-      *{margin:0;padding:0;box-sizing:border-box}body{font-family:"DejaVu Sans",Arial,Helvetica,sans-serif;font-size:13px;color:#222;padding:40px;line-height:1.5}
-      .header{text-align:center;margin-bottom:25px}.header h1{font-size:24px;font-weight:900;letter-spacing:-0.5px;color:#111}.header p{font-size:13px;color:#555}
-      .info{display:flex;justify-content:space-between;flex-wrap:wrap;margin-bottom:25px;padding:12px 16px;background:#f8f8f8;border-radius:8px}
-      .info div{font-size:12px}.info span{font-weight:700;color:#444}
-      table{width:100%;border-collapse:collapse;margin-bottom:18px}
-      th{background:#f2f2f2;padding:10px 8px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;border-bottom:2px solid #ccc;color:#444}
-      td{padding:8px;border-bottom:1px solid #eee;font-size:12px;color:#333}
-      .center{text-align:center}.right{text-align:right}
-      .total-row{font-size:15px;font-weight:700}.total-row td{padding:12px 8px;border-top:2px solid #333}
-      .footer{text-align:center;margin-top:35px;font-size:10px;color:#888}
-      @media print{body{padding:20px}}
-    </style></head><body>
-      <div class="header">
-        <h1>MARQUINHO MOTO PECAS</h1>
-        <p>Atacado & Varejo</p>
-      </div>
-      <div class="info">
-        <div><span>Venda:</span> #${venda.numero}</div>
-        <div><span>Data:</span> ${dataStr} ${horaStr}</div>
-        ${venda.clienteNome ? `<div><span>Cliente:</span> ${esc(venda.clienteNome)}</div>` : ''}
-        ${venda.clienteTelefone ? `<div><span>Telefone:</span> ${esc(venda.clienteTelefone)}</div>` : ''}
-        ${venda.clienteCpf ? `<div><span>CPF:</span> ${esc(venda.clienteCpf)}</div>` : ''}
-      </div>
-      <table>
-        <thead><tr><th>Codigo</th><th>Produto</th><th class="center">Qtd</th><th class="right">Preco Un.</th><th class="right">Desc.</th><th class="right">Subtotal</th></tr></thead>
-        <tbody>${linhasItens}</tbody>
-        <tfoot>
-          ${venda.descontoTotal > 0 ? `<tr><td colspan="5" class="right">Descontos</td><td class="right" style="color:#c00">− ${fm(venda.descontoTotal)}</td></tr>` : ''}
-          <tr class="total-row"><td colspan="5" class="right">TOTAL</td><td class="right">${fm(venda.total)}</td></tr>
-        </tfoot>
-      </table>
-      <h3 style="font-size:13px;margin-bottom:5px">Pagamento</h3>
-      <table><thead><tr><th colspan="3">Forma</th><th class="right">Valor</th></tr></thead><tbody>${linhasPg}</tbody></table>
-      <div class="footer">Marquinho Moto Pecas — Obrigado pela preferencia!</div>
-      <script>setTimeout(function(){window.print();},300);</script>
-    </body></html>`);
-    w.document.close();
+    // MESMA IDENTIDADE das notas de OS e NF Manual — cabeçalho/CSS/rodapé centralizados
+    imprimirNotaVenda({
+      numero: venda.numero,
+      notaNumero: venda.notaFiscal?.numero,
+      clienteNome: venda.clienteNome,
+      clienteTelefone: venda.clienteTelefone,
+      clienteCpf: venda.clienteCpf,
+      subtotal: Number(venda.subtotal) || 0,
+      descontoTotal: Number(venda.descontoTotal) || 0,
+      total: Number(venda.total) || 0,
+      createdAt: venda.createdAt,
+      itens: itens.map(i => ({
+        nome: i.nome,
+        codigo: i.codigo,
+        quantidade: i.quantidade,
+        precoUnitario: i.precoUnitario,
+        subtotal: i.subtotal,
+      })),
+      pagamentos: (venda.pagamentos || []).map(p => ({
+        tipo: p.tipo,
+        valor: Number(p.valor) || 0,
+        troco: Number(p.troco) || 0,
+        bandeira: p.bandeira,
+        parcelas: p.parcelas,
+      })),
+    });
   }
 
   function enviarWhatsApp() {
-    const linhas = venda.itens.map(i => `• ${i.nome} (${i.codigo}) — ${i.quantidade}x ${fm(i.precoUnitario)} = ${fm(i.subtotal)}`).join('\n');
-    const texto = `🧾 *MARQUINHO MOTO PEÇAS*\n*Venda #${venda.numero}*\n${dataStr} ${horaStr}\n\n${venda.clienteNome ? `*Cliente:* ${venda.clienteNome}\n` : ''}${venda.clienteTelefone ? `*Tel:* ${venda.clienteTelefone}\n` : ''}\n*Itens:*\n${linhas}\n\n${venda.descontoTotal > 0 ? `*Descontos:* −${fm(venda.descontoTotal)}\n` : ''}*TOTAL: ${fm(venda.total)}*\n\nObrigado pela preferencia! 🏍️`;
+    const linhas = itens.map(i => `• ${i.nome} (${i.codigo}) — ${i.quantidade}x ${fm(i.precoUnitario)} = ${fm(i.subtotal)}`).join('\n');
+    const texto = `🧾 *MARQUINHO MOTO PEÇAS*\n*Venda #${venda.numero}*\n${dataStr} ${horaStr}\n\n${venda.clienteNome ? `*Cliente:* ${venda.clienteNome}\n` : ''}${venda.clienteTelefone ? `*Tel:* ${venda.clienteTelefone}\n` : ''}\n*Itens:*\n${linhas}\n\n${venda.descontoTotal > 0 ? `*Descontos:* −${fm(Number(venda.descontoTotal))}\n` : ''}*TOTAL: ${fm(Number(venda.total))}*\n\nObrigado pela preferencia! 🏍️`;
     const url = `https://wa.me/?text=${encodeURIComponent(texto)}`;
     window.open(url, '_blank');
   }
@@ -213,9 +209,9 @@ export default function ComprovanteVenda({ venda, onFechar }: ComprovanteVendaPr
 
           {/* Itens */}
           <div>
-            <p className="text-[10px] text-slate-400 uppercase font-medium mb-2">Itens ({venda.itens.length})</p>
+            <p className="text-[10px] text-slate-400 uppercase font-medium mb-2">Itens ({itens.length})</p>
             <div className="space-y-1.5 max-h-48 overflow-y-auto">
-              {venda.itens.map((item, i) => (
+              {itens.map((item, i) => (
                 <div key={i} className="flex items-center justify-between p-2 rounded-lg bg-slate-50 text-xs">
                   <div className="flex-1 min-w-0">
                     <p className="font-medium text-slate-800 truncate">{item.nome}</p>
@@ -244,9 +240,9 @@ export default function ComprovanteVenda({ venda, onFechar }: ComprovanteVendaPr
                     {TIPO_LABEL[p.tipo] || p.tipo}
                     {p.bandeira && ` (${p.bandeira})`}
                     {p.parcelas && ` ${p.parcelas}x`}
-                    {p.troco > 0 && <span className="text-amber-600 ml-1">Troco: {fm(p.troco)}</span>}
+                    {Number(p.troco) > 0 && <span className="text-amber-600 ml-1">Troco: {fm(Number(p.troco))}</span>}
                   </span>
-                  <span className="font-bold text-slate-800">{fm(p.valor)}</span>
+                  <span className="font-bold text-slate-800">{fm(Number(p.valor))}</span>
                 </div>
               ))}
             </div>
@@ -255,7 +251,7 @@ export default function ComprovanteVenda({ venda, onFechar }: ComprovanteVendaPr
           {/* Total */}
           <div className="flex justify-between items-center p-3 bg-emerald-50 rounded-xl">
             <span className="text-sm font-bold text-emerald-800">TOTAL</span>
-            <span className="text-xl font-bold text-emerald-800">{fm(venda.total)}</span>
+            <span className="text-xl font-bold text-emerald-800">{fm(Number(venda.total))}</span>
           </div>
 
           {/* Botoes de impressao */}
@@ -274,13 +270,6 @@ export default function ComprovanteVenda({ venda, onFechar }: ComprovanteVendaPr
             </button>
           </div>
           <div className="grid grid-cols-2 gap-2">
-            <button
-              onClick={() => window.open(`/dono/nf-manual?refVenda=${venda.numero}`, '_blank')}
-              className="btn-secondary text-xs flex items-center justify-center gap-1 py-2.5 bg-amber-50 border-amber-200 hover:bg-amber-100 text-amber-700"
-            >
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
-              Emitir Nota Fiscal
-            </button>
             <button onClick={onFechar} className="btn-primary text-xs py-2.5">
               Nova Venda
             </button>
