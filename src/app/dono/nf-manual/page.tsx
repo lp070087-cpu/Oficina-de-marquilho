@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { imprimirNfManual } from '@/lib/imprimirNotaServico';
 
 interface ItemNF { id: string; nome: string; codigo: string; quantidade: number; valorUnitario: number; }
 
@@ -26,21 +27,21 @@ export default function NFManualPage() {
   const fm = (v:number) => v.toLocaleString('pt-BR', { style:'currency', currency:'BRL' });
 
   function imprimir() {
-    const w = window.open('','_blank','width=800,height=600');
-    if (!w) return;
-    w.document.write(`<!DOCTYPE html><html><head><title>Nota Fiscal - Marquinho</title><style>body{font-family:Arial;padding:40px;max-width:700px;margin:0 auto}.header{text-align:center;margin-bottom:30px}.header h1{font-size:20px;margin:0}.header p{font-size:12px;color:#666}.linha{border-top:1px solid #ddd;margin:15px 0}table{width:100%;border-collapse:collapse;font-size:13px}th{text-align:left;padding:8px;border-bottom:2px solid #2563eb;color:#2563eb}td{padding:8px;border-bottom:1px solid #eee}.total{text-align:right;font-size:16px;font-weight:bold;margin-top:15px}.footer{text-align:center;font-size:11px;color:#999;margin-top:40px}</style></head><body>
-<div class="header"><h1>Marquinho Moto Pecas</h1><p>Nota Fiscal Manual</p><p>CNPJ: 00.000.000/0001-00</p></div>
-<div class="linha"></div>
-<p><strong>Cliente:</strong> ${cliente||'---'}</p><p><strong>CPF/CNPJ:</strong> ${cpf||'---'}</p><p><strong>Endereco:</strong> ${endereco||'---'}</p>
-<div class="linha"></div>
-<table><thead><tr><th>Produto</th><th>Codigo</th><th>Qtd</th><th>Vlr Unit</th><th>Total</th></tr></thead>
-<tbody>${itens.map(i=>`<tr><td>${i.nome}</td><td>${i.codigo||'-'}</td><td>${i.quantidade}</td><td>${fm(i.valorUnitario)}</td><td>${fm(i.valorUnitario*i.quantidade)}</td></tr>`).join('')}</tbody></table>
-<p class="total">Total: ${fm(total)}</p>
-${obs?`<p><strong>Obs:</strong> ${obs}</p>`:''}
-<div class="footer"><p>Data: ${new Date().toLocaleDateString('pt-BR')}</p><p>Marquinho Moto Pecas - Atacado & Varejo</p></div>
-</body></html>`);
-    w.document.close();
-    setTimeout(() => w.print(), 500);
+    // Mesma identidade visual das demais notas (cabeçalho oficial + rodapé sem SEFAZ)
+    imprimirNfManual({
+      numero: new Date().getTime().toString().slice(-6),
+      cliente,
+      cpfCnpj: cpf,
+      endereco,
+      observacoes: obs,
+      itens: itens.map(i => ({
+        nome: i.nome,
+        codigo: i.codigo,
+        quantidade: i.quantidade,
+        valorUnitario: i.valorUnitario,
+      })),
+      total,
+    });
   }
 
   return (

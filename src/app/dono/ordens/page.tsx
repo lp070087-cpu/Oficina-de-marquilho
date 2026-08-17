@@ -1,18 +1,22 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { imprimirNotaServico } from '@/lib/imprimirNotaServico';
 
 interface Peca { id: string; nome: string; codigo: string; precoVenda: number; quantidade: number; compatibilidade?: string; categoria: { nome: string }; }
 interface ItemOS { id: string; peca: Peca; quantidade: number; precoUnitario: number; adaptado?: boolean; }
 interface Mecanico { id: string; name: string; emAlmoco: boolean; }
+interface ServicoOS { id: string; nome: string; valor: number; }
 interface OS {
   id: string; numero: number; nomeCliente: string; telefoneCliente: string;
   modeloMoto: string; placaMoto?: string; anoMoto?: string;
   descricaoProblema: string; diagnostico?: string; tipoServico?: string;
   status: string; valorTotal: number; valorMaoDeObra: number;
   mecanico?: Mecanico; mecanicoId?: string; balcao?: { name: string };
-  itens: ItemOS[]; notaFiscal?: { id: string; numero: string; chaveAcesso?: string; emitidaEm: string };
+  itens: ItemOS[]; notaFiscal?: { id: string; numero: string; chaveAcesso?: string; dataServico?: string; emitidaEm: string };
   statusPagamento?: string | null; formaPagamento?: string | null;
+  servicos?: ServicoOS[]; inicioServico?: string | null; fimServico?: string | null;
+  desconto?: number;
 }
 
 const TIPOS_SERVICO = ['Revisao', 'Troca de oleo', 'Eletrica', 'Suspensao', 'Freios', 'Motor', 'Transmissao', 'Pneus', 'Geral'];
@@ -163,6 +167,7 @@ function DetalheOS({ os, onClose }: { os: OS; onClose: () => void }) {
   const [mostrarTodas, setMostrarTodas] = useState(false);
   const [nfNumero, setNfNumero] = useState('');
   const [nfChave, setNfChave] = useState('');
+  const [nfDataServico, setNfDataServico] = useState('');
   const [msg, setMsg] = useState('');
   const [dados, setDados] = useState<OS>(os);
 
@@ -170,7 +175,12 @@ function DetalheOS({ os, onClose }: { os: OS; onClose: () => void }) {
     const p = new URLSearchParams(); if (dados.modeloMoto&&!todas) p.set('modelo',dados.modeloMoto); if (todas) p.set('todas','1');
     const res = await fetch(`/api/pecas?${p}`); setPecas(await res.json());
   };
-  useEffect(()=>{ fetch('/api/mecanicos').then(r=>r.json()).then(setMecanicos).catch(()=>{}); carregarPecas(false); },[]);
+  // Recarrega o detalhe completo da OS (servicos, inicioServico, fimServico, notaFiscal) para a reimpressão ter dados atuais
+  const carregarDetalhe = async () => {
+    const res = await fetch(`/api/ordens/${dados.id}`);
+    if (res.ok) { const u = await res.json(); if (u && u.id) setDados(u); }
+  };
+  useEffect(()=>{ fetch('/api/mecanicos').then(r=>r.json()).then(setMecanicos).catch(()=>{}); carregarPecas(false); carregarDetalhe(); },[]);
   function toggleMostrarTodas(){const n=!mostrarTodas;setMostrarTodas(n);carregarPecas(n);}
 
   const formatMoney=(v:number)=>v.toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
@@ -180,9 +190,37 @@ function DetalheOS({ os, onClose }: { os: OS; onClose: () => void }) {
   async function atualizarStatus(){const mdo=(document.getElementById('maoDeObraStatus')as HTMLInputElement);const v=mdo?parseFloat(mdo.value)||0:undefined;const res=await fetch(`/api/ordens/${dados.id}/status`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:novoStatus,mecanicoId:mecId||null,diagnostico:diagnostico||null,valorMaoDeObra:v})});if(res.ok){const u=await res.json();setDados(u);setMsg('');}else{const e=await res.json();setMsg(e.error||'Erro.');}}
   async function addItem(){if(!pecaId)return;const res=await fetch(`/api/ordens/${dados.id}/itens`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({pecaId,quantidade:Number(qtd)||1})});if(res.ok){const u=await res.json();setDados(u);setPecaId('');setQtd('1');setMsg('');}else{const e=await res.json();setMsg(e.error||'Erro ao adicionar peca.');}}
   async function removeItem(itemId:string){const res=await fetch(`/api/ordens/${dados.id}/itens`,{method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({itemId})});if(res.ok){const u=await res.json();setDados(u);}}
-  async function emitirNF(){if(!nfNumero){setMsg('Informe o numero da nota.');return;}const res=await fetch('/api/notas',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ordemServicoId:dados.id,numero:nfNumero,chaveAcesso:nfChave||null})});if(res.ok){const nf=await res.json();setDados({...dados,notaFiscal:{id:nf.id,numero:nf.numero,emitidaEm:nf.emitidaEm}});setNfNumero('');setNfChave('');setMsg('');}else{const e=await res.json();setMsg(e.error||'Erro ao emitir NF.');}}
+  async function emitirNF(){if(!nfNumero){setMsg('Informe o numero da nota.');return;}const res=await fetch('/api/notas',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({ordemServicoId:dados.id,numero:nfNumero,chaveAcesso:nfChave||null,dataServico:nfDataServico||null})});if(res.ok){const nf=await res.json();setDados({...dados,notaFiscal:{id:nf.id,numero:nf.numero,dataServico:nf.dataServico||nf.emitidaEm,emitidaEm:nf.emitidaEm}});setNfNumero('');setNfChave('');setNfDataServico('');setMsg('');}else{const e=await res.json();setMsg(e.error||'Erro ao emitir NF.');}}
+  async function atualizarDataServico(){if(!dados.notaFiscal)return;const dataEdit=(document.getElementById('nfDataServicoEdit')as HTMLInputElement);if(!dataEdit||!dataEdit.value){setMsg('Informe a data do servico.');return;}const res=await fetch('/api/notas',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({ordemServicoId:dados.id,dataServico:dataEdit.value})});if(res.ok){const nf=await res.json();setDados({...dados,notaFiscal:{id:nf.id,numero:nf.numero,dataServico:nf.dataServico||nf.emitidaEm,emitidaEm:nf.emitidaEm}});setMsg('');}else{const e=await res.json();setMsg(e.error||'Erro ao atualizar data do servico.');}}
   function linkWhatsApp(){const texto=encodeURIComponent(`Ola ${dados.nomeCliente}! Sua OS #${dados.numero} - ${dados.modeloMoto}. Valor: ${formatMoney(Number(dados.valorTotal))}. ${dados.notaFiscal?`NF: ${dados.notaFiscal.numero}`:''}`);window.open(`https://wa.me/55${dados.telefoneCliente.replace(/\D/g,'')}?text=${texto}`,'_blank');}
-  function imprimirNF(){if(!dados.notaFiscal)return;const w=window.open('','_blank','width=800,height=900');if(!w)return;function esc(s:string){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}const emitida=new Date(dados.notaFiscal.emitidaEm);const dataNF=emitida.toLocaleDateString('pt-BR');const linhasItens=dados.itens.map(i=>`<tr><td>${esc(i.peca.codigo||'')}</td><td>${esc(i.peca.nome)}</td><td class="center">${i.quantidade}</td><td class="right">${formatMoney(Number(i.precoUnitario))}</td><td class="right">${formatMoney(Number(i.precoUnitario)*i.quantidade)}</td></tr>`).join('');w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>NF ${esc(dados.notaFiscal.numero)}</title><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:"DejaVu Sans",Arial,Helvetica,sans-serif;font-size:13px;color:#222;padding:40px;line-height:1.5}.header{text-align:center;margin-bottom:25px}.header h1{font-size:22px;font-weight:900;letter-spacing:-0.5px;color:#111}.header p{font-size:12px;color:#555}.info{display:flex;justify-content:space-between;flex-wrap:wrap;margin-bottom:20px;padding:12px 16px;background:#f8f8f8;border-radius:8px}.info div{font-size:12px}.info span{font-weight:700;color:#444}.section-title{font-size:14px;font-weight:700;margin:18px 0 8px;color:#333}table{width:100%;border-collapse:collapse;margin-bottom:16px}th{background:#f2f2f2;padding:9px 8px;text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:0.5px;border-bottom:2px solid #ccc;color:#444}td{padding:7px 8px;border-bottom:1px solid #eee;font-size:12px;color:#333}.center{text-align:center}.right{text-align:right}.totais{width:280px;margin-left:auto}.totais table td{padding:5px 8px;border:none}.totais tr.total td{font-size:15px;font-weight:700;border-top:2px solid #333;padding-top:8px}.footer{text-align:center;margin-top:35px;font-size:10px;color:#888}@media print{body{padding:20px}}</style></head><body><div class="header"><h1>MARQUINHO MOTO PECAS</h1><p>Nota Fiscal de Servico</p></div><div class="info"><div><span>NF:</span> ${esc(dados.notaFiscal.numero)}</div><div><span>Emissao:</span> ${dataNF}</div><div><span>OS:</span> #${dados.numero}</div>${dados.notaFiscal.chaveAcesso?`<div style="width:100%;margin-top:6px"><span>Chave:</span> ${esc(dados.notaFiscal.chaveAcesso)}</div>`:''}</div><div class="section-title">Dados do Cliente</div><div class="info"><div><span>Cliente:</span> ${esc(dados.nomeCliente)}</div><div style="margin-left:20px"><span>Telefone:</span> ${esc(dados.telefoneCliente)}</div></div><div class="section-title">Veiculo</div><div class="info"><div><span>Moto:</span> ${esc(dados.modeloMoto)}</div>${dados.placaMoto?`<div style="margin-left:20px"><span>Placa:</span> ${esc(dados.placaMoto)}</div>`:''}${dados.anoMoto?`<div style="margin-left:20px"><span>Ano:</span> ${esc(dados.anoMoto)}</div>`:''}${dados.tipoServico?`<div><span>Servico:</span> ${esc(dados.tipoServico)}</div>`:''}</div><div class="section-title">Pecas e Servicos</div><table><thead><tr><th>Codigo</th><th>Produto</th><th class="center">Qtd</th><th class="right">Unit.</th><th class="right">Subtotal</th></tr></thead><tbody>${linhasItens||'<tr><td colspan="5" style="text-align:center;color:#999">Nenhum item</td></tr>'}</tbody></table><div class="totais"><table><tr><td class="right">Mao de obra</td><td class="right">${formatMoney(Number(dados.valorMaoDeObra))}</td></tr><tr class="total"><td class="right">TOTAL</td><td class="right">${formatMoney(Number(dados.valorTotal))}</td></tr></table></div><div class="footer">Marquinho Moto Pecas — ${dataNF}<br>Obrigado pela preferencia!</div><script>setTimeout(function(){window.print();},300);</script></body></html>`);w.document.close();}
+  const [emitindoNF, setEmitindoNF] = useState(false);
+  async function emitirEImprimirNF(){
+    if (emitindoNF) return;
+    setEmitindoNF(true);
+    setMsg('');
+    try {
+      let nf = dados.notaFiscal;
+      if (!nf) {
+        const res = await fetch('/api/notas', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ordemServicoId: dados.id, dataServico: null }),
+        }).catch(() => null);
+        const data = await res?.json();
+        if (!res || res.status !== 201 || !data?.id) {
+          setMsg(data?.error || 'Erro ao emitir a nota.');
+          return;
+        }
+        nf = { id: data.id, numero: data.numero, chaveAcesso: data.chaveAcesso, dataServico: data.dataServico, emitidaEm: data.emitidaEm };
+        setDados({ ...dados, notaFiscal: nf });
+      }
+      imprimirNotaServico({ ...(dados as any), notaFiscal: nf });
+    } catch {
+      setMsg('Erro ao emitir a nota.');
+    } finally {
+      setEmitindoNF(false);
+    }
+  }
 
   const pecasOrdenadas=[...pecas].sort((a,b)=>{const ba=getCompatBadge(a,dados.modeloMoto);const bb=getCompatBadge(b,dados.modeloMoto);const o={'Compativel':0,'Universal':1,'Adaptada':2};return(o[ba.label as keyof typeof o]??3)-(o[bb.label as keyof typeof o]??3);});
   const qtdCompativeis=pecas.filter(p=>getCompatBadge(p,dados.modeloMoto).label!=='Adaptada').length;
@@ -200,22 +238,22 @@ function DetalheOS({ os, onClose }: { os: OS; onClose: () => void }) {
         </div>
 
         <div className="flex border-b border-slate-100 flex-shrink-0">
-          {['itens','status','nf'].map(t=>(<button key={t} onClick={()=>setTab(t as any)} className={`px-4 py-2 text-xs font-medium border-b-2 transition-colors ${tab===t?'border-brand-600 text-brand-600':'border-transparent text-slate-500 hover:text-slate-700'}`}>{t==='itens'?'Pecas':t==='status'?'Status':'Nota Fiscal'}</button>))}
+          <button className="px-4 py-2 text-xs font-medium border-b-2 border-brand-600 text-brand-600">
+            Peças e Valores
+          </button>
         </div>
 
         <div className="p-5 overflow-y-auto flex-1">
           {msg&&<div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded text-xs mb-4">{msg}</div>}
-          {tab==='itens'&&(<div>
+          <div>
             <div className="flex items-center justify-between mb-3 p-2.5 bg-slate-50 rounded-lg text-xs"><span className="text-slate-600">Mostrando <strong className="text-slate-800">{qtdCompativeis}</strong> pecas compativeis com <strong className="text-brand-600">{dados.modeloMoto}</strong></span><button onClick={toggleMostrarTodas} className={`text-xs font-medium px-3 py-1 rounded transition-colors ${mostrarTodas?'bg-amber-100 text-amber-700 hover:bg-amber-200':'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'}`}>{mostrarTodas?'Mostrar so compativeis':'Mostrar outras pecas / Adaptar'}</button></div>
             <div className="flex gap-2 mb-4"><select value={pecaId} onChange={e=>setPecaId(e.target.value)} className="input-field flex-1 text-xs"><option value="">Selecionar peca...</option>{pecasOrdenadas.map(p=>{const badge=getCompatBadge(p,dados.modeloMoto);return(<option key={p.id} value={p.id}>{p.codigo} - {p.nome} ({formatMoney(Number(p.precoVenda))}) [{badge.label}]</option>);})}</select><input type="number" value={qtd} onChange={e=>setQtd(e.target.value)} className="input-field w-20 text-xs" min="1"/><button onClick={addItem} className="btn-primary text-xs px-3">+</button></div>
             {dados.itens.length===0?(<p className="text-xs text-slate-400 py-4">Nenhuma peca adicionada.</p>):(<table className="w-full text-xs"><thead><tr className="border-b border-slate-100"><th className="text-left py-2 font-medium text-slate-500">Peca</th><th className="text-center py-2 font-medium text-slate-500 w-[80px]">Compat.</th><th className="text-right py-2 font-medium text-slate-500">Qtd</th><th className="text-right py-2 font-medium text-slate-500">Unit.</th><th className="text-right py-2 font-medium text-slate-500">Total</th><th className="text-right py-2 font-medium text-slate-500"></th></tr></thead><tbody>{dados.itens.map(i=>{const badge=getCompatBadge(i.peca,dados.modeloMoto);const isAdaptado=i.adaptado||badge.label==='Adaptada';const bl=isAdaptado?'Adaptada':badge.label;const bc=isAdaptado?'bg-amber-50 text-amber-700 border-amber-200':badge.color;return(<tr key={i.id} className="border-b border-slate-50"><td className="py-1.5 text-slate-700">{i.peca.nome}</td><td className="py-1.5 text-center"><span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium border ${bc}`}>{bl}</span></td><td className="py-1.5 text-right">{i.quantidade}</td><td className="py-1.5 text-right text-slate-500">{formatMoney(Number(i.precoUnitario))}</td><td className="py-1.5 text-right font-medium">{formatMoney(Number(i.precoUnitario)*i.quantidade)}</td><td className="py-1.5 text-right"><button onClick={()=>removeItem(i.id)} className="text-red-500 hover:text-red-700 text-[11px]">Remover</button></td></tr>);})}</tbody><tfoot><tr><td colSpan={3}></td><td className="py-1.5 text-right text-xs text-slate-500">Mao de obra</td><td className="py-1.5 text-right text-sm text-slate-700">{formatMoney(Number(dados.valorMaoDeObra))}</td><td></td></tr><tr className="font-semibold"><td colSpan={4} className="py-2 text-right text-xs text-slate-500 border-t border-slate-100">Total</td><td className="py-2 text-right text-sm text-slate-800 border-t border-slate-100">{formatMoney(Number(dados.valorTotal))}</td><td className="border-t border-slate-100"></td></tr></tfoot></table>)}
             <div className="mt-4 flex items-center gap-2 p-3 bg-slate-50 rounded-lg"><span className="text-xs text-slate-500 font-medium">Mao de obra:</span><input type="number" step="0.01" defaultValue={Number(dados.valorMaoDeObra)} onBlur={async(e)=>{const v=parseFloat(e.target.value)||0;const res=await fetch(`/api/ordens/${dados.id}/status`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:dados.status,valorMaoDeObra:v})});if(res.ok){const u=await res.json();setDados(u);}}} className="input-field w-32 text-xs" placeholder="0,00"/></div>
-          </div>)}
-          {tab==='status'&&(<div className="space-y-3"><div><label className="text-xs font-medium text-slate-600">Status</label><select value={novoStatus} onChange={e=>setNovoStatus(e.target.value)} className="input-field mt-1 text-xs">{['ABERTA','EM_ANDAMENTO','AGUARDANDO_PECAS','PRONTA','CONCLUIDA','CANCELADA'].map(s=>(<option key={s} value={s}>{statusLabel[s]}</option>))}</select></div><div><label className="text-xs font-medium text-slate-600">Mecanico</label><select value={mecId} onChange={e=>setMecId(e.target.value)} className="input-field mt-1 text-xs"><option value="">Nao atribuido</option>{mecanicos.map(m=>(<option key={m.id} value={m.id}>{m.name}{m.emAlmoco?' (Almoco)':''}</option>))}</select></div><div><label className="text-xs font-medium text-slate-600">Mao de obra (R$)</label><input type="number" step="0.01" defaultValue={Number(dados.valorMaoDeObra)} id="maoDeObraStatus" className="input-field mt-1 text-xs"/></div><div><label className="text-xs font-medium text-slate-600">Diagnostico</label><textarea value={diagnostico} onChange={e=>setDiagnostico(e.target.value)} className="input-field mt-1 text-xs" rows={3}/></div><button onClick={atualizarStatus} className="btn-primary text-xs">Atualizar</button></div>)}
-          {tab==='nf'&&(<div className="space-y-3">{dados.notaFiscal?(<div className="bg-emerald-50 border border-emerald-200 rounded-lg p-4 text-sm"><p className="font-medium text-emerald-800">Nota Fiscal #{dados.notaFiscal.numero}</p><p className="text-xs text-emerald-600 mt-1">Emitida em {new Date(dados.notaFiscal.emitidaEm).toLocaleDateString('pt-BR')}</p><div className="mt-3 flex items-center gap-2"><button onClick={imprimirNF} className="inline-flex items-center gap-1.5 text-xs font-medium text-white bg-brand-600 hover:bg-brand-700 px-3 py-1.5 rounded transition-colors"><svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>Imprimir NF</button><button onClick={linkWhatsApp} className="inline-flex items-center gap-1.5 text-xs font-medium text-white bg-emerald-600 hover:bg-emerald-700 px-3 py-1.5 rounded transition-colors">WhatsApp</button></div></div>):(<><div><label className="text-xs font-medium text-slate-600">Numero da NF</label><input value={nfNumero} onChange={e=>setNfNumero(e.target.value)} className="input-field mt-1 text-xs"/></div><div><label className="text-xs font-medium text-slate-600">Chave de acesso</label><input value={nfChave} onChange={e=>setNfChave(e.target.value)} className="input-field mt-1 text-xs"/></div><button onClick={emitirNF} className="btn-primary text-xs">Emitir NF</button></>)}</div>)}
+          </div>
         </div>
 
-        <div className="p-4 border-t border-slate-100 flex items-center justify-between flex-shrink-0"><span className={`inline-block px-2 py-0.5 rounded text-[11px] font-medium border ${statusColor[dados.status]}`}>{statusLabel[dados.status]}</span><div className="flex items-center gap-3"><span className="text-sm text-slate-500">Tel: {dados.telefoneCliente}</span><button onClick={linkWhatsApp} className="text-xs font-medium text-emerald-600 hover:text-emerald-700">WhatsApp</button></div></div>
+        <div className="p-4 border-t border-slate-100 flex items-center justify-between flex-shrink-0"><span className={`inline-block px-2 py-0.5 rounded text-[11px] font-medium border ${statusColor[dados.status]}`}>{statusLabel[dados.status]}</span><div className="flex items-center gap-3 flex-wrap"><span className="text-sm text-slate-500">Tel: {dados.telefoneCliente}</span><button onClick={emitirEImprimirNF} disabled={emitindoNF} className="text-xs font-medium text-brand-600 hover:text-brand-700 disabled:opacity-50">{emitindoNF ? 'Emitindo...' : dados.notaFiscal ? 'Nota do Cliente' : 'Emitir Nota do Cliente'}</button><button onClick={linkWhatsApp} className="text-xs font-medium text-emerald-600 hover:text-emerald-700">WhatsApp</button></div></div>
       </div>
     </div>
   );

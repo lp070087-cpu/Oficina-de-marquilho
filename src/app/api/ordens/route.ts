@@ -18,6 +18,7 @@ export async function GET(req: NextRequest) {
         itens: { include: { peca: true } },
         fotos: true,
         assinatura: true,
+        notaFiscal: true,
       },
       orderBy: { createdAt: 'desc' },
       take: 200,

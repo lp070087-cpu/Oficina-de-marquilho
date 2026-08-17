@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import PagamentoModal from '@/components/pdv/PagamentoModal';
+import { imprimirNotaServico } from '@/lib/imprimirNotaServico';
 
 interface Peca {
   id: string; nome: string; codigo: string; codigoBarras?: string; precoVenda: number;
@@ -12,19 +13,23 @@ interface ItemOS {
   id: string; peca: Peca; quantidade: number; precoUnitario: number; adaptado?: boolean;
 }
 interface Mecanico { id: string; name: string; emAlmoco: boolean; }
+interface ServicoBalcao { id?: string; nome?: string; valor?: number | string; }
 export interface OS {
   id: string; numero: number; nomeCliente: string; telefoneCliente: string;
   modeloMoto: string; placaMoto?: string; anoMoto?: string;
   descricaoProblema: string; diagnostico?: string; status: string;
   valorTotal: number; valorMaoDeObra: number;
+  desconto?: number;
   mecanico?: Mecanico; mecanicoId?: string; balcao?: { name: string };
   itens: ItemOS[];
-  notaFiscal?: { id: string; numero: string; emitidaEm: string };
+  servicos?: ServicoBalcao[] | null;
+  notaFiscal?: { id: string; numero: string; chaveAcesso?: string | null; dataServico?: string | null; emitidaEm: string };
   statusPagamento?: string | null; formaPagamento?: string | null;
   valorPago?: number | null; dataPagamento?: string | null;
   usuarioPagamento?: string | null;
   createdAt?: string;
   tipoServico?: string;
+  inicioServico?: string | null; fimServico?: string | null;
 }
 
 function getCompatBadge(peca: Peca, modeloMoto: string): { label: string; color: string } {
@@ -54,6 +59,7 @@ export default function DetalheOSBalcao({ os: initialOS, onClose }: { os: OS; on
 
   const pecaInputRef = useRef<HTMLInputElement>(null);
   const pecaDropdownRef = useRef<HTMLDivElement>(null);
+  const carregarReqRef = useRef(0); // Guarda contra race condition entre buscas
 
   // Pagamento
   const [pagamentoOpen, setPagamentoOpen] = useState(false);
@@ -75,12 +81,27 @@ export default function DetalheOSBalcao({ os: initialOS, onClose }: { os: OS; on
     const p = new URLSearchParams();
     if (dados.modeloMoto && !todas) p.set('modelo', dados.modeloMoto);
     if (todas) p.set('todas', '1');
-    try { const r = await fetch(`/api/pecas?${p}`); const d = await r.json(); setPecas(Array.isArray(d) ? d : []); } catch {}
+    const reqId = ++carregarReqRef.current; // Incrementa e captura o id desta chamada
+    try {
+      const r = await fetch(`/api/pecas?${p}`);
+      // Respostas fora de ordem são ignoradas (race condition)
+      if (reqId !== carregarReqRef.current) return;
+      const d = await r.json();
+      if (reqId !== carregarReqRef.current) return;
+      setPecas(Array.isArray(d) ? d : []);
+    } catch {
+      if (reqId === carregarReqRef.current) setPecas([]);
+    }
   }, [dados.modeloMoto]);
 
   useEffect(() => {
-    fetch('/api/mecanicos').then(r => r.json()).then(setMecanicos).catch(() => {});
+    fetch('/api/mecanicos').then(r => r.json()).then(d => { if (Array.isArray(d)) setMecanicos(d); }).catch(() => {});
     carregarPecas(false);
+    // Recarrega o detalhe completo (notaFiscal, servicos, inicio/fim) para impressão da Nota de Serviço
+    fetch(`/api/ordens/${dados.id}`)
+      .then(r => (r.ok ? r.json() : null))
+      .then(u => { if (u && u.id) setDados(prev => ({ ...prev, ...u })); })
+      .catch(() => {});
   }, [carregarPecas]);
 
   // Click outside para fechar dropdown
@@ -108,40 +129,70 @@ export default function DetalheOSBalcao({ os: initialOS, onClose }: { os: OS; on
 
   // Filtrar conforme busca no autocomplete
   // Busca unificada: Nome, SKU, Codigo de Barras
-  const pecasFiltradas = pecaBusca
-    ? pecasOrdenadas.filter(p =>
-        p.nome.toLowerCase().includes(pecaBusca.toLowerCase()) ||
-        p.codigo.toLowerCase().includes(pecaBusca.toLowerCase()) ||
-        (p.codigoBarras || '').toLowerCase().includes(pecaBusca.toLowerCase())
-      ).slice(0, 15)
-    : pecasOrdenadas.slice(0, 15);
+  const pecasFiltradas = useMemo(() => {
+    const termo = pecaBusca.trim().toLowerCase();
+    const base = termo
+      ? pecasOrdenadas.filter(p =>
+          p.nome.toLowerCase().includes(termo) ||
+          p.codigo.toLowerCase().includes(termo) ||
+          (p.codigoBarras || '').toLowerCase().includes(termo)
+        )
+      : pecasOrdenadas;
+    return base.slice(0, 15);
+  }, [pecasOrdenadas, pecaBusca]);
 
-  const qtdCompativeis = pecas.filter(p => getCompatBadge(p, dados.modeloMoto).label !== 'Adaptada').length;
+  // Mapa id → peça para consulta de estoque sem .find() por linha
+  const pecasPorId = useMemo(() => {
+    const m = new Map<string, Peca>();
+    pecas.forEach(p => m.set(p.id, p));
+    return m;
+  }, [pecas]);
+
+  const qtdCompativeis = useMemo(
+    () => pecas.filter(p => getCompatBadge(p, dados.modeloMoto).label !== 'Adaptada').length,
+    [pecas, dados.modeloMoto]
+  );
+
+  // Guarda de envio: evita POST duplicado enquanto a API responde
+  const [pecasAbrindo, setPecasAbrindo] = useState<string[]>([]);
 
   async function addItem(pecaId: string) {
     if (!pecaId) return;
-    const r = await fetch(`/api/ordens/${dados.id}/itens`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ pecaId, quantidade: Number(qtd) || 1 }),
-    }).catch(() => null);
-    if (r) {
+    if (pecasAbrindo.includes(pecaId)) return; // evita POST duplicado
+    setPecasAbrindo(prev => [...prev, pecaId]);
+    setMsg('');
+    try {
+      const r = await fetch(`/api/ordens/${dados.id}/itens`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pecaId, quantidade: Number(qtd) || 1 }),
+      }).catch(() => null);
+      if (!r) { setMsg('Erro ao adicionar peca.'); return; }
       const u = await r.json();
-      setDados(u);
+      if (!r.ok) { setMsg(u?.error || 'Erro ao adicionar peca.'); return; }
+      // API de itens NÃO retorna notaFiscal/statusPagamento — preserva o estado atual
+      setDados(prev => ({ ...prev, ...u }));
       setPecaBusca('');
       setQtd('1');
       setPecaAberta(false);
-      setMsg('');
-    } else {
-      setMsg('Erro ao adicionar peca.');
+    } finally {
+      setPecasAbrindo(prev => prev.filter(id => id !== pecaId));
     }
   }
 
   async function removeItem(itemId: string) {
-    const r = await fetch(`/api/ordens/${dados.id}/itens`, {
-      method: 'DELETE', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ itemId }),
-    }).catch(() => null);
-    if (r) { const u = await r.json(); setDados(u); }
+    setMsg('');
+    try {
+      const r = await fetch(`/api/ordens/${dados.id}/itens`, {
+        method: 'DELETE', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ itemId }),
+      }).catch(() => null);
+      if (!r) { setMsg('Erro ao remover peca.'); return; }
+      const u = await r.json();
+      if (!r.ok) { setMsg(u?.error || 'Erro ao remover peca.'); return; }
+      setDados(prev => ({ ...prev, ...u }));
+    } catch {
+      setMsg('Erro ao remover peca.');
+    }
   }
 
   async function atualizarRevisao() {
@@ -149,8 +200,11 @@ export default function DetalheOSBalcao({ os: initialOS, onClose }: { os: OS; on
     const r = await fetch(`/api/ordens/${dados.id}/status`, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: dados.status, valorMaoDeObra: v }),
-    });
-    if (r?.ok) { const u = await r.json(); setDados(u); }
+    }).catch(() => null);
+    if (!r) { setMsg('Erro ao salvar revisao.'); return; }
+    const u = await r.json();
+    if (!r.ok) { setMsg(u?.error || 'Erro ao salvar revisao.'); return; }
+    setDados(prev => ({ ...prev, ...u }));
   }
 
   async function finalizarServico() {
@@ -163,13 +217,11 @@ export default function DetalheOSBalcao({ os: initialOS, onClose }: { os: OS; on
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
     }).catch(() => null);
-    if (r) {
-      const u = await r.json();
-      setDados(u);
-      setMsgOk('Servico finalizado! AGUARDANDO PAGAMENTO PARA LIBERACAO DA MOTO.');
-    } else {
-      setMsg('Erro ao finalizar servico.');
-    }
+    if (!r) { setMsg('Erro ao finalizar servico.'); return; }
+    const u = await r.json();
+    if (!r.ok) { setMsg(u?.error || 'Erro ao finalizar servico.'); return; }
+    setDados(prev => ({ ...prev, ...u }));
+    setMsgOk('Servico finalizado! AGUARDANDO PAGAMENTO PARA LIBERACAO DA MOTO.');
   }
 
   async function liberarMoto() {
@@ -178,13 +230,11 @@ export default function DetalheOSBalcao({ os: initialOS, onClose }: { os: OS; on
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ statusPagamento: 'ENTREGUE', status: 'CONCLUIDA' }),
     }).catch(() => null);
-    if (r) {
-      const u = await r.json();
-      setDados(u);
-      setMsgOk('Moto entregue! OS encerrada.');
-    } else {
-      setMsg('Erro ao liberar moto.');
-    }
+    if (!r) { setMsg('Erro ao liberar moto.'); return; }
+    const u = await r.json();
+    if (!r.ok) { setMsg(u?.error || 'Erro ao liberar moto.'); return; }
+    setDados(prev => ({ ...prev, ...u }));
+    setMsgOk('Moto entregue! OS encerrada.');
   }
 
   async function receberPagamento(pagamentos: any[], trocoTotal: number) {
@@ -270,6 +320,43 @@ export default function DetalheOSBalcao({ os: initialOS, onClose }: { os: OS; on
     setPagandoOS(false);
   }
 
+  // ============================================================
+  // NOTA DO CLIENTE (OS) — DOCUMENTO 2
+  //  - Se a OS já tem nota → reimprime com os dados atuais.
+  //  - Se NÃO tem → emite automaticamente (POST /api/notas, número
+  //    gerado OS-XXXX) e imprime na sequência.
+  //  - Data do Serviço preservada da OS (reimpressão nunca altera).
+  // ============================================================
+  const [emitindoNF, setEmitindoNF] = useState(false);
+
+  async function emitirEImprimirNF() {
+    if (emitindoNF) return;
+    setEmitindoNF(true);
+    setMsg('');
+    try {
+      let nf = dados.notaFiscal;
+      if (!nf) {
+        const res = await fetch('/api/notas', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ordemServicoId: dados.id, dataServico: null }),
+        }).catch(() => null);
+        const data = await res?.json();
+        if (!res || res.status !== 201 || !data?.id) {
+          setMsg(data?.error || 'Erro ao emitir a nota. Tente novamente.');
+          return;
+        }
+        nf = { id: data.id, numero: data.numero, chaveAcesso: data.chaveAcesso, dataServico: data.dataServico, emitidaEm: data.emitidaEm };
+        setDados(prev => ({ ...prev, notaFiscal: nf }));
+      }
+      imprimirNotaServico({ ...(dados as any), notaFiscal: nf });
+    } catch {
+      setMsg('Erro ao emitir a nota.');
+    } finally {
+      setEmitindoNF(false);
+    }
+  }
+
   function imprimirNotaMecanico() {
     const w = window.open('', '_blank', 'width=320,height=700');
     if (!w) return;
@@ -307,7 +394,7 @@ export default function DetalheOSBalcao({ os: initialOS, onClose }: { os: OS; on
 
   return (
     <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl border border-slate-200 shadow-xl w-full max-w-3xl max-h-[90vh] flex flex-col">
+      <div className="bg-white rounded-xl border border-slate-200 shadow-xl w-full max-w-5xl max-h-[95vh] flex flex-col">
         {/* Header */}
         <div className="p-5 border-b border-slate-100 flex items-center justify-between flex-shrink-0">
           <div>
@@ -327,23 +414,23 @@ export default function DetalheOSBalcao({ os: initialOS, onClose }: { os: OS; on
         </div>
 
         {/* Body */}
-        <div className="p-5 overflow-y-auto flex-1">
+        <div className="flex flex-col flex-1 min-h-0">
           {msg && (
-            <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded text-xs mb-3">{msg}</div>
+            <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded text-xs m-4 mb-0">{msg}</div>
           )}
           {msgOk && (
-            <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 px-3 py-2 rounded text-xs mb-3 font-bold">{msgOk}</div>
+            <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 px-3 py-2 rounded text-xs m-4 mb-0 font-bold">{msgOk}</div>
           )}
 
-          <div>
-            {/* Info compatibilidade */}
-            <div className="flex items-center justify-between mb-3 p-2.5 bg-slate-50 rounded-lg text-xs">
-              <span>
-                {qtdCompativeis} pecas compativeis com <strong className="text-brand-600">{dados.modeloMoto}</strong>
+          {/* ===== SEÇÃO FIXA: BUSCA DE PEÇAS (não rola, não cobre nada) ===== */}
+          <div className="flex-shrink-0 border-b border-slate-100 px-5 py-3">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[11px] font-bold uppercase tracking-wider text-slate-500">
+                Buscar peça por nome, código ou código de barras
               </span>
               <button
                 onClick={toggleMostrarTodas}
-                className={`text-xs font-medium px-3 py-1 rounded transition-colors ${
+                className={`text-[11px] font-medium px-2.5 py-1 rounded transition-colors ${
                   mostrarTodas ? 'bg-amber-100 text-amber-700' : 'bg-white border border-slate-200 text-slate-600'
                 }`}
               >
@@ -351,215 +438,258 @@ export default function DetalheOSBalcao({ os: initialOS, onClose }: { os: OS; on
               </button>
             </div>
 
-            {/* Autocomplete de peças */}
-            <div className="flex gap-2 mb-4">
+            {/* Inputs */}
+            <div className="flex gap-2">
               <div className="relative flex-1">
                 <input
                   ref={pecaInputRef}
                   value={pecaBusca}
                   onChange={e => { setPecaBusca(e.target.value); setPecaAberta(true); }}
                   onFocus={() => setPecaAberta(true)}
-                  className="input-field text-xs"
+                  className="input-field text-sm"
                   placeholder="Buscar peca por nome ou codigo..."
                   autoComplete="off"
                 />
-                {pecaAberta && pecasFiltradas.length > 0 && (
-                  <div
-                    ref={pecaDropdownRef}
-                    className="absolute z-10 bg-white border border-slate-200 rounded-lg shadow-lg w-full max-h-56 overflow-y-auto mt-1"
-                  >
-                    {pecasFiltradas.map(p => {
-                      const b = getCompatBadge(p, dados.modeloMoto);
-                      return (
-                        <button
-                          key={p.id}
-                          type="button"
-                          onMouseDown={() => addItem(p.id)}
-                          className="w-full text-left px-3 py-2 text-xs hover:bg-brand-50 hover:text-brand-700 flex items-center justify-between border-b border-slate-50"
-                        >
-                          <div>
-                            <span className="font-medium text-slate-700">{p.nome}</span>
-                            <span className="text-slate-400 ml-2 font-mono text-[10px]">{p.codigo}</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <span className={`text-[10px] px-1.5 py-0.5 rounded ${b.color}`}>{b.label}</span>
-                            <span className="text-[10px] text-slate-400">
-                              Cent:{p.quantidade || 0} Loja:{p.quantidadeLoja || 0}
-                            </span>
-                            <span className="font-semibold text-slate-600">{fm(Number(p.precoVenda))}</span>
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                )}
               </div>
               <input
                 type="number" value={qtd} onChange={e => setQtd(e.target.value)}
-                className="input-field w-16 sm:w-20 text-xs" min="1"
+                className="input-field w-16 sm:w-24 text-sm" min="1"
+                title="Quantidade"
               />
             </div>
 
-            {/* Itens */}
-            {dados.itens.length === 0 ? (
-              <p className="text-xs text-slate-400 py-4">Nenhuma peca adicionada.</p>
-            ) : (
-              <div className="overflow-x-auto">
-              <table className="w-full text-xs">
-                <thead>
-                  <tr>
-                    <th className="text-left py-1.5 font-medium text-slate-500">Peca</th>
-                    <th className="text-center py-1.5 font-medium text-slate-500">Tipo</th>
-                    <th className="text-center py-1.5 font-medium text-slate-500">Loja</th>
-                    <th className="text-center py-1.5 font-medium text-slate-500">Central</th>
-                    <th className="text-right py-1.5 font-medium text-slate-500">Qtd</th>
-                    <th className="text-right py-1.5 font-medium text-slate-500">Unit.</th>
-                    <th className="text-right py-1.5 font-medium text-slate-500">Subtotal</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {dados.itens.map(i => {
-                    const b = getCompatBadge(i.peca, dados.modeloMoto);
-                    const isAd = i.adaptado || b.label === 'Adaptada';
-                    const pecaOrig = pecas.find(p => p.id === i.peca.id);
-                    const qcentral = pecaOrig?.quantidade || 0;
-                    const qloja = pecaOrig?.quantidadeLoja || 0;
-                    return (
-                      <tr key={i.id} className="border-b border-slate-50">
-                        <td className="py-1.5 text-slate-700">{i.peca.nome}</td>
-                        <td className="py-1.5 text-center">
-                          <span className={`inline-flex px-2 py-0.5 rounded text-[10px] font-medium ${
-                            isAd ? 'bg-amber-50 text-amber-700' : b.label === 'Compativel' ? 'bg-emerald-50 text-emerald-700' : 'bg-violet-50 text-violet-700'
-                          }`}>
-                            {isAd ? 'Adaptada' : b.label}
-                          </span>
-                        </td>
-                        <td className={`py-1.5 text-center font-bold text-[10px] ${qloja > 0 ? 'text-brand-600' : 'text-red-400'}`}>{qloja}</td>
-                        <td className={`py-1.5 text-center font-bold text-[10px] ${qcentral > 0 ? 'text-slate-500' : 'text-amber-600'}`}>{qcentral}</td>
-                        <td className="py-1.5 text-right">{i.quantidade}</td>
-                        <td className="py-1.5 text-right text-slate-500">{fm(Number(i.precoUnitario))}</td>
-                        <td className="py-1.5 text-right font-medium">{fm(Number(i.precoUnitario) * i.quantidade)}</td>
-                        <td className="py-1.5 text-right">
-                          <button onClick={() => removeItem(i.id)} className="text-red-500 text-[11px]">x</button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-                <tfoot>
-                  <tr>
-                    <td colSpan={6} className="py-1.5 text-right text-xs text-slate-500">Total pecas</td>
-                    <td className="py-1.5 text-right font-bold">{fm(totalPecas)}</td>
-                    <td></td>
-                  </tr>
-                  {/* Mão de obra com checkbox Revisão */}
-                  <tr>
-                    <td colSpan={6} className="py-1.5 text-right text-xs text-slate-500">
-                      <label className="inline-flex items-center gap-2 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={temRevisao}
-                          onChange={async e => {
-                            const checked = e.target.checked;
-                            setTemRevisao(checked);
-                            if (!checked) {
-                              setValorRevisao('0');
-                              const r = await fetch(`/api/ordens/${dados.id}/status`, {
-                                method: 'PUT', headers: { 'Content-Type': 'application/json' },
-                                body: JSON.stringify({ status: dados.status, valorMaoDeObra: 0 }),
-                              });
-                              if (r?.ok) { const u = await r.json(); setDados(u); }
-                            }
-                          }}
-                          className="rounded border-slate-300 text-brand-600 focus:ring-brand-500"
-                        />
-                        <span>Revisao?</span>
-                      </label>
-                    </td>
-                    <td className="py-1.5 text-right font-bold">
-                      {temRevisao ? (
-                        <input
-                          type="number"
-                          step="0.01"
-                          value={valorRevisao}
-                          onChange={e => setValorRevisao(e.target.value)}
-                          onBlur={atualizarRevisao}
-                          className="input-field w-20 sm:w-24 text-xs text-right"
-                        />
-                      ) : (
-                        <span className="text-slate-400">{fm(0)}</span>
-                      )}
-                    </td>
-                    <td></td>
-                  </tr>
-                  {/* Total Geral */}
-                  <tr className="font-bold bg-brand-50">
-                    <td colSpan={6} className="py-2 text-right text-sm text-slate-700">TOTAL</td>
-                    <td className="py-2 text-right text-sm text-brand-700">{fm(totalGeral)}</td>
-                    <td></td>
-                  </tr>
-                </tfoot>
-              </table>
+            {/* Resultados INLINE — não cobrem as peças selecionadas nem o rodapé */}
+            {pecaAberta && pecasFiltradas.length > 0 && (
+              <div
+                ref={pecaDropdownRef}
+                className="mt-2 border border-slate-200 rounded-lg bg-white overflow-y-auto max-h-52"
+              >
+                {pecasFiltradas.map(p => {
+                  const b = getCompatBadge(p, dados.modeloMoto);
+                  const abrindo = pecasAbrindo.includes(p.id);
+                  return (
+                    <button
+                      key={p.id}
+                      type="button"
+                      onClick={() => addItem(p.id)}
+                      disabled={abrindo}
+                      className="w-full text-left px-3 py-2 text-xs hover:bg-brand-50 hover:text-brand-700 flex items-center justify-between border-b border-slate-50 disabled:opacity-50 disabled:cursor-wait"
+                    >
+                      <div>
+                        <span className="font-medium text-slate-700">{p.nome}</span>
+                        <span className="text-slate-400 ml-2 font-mono text-[10px]">{p.codigo}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className={`text-[10px] px-1.5 py-0.5 rounded ${b.color}`}>{b.label}</span>
+                        <span className="text-[10px] text-slate-400">
+                          Cent:{p.quantidade || 0} Loja:{p.quantidadeLoja || 0}
+                        </span>
+                        <span className="font-semibold text-slate-600">{fm(Number(p.precoVenda))}</span>
+                        <span className="text-[10px] font-bold text-brand-600">{abrindo ? '...' : '+'}</span>
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
             )}
+          </div>
+
+          {/* ===== SEÇÃO ROLÁVEL: PEÇAS UTILIZADAS / SELEIONADAS ===== */}
+          <div className="flex-1 overflow-y-auto min-h-0">
+            <div className="px-5 py-4">
+              <div className="flex items-center justify-between mb-2">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-600">
+                  Pecas utilizadas / selecionadas
+                  <span className="ml-2 text-[10px] font-medium text-slate-400 bg-slate-100 rounded-full px-2 py-0.5">
+                    {dados.itens.length} {dados.itens.length === 1 ? 'item' : 'itens'}
+                  </span>
+                </h3>
+                <span className="text-[11px] text-slate-400">
+                  {qtdCompativeis} compativeis com <strong className="text-brand-600">{dados.modeloMoto}</strong>
+                </span>
+              </div>
+
+              {dados.itens.length === 0 ? (
+                <p className="text-xs text-slate-400 py-4">Nenhuma peca adicionada. Use a busca acima para incluir.</p>
+              ) : (
+                <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr>
+                      <th className="text-left py-1.5 font-medium text-slate-500">Peca</th>
+                      <th className="text-center py-1.5 font-medium text-slate-500">Tipo</th>
+                      <th className="text-center py-1.5 font-medium text-slate-500">Loja</th>
+                      <th className="text-center py-1.5 font-medium text-slate-500">Central</th>
+                      <th className="text-right py-1.5 font-medium text-slate-500">Qtd</th>
+                      <th className="text-right py-1.5 font-medium text-slate-500">Unit.</th>
+                      <th className="text-right py-1.5 font-medium text-slate-500">Subtotal</th>
+                      <th></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {dados.itens.map(i => {
+                      const b = getCompatBadge(i.peca, dados.modeloMoto);
+                      const isAd = i.adaptado || b.label === 'Adaptada';
+                      const pecaOrig = pecasPorId.get(i.peca.id);
+                      const qcentral = pecaOrig?.quantidade || 0;
+                      const qloja = pecaOrig?.quantidadeLoja || 0;
+                      return (
+                        <tr key={i.id} className="border-b border-slate-50">
+                          <td className="py-1.5 text-slate-700">
+                            <span className="font-medium">{i.peca.nome}</span>
+                            <span className="block text-[10px] font-mono text-slate-400">{i.peca.codigo}</span>
+                          </td>
+                          <td className="py-1.5 text-center">
+                            <span className={`inline-flex px-2 py-0.5 rounded text-[10px] font-medium ${
+                              isAd ? 'bg-amber-50 text-amber-700' : b.label === 'Compativel' ? 'bg-emerald-50 text-emerald-700' : 'bg-violet-50 text-violet-700'
+                            }`}>
+                              {isAd ? 'Adaptada' : b.label}
+                            </span>
+                          </td>
+                          <td className={`py-1.5 text-center font-bold text-[10px] ${qloja > 0 ? 'text-brand-600' : 'text-red-400'}`}>{qloja}</td>
+                          <td className={`py-1.5 text-center font-bold text-[10px] ${qcentral > 0 ? 'text-slate-500' : 'text-amber-600'}`}>{qcentral}</td>
+                          <td className="py-1.5 text-right">{i.quantidade}</td>
+                          <td className="py-1.5 text-right text-slate-500">{fm(Number(i.precoUnitario))}</td>
+                          <td className="py-1.5 text-right font-medium">{fm(Number(i.precoUnitario) * i.quantidade)}</td>
+                          <td className="py-1.5 text-right">
+                            <button onClick={() => removeItem(i.id)} className="text-red-500 text-[11px]">x</button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                  <tfoot>
+                    <tr>
+                      <td colSpan={6} className="py-1.5 text-right text-xs text-slate-500">Total pecas</td>
+                      <td className="py-1.5 text-right font-bold">{fm(totalPecas)}</td>
+                      <td></td>
+                    </tr>
+                    {/* Mão de obra com checkbox Revisão */}
+                    <tr>
+                      <td colSpan={6} className="py-1.5 text-right text-xs text-slate-500">
+                        <label className="inline-flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={temRevisao}
+                            onChange={async e => {
+                              const checked = e.target.checked;
+                              setTemRevisao(checked);
+                              if (!checked) {
+                                setValorRevisao('0');
+                                const r = await fetch(`/api/ordens/${dados.id}/status`, {
+                                  method: 'PUT', headers: { 'Content-Type': 'application/json' },
+                                  body: JSON.stringify({ status: dados.status, valorMaoDeObra: 0 }),
+                                });
+                                if (r?.ok) { const u = await r.json(); setDados(prev => ({ ...prev, ...u })); }
+                              }
+                            }}
+                            className="rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+                          />
+                          <span>Revisao?</span>
+                        </label>
+                      </td>
+                      <td className="py-1.5 text-right font-bold">
+                        {temRevisao ? (
+                          <input
+                            type="number"
+                            step="0.01"
+                            value={valorRevisao}
+                            onChange={e => setValorRevisao(e.target.value)}
+                            onBlur={atualizarRevisao}
+                            className="input-field w-20 sm:w-24 text-xs text-right"
+                          />
+                        ) : (
+                          <span className="text-slate-400">{fm(0)}</span>
+                        )}
+                      </td>
+                      <td></td>
+                    </tr>
+                    {/* Total Geral */}
+                    <tr className="font-bold bg-brand-50">
+                      <td colSpan={6} className="py-2 text-right text-sm text-slate-700">TOTAL</td>
+                      <td className="py-2 text-right text-sm text-brand-700">{fm(totalGeral)}</td>
+                      <td></td>
+                    </tr>
+                  </tfoot>
+                </table>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
         {/* Rodapé */}
         <div className="p-4 border-t border-slate-100 space-y-3 flex-shrink-0">
           {isLiberado ? (
-            <div className="flex items-center justify-between">
-              <span className="inline-block px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-600 text-white">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <span className="inline-block px-3 py-1 rounded text-xs font-bold bg-emerald-600 text-white">
                 Moto Entregue ✓
               </span>
-              <button onClick={onClose} className="btn-secondary text-xs">Fechar</button>
-              <button onClick={imprimirNotaMecanico} className="btn-secondary text-xs bg-slate-100 hover:bg-slate-200">
-                🖨️ Nota Mecanico
-              </button>
+              <div className="flex flex-wrap items-center gap-2">
+                <button onClick={onClose} className="btn-secondary text-sm">Fechar</button>
+                <button onClick={imprimirNotaMecanico} className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-700 bg-white border-2 border-slate-300 hover:border-slate-400 hover:bg-slate-100 hover:text-slate-900 px-4 py-2 rounded-lg transition-colors">
+                  🖨️ Nota Mecânico
+                </button>
+                <button onClick={emitirEImprimirNF} disabled={emitindoNF} className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand-700 bg-white border-2 border-brand-300 hover:border-brand-400 hover:bg-brand-50 hover:text-brand-800 px-4 py-2 rounded-lg transition-colors disabled:opacity-50">
+                  {emitindoNF ? 'Emitindo...' : dados.notaFiscal ? '📄 Nota do Cliente' : '📄 Emitir Nota do Cliente'}
+                </button>
+              </div>
             </div>
           ) : isPago ? (
-            <div className="flex items-center justify-between">
-              <span className="inline-block px-2 py-0.5 rounded text-[11px] font-bold bg-emerald-50 text-emerald-700">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <span className="inline-block px-3 py-1 rounded text-xs font-bold bg-emerald-50 text-emerald-700">
                 🟢 Pagamento confirmado
               </span>
-              <button onClick={liberarMoto} className="btn-primary text-xs">
-                🏍️ Liberar Moto
-              </button>
+              <div className="flex flex-wrap items-center gap-2">
+                <button onClick={onClose} className="btn-secondary text-sm">Fechar</button>
+                <button onClick={imprimirNotaMecanico} className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-700 bg-white border-2 border-slate-300 hover:border-slate-400 hover:bg-slate-100 hover:text-slate-900 px-4 py-2 rounded-lg transition-colors">
+                  🖨️ Nota Mecânico
+                </button>
+                <button onClick={emitirEImprimirNF} disabled={emitindoNF} className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand-700 bg-white border-2 border-brand-300 hover:border-brand-400 hover:bg-brand-50 hover:text-brand-800 px-4 py-2 rounded-lg transition-colors disabled:opacity-50">
+                  {emitindoNF ? 'Emitindo...' : dados.notaFiscal ? '📄 Nota do Cliente' : '📄 Emitir Nota do Cliente'}
+                </button>
+                <button onClick={liberarMoto} className="btn-primary text-sm">
+                  🏍️ Liberar Moto
+                </button>
+              </div>
             </div>
           ) : isAguardandoPagamento ? (
             <div className="flex flex-col gap-2">
-              <div className="flex items-center justify-between">
-                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-red-50 text-red-700 border border-red-200">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold bg-red-50 text-red-700 border border-red-200">
                   🔴 AGUARDANDO PAGAMENTO PARA LIBERACAO DA MOTO
                 </span>
-                <div className="flex items-center gap-2">
-                  <button onClick={onClose} className="btn-secondary text-xs">Fechar</button>
-              <button onClick={imprimirNotaMecanico} className="btn-secondary text-xs bg-slate-100 hover:bg-slate-200">
-                🖨️ Nota Mecanico
-              </button>
+                <div className="flex flex-wrap items-center gap-2">
+                  <button onClick={onClose} className="btn-secondary text-sm">Fechar</button>
+                  <button onClick={imprimirNotaMecanico} className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-700 bg-white border-2 border-slate-300 hover:border-slate-400 hover:bg-slate-100 hover:text-slate-900 px-4 py-2 rounded-lg transition-colors">
+                    🖨️ Nota Mecânico
+                  </button>
                   <button
                     onClick={() => setPagamentoOpen(true)}
-                    className="btn-primary text-xs font-bold"
+                    className="btn-primary text-sm font-bold"
                     disabled={pagandoOS}
                   >
                     {pagandoOS ? 'Processando...' : '💰 RECEBER PAGAMENTO'}
                   </button>
                 </div>
               </div>
-              <p className="text-[11px] text-slate-400 text-center">
+              <p className="text-xs text-slate-400 text-center">
                 Total: {fm(totalGeral)} — Receba o pagamento para liberar a moto.
               </p>
             </div>
           ) : (
-            <div className="flex items-center justify-between">
-              <span className={`inline-block px-2 py-0.5 rounded text-[11px] font-medium ${sc[dados.status] || 'bg-slate-50 text-slate-500'}`}>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <span className={`inline-block px-3 py-1 rounded text-xs font-medium ${sc[dados.status] || 'bg-slate-50 text-slate-500'}`}>
                 {sl[dados.status] || dados.status}
               </span>
-              <div className="flex items-center gap-2">
-                <button onClick={imprimirNotaMecanico} className="text-xs text-amber-600 font-medium bg-amber-50 px-2 py-1 rounded hover:bg-amber-100">🖨️ Nota Mec.</button>
-                <button onClick={linkWhatsApp} className="text-xs text-emerald-600 font-medium">WhatsApp</button>
-                <button onClick={finalizarServico} disabled={dados.status === 'CANCELADA'} className="btn-primary text-xs">
+              <div className="flex flex-wrap items-center gap-2">
+                <button onClick={imprimirNotaMecanico} className="inline-flex items-center gap-1.5 text-sm font-semibold text-slate-700 bg-white border-2 border-slate-300 hover:border-slate-400 hover:bg-slate-100 hover:text-slate-900 px-4 py-2 rounded-lg transition-colors">
+                  🖨️ Nota Mecânico
+                </button>
+                <button onClick={linkWhatsApp} className="inline-flex items-center gap-1.5 text-sm font-semibold text-emerald-700 bg-white border-2 border-emerald-300 hover:border-emerald-400 hover:bg-emerald-50 hover:text-emerald-800 px-4 py-2 rounded-lg transition-colors">
+                  💬 WhatsApp
+                </button>
+                <button onClick={finalizarServico} disabled={dados.status === 'CANCELADA'} className="btn-primary text-sm font-bold">
                   🔧 Finalizar Servico
                 </button>
               </div>
