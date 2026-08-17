@@ -1,6 +1,6 @@
 'use client';
 
-import { imprimirNotaVenda } from '@/lib/imprimirNotaServico';
+import { imprimirNotaVenda, DADOS_EMPRESA } from '@/lib/imprimirNotaServico';
 
 interface ItemComprovante {
   nome: string;
@@ -98,9 +98,18 @@ export default function ComprovanteVenda({ venda, onFechar }: ComprovanteVendaPr
       <div class="pg-item"><span>${TIPO_LABEL[p.tipo] || p.tipo}${p.bandeira ? ' (' + esc(p.bandeira) + ')' : ''}${p.parcelas ? ' ' + p.parcelas + 'x' : ''}</span><span>${fm(Number(p.valor))}</span></div>
     `).join('');
 
+    const dadosEmpresa = [
+      DADOS_EMPRESA.razao,
+      `CNPJ: ${DADOS_EMPRESA.cnpj}`,
+      `IE: ${DADOS_EMPRESA.ie}`,
+      DADOS_EMPRESA.endereco,
+      DADOS_EMPRESA.cidade,
+      `WHATSAPP: ${DADOS_EMPRESA.telefone1} · ${DADOS_EMPRESA.telefone2}`,
+    ].map((linha) => `<div class="emp">${esc(linha)}</div>`).join('');
+
     return `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Venda #${venda.numero}</title><style>
       *{margin:0;padding:0;box-sizing:border-box}body{font-family:"DejaVu Sans Mono","Courier New",monospace;font-size:10px;color:#111;width:280px;margin:0 auto;padding:8px 6px;background:#fff;line-height:1.45}
-      .center{text-align:center}.logo{font-size:17px;font-weight:900;margin-bottom:2px;letter-spacing:-0.5px}.ofic{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#222}
+      .center{text-align:center}.logo{font-size:17px;font-weight:900;margin-bottom:2px;letter-spacing:-0.5px}.ofic{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#222}.emp{font-size:7px;color:#444;margin-top:1px;letter-spacing:0.3px}
       .vn{font-size:21px;font-weight:900;margin:6px 0 3px;letter-spacing:-0.5px}.dt{font-size:8px;margin-bottom:6px;color:#444}
       .sep{border:none;border-top:1.5px solid #000;margin:6px 0}.sep-dot{border:none;border-top:1px dotted #000;margin:5px 0}
       .cliente{font-size:10px;margin:3px 0;color:#222}.cliente span{font-weight:700}
@@ -116,6 +125,7 @@ export default function ComprovanteVenda({ venda, onFechar }: ComprovanteVendaPr
       <div class="center">
         <div class="logo">MARQUINHO</div>
         <div class="ofic">Moto Pecas</div>
+        ${dadosEmpresa}
         <div class="vn">VENDA #${venda.numero}</div>
         <div class="dt">${dataStr} — ${horaStr}</div>
       </div>

@@ -28,6 +28,8 @@ export const DADOS_EMPRESA = {
   ie: '066967163',
   endereco: 'ESTRADA DE ÁGUAS COMPRIDAS, 693 — ÁGUAS COMPRIDAS',
   cidade: 'OLINDA - PE',
+  telefone1: '(81) 9814-3879',
+  telefone2: '(81) 8706-9882',
 } as const;
 
 // CSS único das Notas do Cliente (OS + Venda) e NF Manual
@@ -80,7 +82,7 @@ function headerHtml(titulo: string): string {
     <div class="razao">${DADOS_EMPRESA.razao}</div>
     <div class="empresa-linha">CNPJ: ${DADOS_EMPRESA.cnpj} &nbsp;|&nbsp; IE: ${DADOS_EMPRESA.ie}</div>
     <div class="empresa-linha">${DADOS_EMPRESA.endereco}</div>
-    <div class="empresa-linha">${DADOS_EMPRESA.cidade}</div>
+    <div class="empresa-linha">${DADOS_EMPRESA.cidade} &nbsp;|&nbsp; WHATSAPP: ${DADOS_EMPRESA.telefone1} · ${DADOS_EMPRESA.telefone2}</div>
     <div class="doc-titulo">${titulo}</div>
   </div>`;
 }
