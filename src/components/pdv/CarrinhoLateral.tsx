@@ -63,14 +63,6 @@ export default function CarrinhoLateral({ itens, onClose, onQuantidade, onRemove
                     <p className="text-xs font-semibold text-slate-800 truncate">{item.nome}</p>
                     <p className="text-[10px] text-slate-400 font-mono">{item.codigo}</p>
                   </div>
-                  <button
-                    onClick={() => onRemover(item.pecaId)}
-                    className="text-slate-300 hover:text-red-500 text-sm px-1"
-                    title="Remover item"
-                    aria-label="Remover item"
-                  >
-                    ×
-                  </button>
                 </div>
                 <div className="flex items-center justify-between mt-2">
                   <div className="flex items-center gap-1">
@@ -94,6 +86,17 @@ export default function CarrinhoLateral({ itens, onClose, onQuantidade, onRemove
                     <p className="text-[10px] text-slate-400">{fm(preco)} un.</p>
                     <p className="text-xs font-bold text-slate-800">{fm(subtotal)}</p>
                   </div>
+                </div>
+                <div className="mt-1.5">
+                  <button
+                    onClick={() => onRemover(item.pecaId)}
+                    className="inline-flex items-center gap-1 text-[11px] text-slate-400 hover:text-red-600"
+                    title="Remover do carrinho"
+                    aria-label={`Remover ${item.nome} do carrinho`}
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                    Remover
+                  </button>
                 </div>
               </div>
             );
