@@ -38,7 +38,7 @@ const apiPerms: Record<string, string[]> = {
 	'/api/mensagens': ['DONO', 'BALCAO', 'ESTOQUE'],
 	'/api/configuracoes': ['DONO', 'BALCAO', 'ESTOQUE'],
 	// APIs operacionais compartilhadas
-	'/api/mecanicos': ['DONO', 'ESTOQUE'],
+	'/api/mecanicos': ['DONO', 'ESTOQUE', 'BALCAO'],
 	'/api/servicos': ['DONO', 'BALCAO'],
 	'/api/checklist-templates': ['DONO', 'BALCAO'],
 	'/api/revisoes': ['DONO', 'BALCAO'],
