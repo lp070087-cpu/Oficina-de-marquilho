@@ -254,25 +254,66 @@ export default function EstoqueCentralPage() {
     const titulo = tipo === 'baixo' ? 'Produtos com Estoque Baixo' : 'Lista de Compras';
     const w = window.open('', '_blank', 'width=900,height=700');
     if (!w) return;
-    const rows = data.map(p => `
-      <tr>
-        <td>${p.categoria?.nome || ''}</td>
-        <td>${p.codigo}</td>
-        <td>${p.codigoBarras || ''}</td>
-        <td>${p.nome}</td>
-        <td>${p.marca || ''}</td>
-        <td style="text-align:center">${p.quantidade}</td>
-        <td style="text-align:center">${p.estoqueMinimo}</td>
-        <td></td><td></td><td></td><td></td>
-        <td>${p.localizacao || ''}</td>
-      </tr>`).join('');
+
+    // PRODUTOS (SKUs/registros ativos) ≠ UNIDADES (soma das quantidades).
+    // Aqui exportamos PRODUTOS, cada linha = 1 SKU.
+
+    // 1) Agrupar por categoria; 2) ordenar categoria alfabética;
+    // 3) dentro da categoria, produto alfabético; 4) SKU como desempate.
+    const grupos = new Map<string, Peca[]>();
+    for (const p of data) {
+      const nomeCat = p.categoria?.nome || 'Sem categoria';
+      if (!grupos.has(nomeCat)) grupos.set(nomeCat, []);
+      grupos.get(nomeCat)!.push(p);
+    }
+    const nomesCat = [...grupos.keys()].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+
+    const colunasBaixo = ['Categoria','Cod.Int.','Cod.Barras','Nome','Marca','Qtd','Min','PREÇO VENDA','PREÇO CUSTO','PREÇO CUSTO A','PREÇO CUSTO B','PREÇO CUSTO C','PREÇO CUSTO D','OBS'];
+    const colunasTodos = ['Categoria','Cod.Int.','Cod.Barras','Nome','Marca','Qtd','Min','PREÇO DE VENDA','PREÇO DE CUSTO','OBS'];
+    const colunas = tipo === 'baixo' ? colunasBaixo : colunasTodos;
+    const colspan = colunas.length;
+
+    let rows = '';
+    for (const nomeCat of nomesCat) {
+      // Cabeçalho da categoria (nunca volta a uma categoria anterior)
+      rows += `<tr style="background:#e0e7ff;font-weight:bold"><td colspan="${colspan}">${nomeCat.toUpperCase()}</td></tr>`;
+      const itens = grupos.get(nomeCat)!.slice().sort((a, b) => {
+        const byNome = a.nome.localeCompare(b.nome, 'pt-BR');
+        return byNome !== 0 ? byNome : a.codigo.localeCompare(b.codigo, 'pt-BR');
+      });
+      for (const p of itens) {
+        const base = `
+          <td>${p.codigo}</td>
+          <td>${p.codigoBarras || ''}</td>
+          <td>${p.nome}</td>
+          <td>${p.marca || ''}</td>
+          <td style="text-align:center">${p.quantidade}</td>
+          <td style="text-align:center">${p.estoqueMinimo}</td>`;
+        const precoVenda = fm(Number(p.precoVenda) || 0);
+        const precoCusto = fm(Number(p.precoCusto) || 0);
+        if (tipo === 'baixo') {
+          // A/B/C/D = anotação manual da responsável (preços de fornecedores) — não salvos no banco
+          rows += `<tr><td>${p.categoria?.nome || ''}</td>${base}
+            <td style="text-align:center">${precoVenda}</td>
+            <td style="text-align:center">${precoCusto}</td>
+            <td></td><td></td><td></td><td></td>
+            <td>${p.localizacao || ''}</td></tr>`;
+        } else {
+          rows += `<tr><td>${p.categoria?.nome || ''}</td>${base}
+            <td style="text-align:center">${precoVenda}</td>
+            <td style="text-align:center">${precoCusto}</td>
+            <td>${p.localizacao || ''}</td></tr>`;
+        }
+      }
+    }
+
     w.document.write('<!DOCTYPE html><html><head><title>' + titulo + ' - Marquinho</title>' +
       '<style>body{font-family:Arial;padding:20px;font-size:11px}h1{text-align:center;font-size:16px;margin-bottom:5px}' +
       'table{width:100%;border-collapse:collapse}th,td{border:1px solid #ccc;padding:4px 6px}th{background:#2563eb;color:#fff;font-size:10px}' +
+      'tr[style*="background"] td{font-size:11px;letter-spacing:0.5px}' +
       '@media print{body{padding:5mm}button{display:none}}</style></head><body>' +
-      '<h1>Marquinho Moto Pecas - ' + titulo + '</h1><p style="text-align:center">' + new Date().toLocaleDateString('pt-BR') + '</p>' +
-      '<table><thead><tr><th>Categoria</th><th>Cod.Int.</th><th>Cod.Barras</th><th>Nome</th><th>Marca</th><th>Qtd</th><th>Min</th>' +
-      '<th>Forn.A</th><th>Forn.B</th><th>Forn.C</th><th>Forn.D</th><th>Obs</th></tr></thead><tbody>' + rows + '</tbody></table>' +
+      '<h1>Marquinho Moto Pecas - ' + titulo + '</h1><p style="text-align:center">' + new Date().toLocaleDateString('pt-BR') + ' · ' + data.length + ' produtos</p>' +
+      '<table><thead><tr>' + colunas.map(c => '<th>' + c + '</th>').join('') + '</tr></thead><tbody>' + rows + '</tbody></table>' +
       '<button onclick="window.print()" style="margin-top:15px;padding:8px 16px;background:#2563eb;color:#fff;border:none;border-radius:6px;cursor:pointer">Imprimir</button></body></html>');
     w.document.close();
     setExportModal(false);

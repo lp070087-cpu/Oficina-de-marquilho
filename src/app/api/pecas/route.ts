@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getSession } from '@/lib/auth';
+import { normalizarSubcategoria, podeEditarPrecos } from '@/lib/peca-utils';
 
 export async function GET(req: NextRequest) {
   try {
@@ -75,17 +76,21 @@ export async function POST(req: NextRequest) {
   if (!body.nome || !body.codigo || !body.categoriaId) {
     return NextResponse.json({ error: 'Nome, código e categoria são obrigatórios' }, { status: 400 });
   }
+  // Somente DONO/ESTOQUE podem definir preços na criação. BALCAO cria com 0.
+  const podePreco = podeEditarPrecos(session);
+  const precoVenda = podePreco ? (body.precoVenda ?? 0) : 0;
+  const precoCusto = podePreco ? (body.precoCusto ?? 0) : 0;
   const peca = await prisma.peca.create({
     data: {
       nome: body.nome,
       descricao: body.descricao || null,
       codigo: body.codigo,
-      precoVenda: body.precoVenda || 0,
-      precoCusto: body.precoCusto || 0,
+      precoVenda,
+      precoCusto,
       quantidade: body.quantidade || 0,
       quantidadeLoja: body.quantidadeLoja || 0,
       estoqueMinimo: body.estoqueMinimo || 5,
-      subcategoria: body.subcategoria || null,
+      subcategoria: normalizarSubcategoria(body.subcategoria),
       marca: body.marca || null,
       compatibilidade: body.compatibilidade || null,
       codigoBarras: body.codigoBarras || null,
