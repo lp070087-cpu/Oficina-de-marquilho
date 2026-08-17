@@ -157,9 +157,9 @@ export async function PUT(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { id, status, observacoes } = body;
+    const { id, status, observacoes, clienteNome, clienteTelefone } = body;
 
-    if (!id || !status) return NextResponse.json({ error: 'id e status obrigatorios' }, { status: 400 });
+    if (!id) return NextResponse.json({ error: 'id obrigatorio' }, { status: 400 });
 
     const operador = session.name || session.id;
 
@@ -200,26 +200,38 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json(pedido);
     }
 
-    const data: any = { status };
+    // Atualização parcial: só altera os campos que vierem no body.
+    // status é opcional — permite salvar cliente/observações sem mudar o status.
+    const data: any = {};
 
-    if (status === 'RESERVADO') {
-      await prisma.pedidoItem.updateMany({
-        where: { pedidoId: id },
-        data: { reservado: true },
-      });
-      await registrarHistorico(id, 'RESERVADO', `Pecas reservadas por ${operador}`, operador, session.id);
-    }
+    if (status) {
+      data.status = status;
 
-    if (status === 'SEPARADO') {
-      // Separado: itens fisicamente separados, mas estoque ainda nao baixado
-      await registrarHistorico(id, 'SEPARADO', `Pecas separadas por ${operador}`, operador, session.id);
-    }
+      if (status === 'RESERVADO') {
+        await prisma.pedidoItem.updateMany({
+          where: { pedidoId: id },
+          data: { reservado: true },
+        });
+        await registrarHistorico(id, 'RESERVADO', `Pecas reservadas por ${operador}`, operador, session.id);
+      }
 
-    if (status === 'AGUARDANDO_PAGAMENTO') {
-      await registrarHistorico(id, 'AGUARDANDO_PAGAMENTO', `Aguardando pagamento — ${operador}`, operador, session.id);
+      if (status === 'SEPARADO') {
+        // Separado: itens fisicamente separados, mas estoque ainda nao baixado
+        await registrarHistorico(id, 'SEPARADO', `Pecas separadas por ${operador}`, operador, session.id);
+      }
+
+      if (status === 'AGUARDANDO_PAGAMENTO') {
+        await registrarHistorico(id, 'AGUARDANDO_PAGAMENTO', `Aguardando pagamento — ${operador}`, operador, session.id);
+      }
     }
 
     if (observacoes) data.observacoes = observacoes;
+    if (clienteNome) data.clienteNome = clienteNome;
+    if (clienteTelefone) data.clienteTelefone = clienteTelefone;
+
+    if (Object.keys(data).length === 0) {
+      return NextResponse.json({ error: 'Nenhum campo para atualizar' }, { status: 400 });
+    }
 
     const pedido = await prisma.pedido.update({
       where: { id },
