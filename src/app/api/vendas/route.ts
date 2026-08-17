@@ -19,6 +19,21 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Pagamentos obrigatorios' }, { status: 400 });
     }
 
+    // A partir desta versão a loja não aceita mais TRANSFERENCIA em NOVAS vendas.
+    // Registros antigos permanecem legíveis (tipo é String livre no banco).
+    // Só recusamos a forma; não apagamos nem alteramos dados existentes.
+    if (pagamentos.some((p: any) => p?.tipo === 'TRANSFERENCIA')) {
+      return NextResponse.json({ error: 'Transferencia nao e mais aceita como forma de pagamento em novas vendas' }, { status: 400 });
+    }
+
+    // Cada pagamento precisa ter valor finito > 0
+    for (const pg of pagamentos) {
+      const v = parseFloat(pg?.valor);
+      if (!Number.isFinite(v) || v <= 0) {
+        return NextResponse.json({ error: 'Cada pagamento deve ter valor maior que zero' }, { status: 400 });
+      }
+    }
+
     const venda = await prisma.$transaction(async (tx) => {
       const pedido = await tx.pedido.findUnique({
         where: { id: pedidoId },
@@ -123,9 +138,17 @@ export async function POST(req: NextRequest) {
       }
 
       // Criar pagamentos
+      // Garante que o somatório dos pagamentos bata exatamente com o total da
+      // venda (em centavos). Pagamento dividido ou único sempre fecha o total.
+      const totalVendaCent = Math.round(Number(pedido.total) * 100);
+      const totalPagoCent = pagamentos.reduce((s: number, pg: any) => s + Math.round((parseFloat(pg.valor) || 0) * 100), 0);
+      if (totalPagoCent !== totalVendaCent) {
+        throw new Error('Soma dos pagamentos nao confere com o total da venda');
+      }
+
       let totalPago = 0;
       for (const pg of pagamentos) {
-        const valor = parseFloat(pg.valor) || 0;
+        const valor = Math.round((parseFloat(pg.valor) || 0) * 100) / 100;
         await tx.pagamentoVenda.create({
           data: {
             vendaId: v.id,
@@ -248,7 +271,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(venda, { status: 201 });
   } catch (e: any) {
     const msg = e?.message || 'Erro ao processar venda';
-    if (msg.includes('Estoque insuficiente') || msg.includes('Quantidade invalida')) {
+    if (msg.includes('Estoque insuficiente') || msg.includes('Quantidade invalida') || msg.includes('Soma dos pagamentos')) {
       return NextResponse.json({ error: msg }, { status: 400 });
     }
     console.error('Erro ao processar venda:', e);

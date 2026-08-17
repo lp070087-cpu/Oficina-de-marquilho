@@ -88,7 +88,7 @@ export default function DashboardPDV() {
   const fm = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   const fmtHora = (d: string) => new Date(d).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
   const tipoLabel: Record<string, string> = {
-    DINHEIRO: 'Dinheiro', PIX: 'PIX', CARTAO_DEBITO: 'Debito', CARTAO_CREDITO: 'Credito', TRANSFERENCIA: 'Transf.',
+    DINHEIRO: 'Dinheiro', PIX: 'PIX', CARTAO_DEBITO: 'Debito', CARTAO_CREDITO: 'Credito',
   };
 
   if (loading) {

@@ -42,7 +42,7 @@ interface ComprovanteVendaProps {
 }
 
 const TIPO_LABEL: Record<string, string> = {
-  DINHEIRO: 'Dinheiro', PIX: 'PIX', CARTAO_DEBITO: 'Debito', CARTAO_CREDITO: 'Credito', TRANSFERENCIA: 'Transferencia',
+  DINHEIRO: 'Dinheiro', PIX: 'PIX', CARTAO_DEBITO: 'Debito', CARTAO_CREDITO: 'Credito',
 };
 
 // Normaliza os itens vindos da API (VendaItem: peca.nome/peca.codigo/precoVendido)

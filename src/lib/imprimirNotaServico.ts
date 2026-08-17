@@ -254,7 +254,7 @@ export interface VendaParaImprimir {
 }
 
 const TIPO_LABEL: Record<string, string> = {
-  DINHEIRO: 'Dinheiro', PIX: 'PIX', CARTAO_DEBITO: 'Débito', CARTAO_CREDITO: 'Crédito', TRANSFERENCIA: 'Transferência',
+  DINHEIRO: 'Dinheiro', PIX: 'PIX', CARTAO_DEBITO: 'Débito', CARTAO_CREDITO: 'Crédito',
 };
 
 export function imprimirNotaVenda(venda: VendaParaImprimir): void {
