@@ -96,7 +96,30 @@ export async function GET(req: NextRequest) {
       orderBy: { emitidaEm: 'desc' },
       take: 200,
     });
-    return NextResponse.json(notas);
+
+    // Enriquecer notas de OS com os pagamentos reais (pagamento dividido) para a
+    // Central de Notas reimprimir a Nota de Serviço listando cada forma e valor.
+    // Somente leitura — não altera schema nem dados.
+    const idsOS = notas.map((n: any) => n.ordemServicoId).filter(Boolean) as string[];
+    const pedidos = idsOS.length > 0
+      ? await prisma.pedido.findMany({
+          where: { ordemServicoId: { in: idsOS }, status: 'PAGO' },
+          select: { ordemServicoId: true, venda: { select: { pagamentos: true } } },
+        })
+      : [];
+    const pagamentosPorOS: Record<string, any[]> = {};
+    for (const p of pedidos) {
+      if (p.ordemServicoId && p.venda?.pagamentos) {
+        pagamentosPorOS[p.ordemServicoId] = p.venda.pagamentos;
+      }
+    }
+    const notasEnriquecidas = notas.map((n: any) => ({
+      ...n,
+      ordemServico: n.ordemServico
+        ? { ...n.ordemServico, pagamentos: pagamentosPorOS[n.ordemServicoId] || [] }
+        : null,
+    }));
+    return NextResponse.json(notasEnriquecidas);
   } catch (e: any) {
     console.error('Erro ao listar notas:', e);
     return NextResponse.json({ error: 'Erro ao listar notas' }, { status: 500 });

@@ -30,6 +30,7 @@ export interface OS {
   createdAt?: string;
   tipoServico?: string;
   inicioServico?: string | null; fimServico?: string | null;
+  pagamentos?: { tipo: string; valor: number; troco?: number }[];
 }
 
 function getCompatBadge(peca: Peca, modeloMoto: string): { label: string; color: string } {

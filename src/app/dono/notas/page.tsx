@@ -19,6 +19,7 @@ interface Nota {
     mecanico?: { name: string } | null;
     itens?: { peca: { codigo?: string | null; nome: string }; quantidade: number; precoUnitario: number }[];
     servicos?: { nome: string; valor: number | string }[] | null;
+    pagamentos?: { tipo: string; valor: number; troco?: number }[];
   } | null;
   venda?: {
     numero: number; clienteNome?: string | null; clienteTelefone?: string | null; clienteCpf?: string | null;
@@ -136,6 +137,11 @@ export default function NotasPage() {
       servicos: (n.ordemServico?.servicos || []).map(s => ({ nome: s.nome, valor: s.valor })),
       inicioServico: n.ordemServico?.inicioServico || null,
       fimServico: n.ordemServico?.fimServico || null,
+      pagamentos: (n.ordemServico?.pagamentos || []).map(p => ({
+        tipo: p.tipo,
+        valor: Number(p.valor) || 0,
+        troco: Number(p.troco) || 0,
+      })),
       notaFiscal: {
         numero: n.numero,
         chaveAcesso: n.chaveAcesso,

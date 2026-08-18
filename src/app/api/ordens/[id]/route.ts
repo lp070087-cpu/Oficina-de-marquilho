@@ -22,7 +22,17 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       },
     });
     if (!os) return NextResponse.json({ error: 'OS nao encontrada' }, { status: 404 });
-    return NextResponse.json(os);
+
+    // Pagamentos reais da OS (pagamento dividido): a OS não tem relação direta
+    // com PagamentoVenda. Buscamos via Pedido.ordemServicoId → Venda → pagamentos.
+    // Somente leitura, não altera schema nem dados.
+    const pedidoPago = await prisma.pedido.findFirst({
+      where: { ordemServicoId: id, status: 'PAGO' },
+      select: { venda: { select: { pagamentos: true } } },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return NextResponse.json({ ...os, pagamentos: pedidoPago?.venda?.pagamentos || [] });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
   }

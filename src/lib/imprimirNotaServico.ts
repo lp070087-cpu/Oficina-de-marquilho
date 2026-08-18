@@ -80,9 +80,11 @@ function headerHtml(titulo: string): string {
   return `<div class="header">
     <div class="fantasia">${DADOS_EMPRESA.fantasia}</div>
     <div class="razao">${DADOS_EMPRESA.razao}</div>
-    <div class="empresa-linha">CNPJ: ${DADOS_EMPRESA.cnpj} &nbsp;|&nbsp; IE: ${DADOS_EMPRESA.ie}</div>
+    <div class="empresa-linha">CNPJ: ${DADOS_EMPRESA.cnpj}</div>
+    <div class="empresa-linha">IE: ${DADOS_EMPRESA.ie}</div>
     <div class="empresa-linha">${DADOS_EMPRESA.endereco}</div>
-    <div class="empresa-linha">${DADOS_EMPRESA.cidade} &nbsp;|&nbsp; WHATSAPP: ${DADOS_EMPRESA.telefone1} · ${DADOS_EMPRESA.telefone2}</div>
+    <div class="empresa-linha">${DADOS_EMPRESA.cidade}</div>
+    <div class="empresa-linha">WHATSAPP: ${DADOS_EMPRESA.telefone1} · ${DADOS_EMPRESA.telefone2}</div>
     <div class="doc-titulo">${titulo}</div>
   </div>`;
 }
@@ -138,12 +140,25 @@ export interface OsParaImprimir {
   valorMaoDeObra?: number;
   desconto?: number;
   formaPagamento?: string | null;
+  pagamentos?: PagamentoNotaVenda[];
   mecanico?: { name?: string } | null;
   itens?: ItemNotaServico[];
   servicos?: ServicoNotaServico[] | null;
   notaFiscal?: NotaFiscalInfo | null;
   inicioServico?: string | null;
   fimServico?: string | null;
+}
+
+// Traduz a forma de pagamento armazenada como string (ex: "DINHEIRO, PIX") em
+// nomes amigáveis. Usa o mesmo TIPO_LABEL da Nota de Venda (fonte única).
+function traduzirFormas(str?: string | null): string {
+  if (!str) return '';
+  return str
+    .split(',')
+    .map(s => s.trim())
+    .filter(Boolean)
+    .map(s => TIPO_LABEL[s] || s)
+    .join(', ');
 }
 
 export function imprimirNotaServico(os: OsParaImprimir): void {
@@ -212,7 +227,11 @@ export function imprimirNotaServico(os: OsParaImprimir): void {
       <tr><td class="right">Mão de obra / Serviços</td><td class="right">${fm(maoDeObra)}</td></tr>
       ${desconto > 0 ? `<tr><td class="right">Desconto</td><td class="right">− ${fm(desconto)}</td></tr>` : ''}
       <tr class="total"><td class="right">TOTAL</td><td class="right">${fm(total)}</td></tr>
-      ${os.formaPagamento ? `<tr><td class="right">Forma de Pagamento</td><td class="right">${esc(os.formaPagamento)}</td></tr>` : ''}
+      ${os.pagamentos && os.pagamentos.length > 0
+        ? os.pagamentos.map(p => `<tr><td class="right">${TIPO_LABEL[p.tipo] || esc(p.tipo)}</td><td class="right">${fm(p.valor)}</td></tr>`).join('')
+        : os.formaPagamento
+          ? `<tr><td class="right">Forma de Pagamento</td><td class="right">${esc(traduzirFormas(os.formaPagamento))}</td></tr>`
+          : ''}
     </table></div>
     ${footerHtml()}
     <script>setTimeout(function(){window.print();},300);</script>
