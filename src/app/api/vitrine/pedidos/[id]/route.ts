@@ -98,18 +98,11 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     }
 
     if (status === 'RETIRADO') {
-      // Baixar estoque definitivamente
+      // Correção autorizada (DONA, 2026-08-18): REMOVIDA a baixa indevida no estoque CENTRAL.
+      // O pedido da Vitrine vende estoque da LOJA; a reserva/baixa já foi consumida na
+      // criação do pedido (quantidadeLoja decrementado). RETIRADO apenas confirma a entrega.
+      // Nenhuma nova baixa — nem na loja, nem na central.
       updateData.retiradaEm = new Date();
-      // O estoque já foi reservado na criação do pedido (quantidadeLoja decrementado)
-      // Aqui apenas confirmamos a baixa — o estoque já foi reduzido
-      // Atualizar estoque central também
-      const itens = await prisma.pedidoItem.findMany({ where: { pedidoId: pedido.id } });
-      for (const item of itens) {
-        await prisma.peca.update({
-          where: { id: item.pecaId },
-          data: { quantidade: { decrement: item.quantidade } },
-        });
-      }
     }
 
     // Registrar histórico

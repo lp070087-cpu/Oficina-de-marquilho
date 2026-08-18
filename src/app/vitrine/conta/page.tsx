@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { getClienteVitrine, clearClienteVitrine } from '@/lib/vitrine-session';
 
 interface Orcamento { id:string;numero:number;status:string;total:number;modeloMoto?:string;observacao?:string;createdAt:string;itens:{quantidade:number;precoUnitario:number;peca:{nome:string;codigo:string;categoria:{nome:string}}}[]; }
 
@@ -11,9 +12,9 @@ export default function MinhaContaPage() {
   const [orcamentos, setOrcamentos] = useState<Orcamento[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(()=>{const c=sessionStorage.getItem('marquinho-cliente');if(!c){router.push('/vitrine/login');return;}const d=JSON.parse(c);setCliente(d);fetch('/api/vitrine/orcamentos',{headers:{Authorization:`Bearer ${d.token}`}}).then(r=>r.json()).then(data=>{setOrcamentos(data);setLoading(false);}).catch(()=>setLoading(false));},[router]);
+  useEffect(()=>{const d=getClienteVitrine();if(!d){router.push('/vitrine/login');return;}setCliente(d);fetch('/api/vitrine/orcamentos',{headers:{Authorization:`Bearer ${d.token}`}}).then(r=>r.json()).then(data=>{setOrcamentos(data);setLoading(false);}).catch(()=>setLoading(false));},[router]);
 
-  function sair(){sessionStorage.removeItem('marquinho-cliente');router.push('/vitrine');}
+  function sair(){clearClienteVitrine();router.push('/vitrine');}
   const fm=(v:number)=>v.toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
   const sl:Record<string,string>={PENDENTE:'Pendente',APROVADO:'Aprovado',RECUSADO:'Recusado',CONCLUIDO:'Concluido'};
   const sc:Record<string,string>={PENDENTE:'bg-amber-50 text-amber-700',APROVADO:'bg-emerald-50 text-emerald-700',RECUSADO:'bg-red-50 text-red-700',CONCLUIDO:'bg-slate-50 text-slate-600'};

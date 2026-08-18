@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { getClienteVitrine } from '@/lib/vitrine-session';
 
 export default function PerguntasProduto({ pecaId }: { pecaId: string }) {
   const [perguntas, setPerguntas] = useState<any[]>([]);
@@ -18,9 +19,9 @@ export default function PerguntasProduto({ pecaId }: { pecaId: string }) {
 
   async function enviar() {
     if (!novaPergunta.trim()) return;
-    const cliente = sessionStorage.getItem('marquinho-cliente');
+    const cliente = getClienteVitrine();
     if (!cliente) { setMsg('Faça login para perguntar.'); return; }
-    const { token } = JSON.parse(cliente);
+    const { token } = cliente;
     setEnviando(true);
     const r = await fetch('/api/vitrine/perguntas', {
       method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },

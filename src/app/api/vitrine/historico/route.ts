@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getVitrineSession } from '@/lib/auth';
+import { VITRINE_VISIBILITY, publicarPeca } from '@/lib/vitrine-utils';
 
 // GET — produtos vistos pelo cliente (para "continuar comprando" e "vistos recentemente")
 export async function GET(req: NextRequest) {
@@ -21,7 +22,7 @@ export async function GET(req: NextRequest) {
 
     const pecaIds = [...new Set(navegacao.map(n => n.pecaId))];
     const produtos = await prisma.peca.findMany({
-      where: { id: { in: pecaIds }, ativo: true, vitrine: true },
+      where: { id: { in: pecaIds }, ...VITRINE_VISIBILITY },
       include: { categoria: { select: { nome: true, slug: true } } },
     });
 
@@ -29,7 +30,7 @@ export async function GET(req: NextRequest) {
     const ordem = navegacao.map(n => n.pecaId);
     produtos.sort((a, b) => ordem.indexOf(a.id) - ordem.indexOf(b.id));
 
-    return NextResponse.json({ produtos });
+    return NextResponse.json({ produtos: produtos.map(publicarPeca) });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
   }

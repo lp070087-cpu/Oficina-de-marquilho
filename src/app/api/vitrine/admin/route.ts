@@ -16,7 +16,8 @@ export async function GET() {
       orcamentosPendentes, pedidosPendentes, secoes,
     ] = await Promise.all([
       prisma.peca.count({ where: { ativo: true } }),
-      prisma.peca.count({ where: { ativo: true, vitrine: true } }),
+      // Correção 1: produtos visíveis = regra oficial (ativo && quantidadeLoja>0 && precoVenda>0).
+      prisma.peca.count({ where: { ativo: true, quantidadeLoja: { gt: 0 }, precoVenda: { gt: 0 } } }),
       prisma.peca.count({ where: { ativo: true, destaque: true } }),
       prisma.peca.count({ where: { ativo: true, oferta: true } }),
       prisma.marca.count({ where: { ativo: true } }),

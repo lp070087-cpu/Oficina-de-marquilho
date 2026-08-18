@@ -6,7 +6,7 @@ const fm = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currenc
 
 interface Produto {
   id: string; nome: string; codigo: string; precoVenda: number; precoOferta?: number;
-  quantidade: number; estoqueMinimo: number; vitrine: boolean; destaque: boolean; oferta: boolean;
+  quantidade?: number; quantidadeLoja?: number; estoqueMinimo?: number; vitrine?: boolean; destaque?: boolean; oferta?: boolean;
   marca?: string; compatibilidade?: string; imagemUrl?: string; descricaoCurta?: string;
   categoria: { nome: string; slug: string }; createdAt?: string;
 }
@@ -22,8 +22,10 @@ export default function CardProdutoPremium({
   const oferta = p.oferta && p.precoOferta;
   const economia = oferta ? Number(p.precoVenda) - Number(p.precoOferta) : 0;
   const desconto = oferta ? Math.round((economia / Number(p.precoVenda)) * 100) : 0;
-  const disponivel = p.quantidade > 0;
-  const ultimasUnidades = p.quantidade > 0 && p.quantidade <= 5;
+  // Disponibilidade baseada no estoque da LOJA (quantidadeLoja). Nunca expor o estoque central.
+  const qtdLoja = p.quantidadeLoja ?? 0;
+  const disponivel = qtdLoja > 0;
+  const ultimasUnidades = qtdLoja > 0 && qtdLoja <= 5;
   const novo = p.createdAt ? (new Date().getTime() - new Date(p.createdAt).getTime()) < 7 * 24 * 60 * 60 * 1000 : false;
   const preco = oferta ? Number(p.precoOferta) : Number(p.precoVenda);
   const descontoPix = preco * 0.95;
@@ -47,7 +49,7 @@ export default function CardProdutoPremium({
           {oferta && <span className="px-2 py-0.5 bg-red-500 text-white text-[9px] font-extrabold rounded-full shadow-sm">{desconto}% OFF</span>}
           {novo && !oferta && <span className="px-2 py-0.5 bg-blue-500 text-white text-[9px] font-extrabold rounded-full shadow-sm">Novo</span>}
           {!disponivel && <span className="px-2 py-0.5 bg-slate-700 text-white text-[9px] font-bold rounded-full shadow-sm">Indisponível</span>}
-          {ultimasUnidades && disponivel && <span className="px-2 py-0.5 bg-amber-500 text-white text-[9px] font-bold rounded-full shadow-sm">Últimas {p.quantidade} un.</span>}
+          {ultimasUnidades && disponivel && <span className="px-2 py-0.5 bg-amber-500 text-white text-[9px] font-bold rounded-full shadow-sm">Últimas unidades</span>}
         </div>
         {/* Botões ação */}
         <div className="absolute top-2 right-2 flex flex-col gap-1">
@@ -74,8 +76,8 @@ export default function CardProdutoPremium({
         <a href={`/vitrine/produto/${p.id}`} className="text-xs font-semibold text-slate-700 line-clamp-2 leading-snug hover:text-brand-600 transition-colors">{p.nome}</a>
         {!compact && <p className="text-[9px] text-slate-400 truncate">{p.categoria.nome}{p.compatibilidade ? ` · ${p.compatibilidade}` : ''}</p>}
 
-        {/* Estoque */}
-        {!compact && disponivel && <p className="text-[9px] text-emerald-600 font-medium flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500"/>{p.quantidade > 10 ? 'Em estoque' : `Apenas ${p.quantidade} un.`}</p>}
+        {/* Disponibilidade (sem expor número do estoque central) */}
+        {!compact && disponivel && <p className="text-[9px] text-emerald-600 font-medium flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500"/>{ultimasUnidades ? 'Últimas unidades' : 'Em estoque'}</p>}
 
         <div className="mt-auto pt-1">
           <div className="flex items-baseline gap-1.5 flex-wrap">

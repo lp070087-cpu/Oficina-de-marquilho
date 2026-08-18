@@ -15,23 +15,60 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json();
-    const { nome, telefone, email, password, modeloMoto } = body;
-    if (!nome || !telefone || !password) {
-      return NextResponse.json({ error: 'Preencha nome, telefone e senha.' }, { status: 400 });
+
+    // ===== LOGIN (SOMENTE email + senha) =====
+    if (body.identificador || body.email) {
+      const idn = String(body.email || body.identificador).trim().toLowerCase();
+      if (!idn || !body.password) {
+        return NextResponse.json({ error: 'Informe email e senha.' }, { status: 400 });
+      }
+      const cliente = await prisma.cliente.findFirst({
+        where: { email: { equals: idn, mode: 'insensitive' } },
+      });
+      if (!cliente) {
+        return NextResponse.json({ error: 'Email não cadastrado.' }, { status: 401 });
+      }
+      const valid = await bcrypt.compare(body.password, cliente.password);
+      if (!valid) return NextResponse.json({ error: 'Senha incorreta.' }, { status: 401 });
+      const token = await createVitrineToken({ id: cliente.id, nome: cliente.nome, telefone: cliente.telefone });
+      return NextResponse.json({
+        token,
+        cliente: { id: cliente.id, nome: cliente.nome, telefone: cliente.telefone, email: cliente.email, modeloMoto: cliente.modeloMoto },
+      });
     }
-    const existe = await prisma.cliente.findUnique({ where: { telefone } });
-    if (existe) {
-      const valid = await bcrypt.compare(password, existe.password);
-      if (!valid) return NextResponse.json({ error: 'Telefone ja cadastrado. Senha incorreta.' }, { status: 401 });
-      const token = await createVitrineToken({ id: existe.id, nome: existe.nome, telefone: existe.telefone });
-      return NextResponse.json({ token, cliente: { id: existe.id, nome: existe.nome, telefone: existe.telefone, modeloMoto: existe.modeloMoto } });
+
+    // ===== CADASTRO (nome + sobrenome → Cliente.nome) =====
+    const { nome, sobrenome, telefone, email, password, modeloMoto } = body;
+    const nomeCompleto = [nome, sobrenome].filter(Boolean).map((s: string) => s.trim()).join(' ');
+    if (!nomeCompleto || !email || !password) {
+      return NextResponse.json({ error: 'Preencha nome, sobrenome, email e senha.' }, { status: 400 });
     }
+    const emailNormalizado = String(email).trim().toLowerCase();
+    if (!telefone) {
+      return NextResponse.json({ error: 'Preencha o telefone (contato da loja).' }, { status: 400 });
+    }
+
+    // Unicidade de email e telefone (validação em código — schema não permite migração agora)
+    const existente = await prisma.cliente.findFirst({
+      where: { OR: [{ email: { equals: emailNormalizado, mode: 'insensitive' } }, { telefone }] },
+    });
+    if (existente) {
+      const emailUsado = existente.email && existente.email.toLowerCase() === emailNormalizado;
+      return NextResponse.json(
+        { error: emailUsado ? 'Este email já está cadastrado. Faça login.' : 'Este telefone já está cadastrado. Faça login.' },
+        { status: 409 }
+      );
+    }
+
     const hash = await bcrypt.hash(password, 10);
     const cliente = await prisma.cliente.create({
-      data: { nome, telefone, email: email || null, password: hash, modeloMoto: modeloMoto || null },
+      data: { nome: nomeCompleto, telefone, email: emailNormalizado, password: hash, modeloMoto: modeloMoto || null },
     });
     const token = await createVitrineToken({ id: cliente.id, nome: cliente.nome, telefone: cliente.telefone });
-    return NextResponse.json({ token, cliente: { id: cliente.id, nome: cliente.nome, telefone: cliente.telefone, modeloMoto: cliente.modeloMoto } }, { status: 201 });
+    return NextResponse.json({
+      token,
+      cliente: { id: cliente.id, nome: cliente.nome, telefone: cliente.telefone, email: cliente.email, modeloMoto: cliente.modeloMoto },
+    }, { status: 201 });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
   }

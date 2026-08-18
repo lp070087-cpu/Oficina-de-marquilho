@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { getClienteVitrine } from '@/lib/vitrine-session';
 
 const fm = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
@@ -13,8 +14,8 @@ export default function CarrinhoVitrine() {
   useEffect(() => {
     const s = sessionStorage.getItem('marquinho-cart');
     if (s) setCart(JSON.parse(s));
-    const c = sessionStorage.getItem('marquinho-cliente');
-    if (c) setCliente(JSON.parse(c));
+    const c = getClienteVitrine();
+    if (c) setCliente(c);
   }, []);
 
   function atualizarQtd(i: number, q: number) {
@@ -54,7 +55,14 @@ export function useCarrinhoVitrine() {
     let cart: CartItem[] = s ? JSON.parse(s) : [];
     const idx = cart.findIndex((i: CartItem) => i.peca.id === peca.id);
     if (idx >= 0) cart[idx].quantidade += 1;
-    else cart.push({ peca: { id: peca.id, nome: peca.nome, codigo: peca.codigo, precoVenda: peca.precoVenda, precoOferta: peca.precoOferta, imagemUrl: peca.imagemUrl, marca: peca.marca }, quantidade: 1 });
+    else cart.push({
+      peca: {
+        id: peca.id, nome: peca.nome, codigo: peca.codigo,
+        precoVenda: peca.precoVenda, precoOferta: peca.precoOferta, oferta: peca.oferta,
+        imagemUrl: peca.imagemUrl, marca: peca.marca, quantidadeLoja: peca.quantidadeLoja,
+      },
+      quantidade: 1,
+    });
     sessionStorage.setItem('marquinho-cart', JSON.stringify(cart));
   }
   return { adicionar };

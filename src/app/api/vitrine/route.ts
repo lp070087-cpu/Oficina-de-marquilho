@@ -1,16 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getSession } from '@/lib/auth';
+import { VITRINE_VISIBILITY, publicarPeca } from '@/lib/vitrine-utils';
 
 export async function GET() {
   try {
     const pecas = await prisma.peca.findMany({
-      where: { ativo: true, vitrine: true },
+      where: { ...VITRINE_VISIBILITY },
       include: { categoria: { select: { nome: true, slug: true } } },
       orderBy: { nome: 'asc' },
       take: 200,
     });
-    return NextResponse.json(pecas);
+    return NextResponse.json(pecas.map(publicarPeca));
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
   }

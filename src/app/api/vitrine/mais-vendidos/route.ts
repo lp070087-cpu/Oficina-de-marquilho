@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { VITRINE_VISIBILITY, publicarPeca } from '@/lib/vitrine-utils';
 
 // GET — produtos mais vendidos (por visualização + vendas)
 export async function GET() {
@@ -13,19 +14,19 @@ export async function GET() {
     });
 
     if (populares.length === 0) {
-      // Fallback: produtos em vitrine aleatórios
+      // Fallback: produtos em vitrine visíveis
       const fallback = await prisma.peca.findMany({
-        where: { ativo: true, vitrine: true },
+        where: { ...VITRINE_VISIBILITY },
         include: { categoria: { select: { nome: true, slug: true } } },
         take: 12,
         orderBy: { updatedAt: 'desc' },
       });
-      return NextResponse.json({ produtos: fallback });
+      return NextResponse.json({ produtos: fallback.map(publicarPeca) });
     }
 
     const pecaIds = populares.map(p => p.pecaId);
     const produtos = await prisma.peca.findMany({
-      where: { id: { in: pecaIds }, ativo: true, vitrine: true },
+      where: { id: { in: pecaIds }, ...VITRINE_VISIBILITY },
       include: { categoria: { select: { nome: true, slug: true } } },
     });
 
@@ -33,7 +34,7 @@ export async function GET() {
     const map = new Map(populares.map(p => [p.pecaId, p._count.pecaId]));
     produtos.sort((a, b) => (map.get(b.id) || 0) - (map.get(a.id) || 0));
 
-    return NextResponse.json({ produtos: produtos.slice(0, 12) });
+    return NextResponse.json({ produtos: produtos.slice(0, 12).map(publicarPeca) });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
   }

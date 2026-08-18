@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getSession } from '@/lib/auth';
+import { VITRINE_VISIBILITY, publicarPeca } from '@/lib/vitrine-utils';
 
 export async function GET() {
   try {
@@ -11,7 +12,20 @@ export async function GET() {
       orderBy: { dataFim: 'asc' },
       take: 20,
     });
-    return NextResponse.json(promocoes);
+
+    // Aplicar a regra de visibilidade também dentro das promoções:
+    // produtos com preço R$0, inativos ou sem estoque na loja não aparecem.
+    const resultado = promocoes.map(promo => ({
+      ...promo,
+      produtos: promo.produtos
+        .filter(pp => {
+          const p = pp.peca;
+          return p.ativo && p.quantidadeLoja > 0 && Number(p.precoVenda) > 0;
+        })
+        .map(pp => ({ ...pp, peca: publicarPeca(pp.peca) })),
+    }));
+
+    return NextResponse.json(resultado);
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
   }

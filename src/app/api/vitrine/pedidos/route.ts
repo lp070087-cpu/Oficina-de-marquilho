@@ -105,17 +105,25 @@ export async function POST(req: NextRequest) {
       if (!peca || !peca.ativo) continue;
 
       const qtd = Math.max(1, parseInt(item.quantidade) || 1);
+
+      // Regra oficial da Vitrine (Correção 1): ativo=true && quantidadeLoja>0 && precoVenda>0.
+      // O flag manual `vitrine` NÃO bloqueia mais a venda.
+      if (Number(peca.precoVenda) <= 0 || peca.quantidadeLoja < qtd) {
+        return NextResponse.json(
+          { error: `Estoque insuficiente na loja para "${peca.nome}". Reduza a quantidade ou remova do carrinho.` },
+          { status: 400 }
+        );
+      }
+
       const preco = peca.precoOferta && peca.precoOferta < peca.precoVenda ? peca.precoOferta : peca.precoVenda;
       const precoFinal = Number(preco);
       const sub = precoFinal * qtd;
 
       // RESERVAR estoque da loja
-      if (peca.quantidadeLoja >= qtd) {
-        await prisma.peca.update({
-          where: { id: peca.id },
-          data: { quantidadeLoja: { decrement: qtd } },
-        });
-      }
+      await prisma.peca.update({
+        where: { id: peca.id },
+        data: { quantidadeLoja: { decrement: qtd } },
+      });
 
       itensValidados.push({
         pecaId: peca.id,

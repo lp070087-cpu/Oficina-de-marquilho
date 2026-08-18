@@ -2,7 +2,7 @@
 
 interface PecaVitrine {
   id: string; nome: string; codigo: string; precoVenda: number; precoOferta?: number;
-  quantidade: number; estoqueMinimo: number; destaque: boolean; oferta: boolean;
+  quantidade?: number; quantidadeLoja?: number; estoqueMinimo?: number; destaque: boolean; oferta: boolean;
   marca?: string; compatibilidade?: string; imagemUrl?: string; descricaoCurta?: string;
   categoria: { nome: string; slug: string };
 }
@@ -23,7 +23,10 @@ export default function VitrineProdutoCard({ p }: { p: PecaVitrine }) {
   const desconto = temOferta ? Math.round(((preco - precoOferta) / preco) * 100) : 0;
   const precoPix = Math.round(precoOferta * 0.9 * 100) / 100;
   const economia = temOferta ? Math.round((preco - precoOferta) * 100) / 100 : 0;
-  const isEsgotado = p.quantidade <= 0;
+  // Disponibilidade pelo estoque da LOJA. Nunca expor o estoque central (quantidade).
+  const qtdLoja = p.quantidadeLoja ?? 0;
+  const isEsgotado = qtdLoja <= 0;
+  const poucasUnidades = qtdLoja > 0 && qtdLoja <= 5;
   const bg = catColors[p.categoria.slug] || catColors.acessorios;
 
   function handleAdd() {
@@ -71,8 +74,8 @@ export default function VitrineProdutoCard({ p }: { p: PecaVitrine }) {
 
         <div className="flex items-center justify-between text-[10px] mb-2">
           <span className="text-slate-400 font-mono">{p.codigo}</span>
-          <span className={isEsgotado ? 'text-red-500 font-medium' : p.quantidade <= p.estoqueMinimo ? 'text-amber-600 font-medium' : 'text-emerald-600 font-medium'}>
-            {isEsgotado ? 'Esgotado' : p.quantidade <= p.estoqueMinimo ? 'Poucas un.' : 'Disponivel'}
+          <span className={isEsgotado ? 'text-red-500 font-medium' : poucasUnidades ? 'text-amber-600 font-medium' : 'text-emerald-600 font-medium'}>
+            {isEsgotado ? 'Esgotado' : poucasUnidades ? 'Poucas un.' : 'Disponivel'}
           </span>
         </div>
 

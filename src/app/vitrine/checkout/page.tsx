@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { getClienteVitrine } from '@/lib/vitrine-session';
 
 const fm = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
@@ -27,15 +28,15 @@ export default function CheckoutPage() {
   useEffect(() => {
     const s = sessionStorage.getItem('marquinho-cart');
     if (s) setCart(JSON.parse(s));
-    const c = sessionStorage.getItem('marquinho-cliente');
-    if (!c) { router.push('/vitrine/login'); return; }
-    const cd = JSON.parse(c);
+    const cd = getClienteVitrine();
+    if (!cd) { router.push('/vitrine/login'); return; }
     setCliente(cd);
     setRetiradaNome(cd.nome || '');
     setRetiradaTelefone(cd.telefone || '');
   }, [router]);
 
-  const subtotal = cart.reduce((s, i) => s + Number(i.peca.precoVenda) * i.quantidade, 0);
+  // Subtotal considera oferta (mesma lógica do carrinho): preço de oferta quando aplicável.
+  const subtotal = cart.reduce((s, i) => s + Number(i.peca.oferta && i.peca.precoOferta ? i.peca.precoOferta : i.peca.precoVenda) * i.quantidade, 0);
   const descontoCupom = cupomAplicado
     ? cupomAplicado.tipo === 'PERCENTUAL' ? subtotal * (Number(cupomAplicado.valor) / 100) : Number(cupomAplicado.valor)
     : 0;
@@ -118,7 +119,7 @@ export default function CheckoutPage() {
                 <p className="font-medium text-slate-700 truncate">{item.peca.nome}</p>
                 <p className="text-slate-400">{item.peca.codigo} x{item.quantidade}</p>
               </div>
-              <span className="font-bold ml-2">{fm(Number(item.peca.precoVenda) * item.quantidade)}</span>
+              <span className="font-bold ml-2">{fm(Number(item.peca.oferta && item.peca.precoOferta ? item.peca.precoOferta : item.peca.precoVenda) * item.quantidade)}</span>
             </div>
           ))}
           <div className="flex items-center justify-between pt-3 mt-2 border-t border-slate-200">

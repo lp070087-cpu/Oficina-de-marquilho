@@ -8,9 +8,12 @@ interface Categoria { id: string; nome: string; slug: string; }
 interface Peca {
   id: string; nome: string; codigo: string; precoVenda: number; precoOferta?: number;
   quantidade: number; estoqueMinimo: number; vitrine: boolean; destaque: boolean; oferta: boolean;
+  quantidadeLoja?: number; ativo?: boolean;
   marca?: string; compatibilidade?: string; imagemUrl?: string; descricaoCurta?: string;
   categoria: { nome: string; slug: string; id: string };
 }
+// Correção 1: regra oficial de visibilidade (ativo && quantidadeLoja>0 && precoVenda>0).
+const visivel = (p: Peca) => (p.ativo !== false) && (Number(p.quantidadeLoja ?? 0) > 0) && (Number(p.precoVenda) > 0);
 interface Orcamento { id: string; numero: number; status: string; total: number; modeloMoto?: string; createdAt: string; cliente: { nome: string; telefone: string }; itens: { quantidade: number; peca: { nome: string; codigo: string } }[]; }
 
 interface PedidoLoja { id: string; numero: number; status: string; total: number; formaPagamento?: string; clienteNome?: string; cliente?: { nome: string; telefone: string }; retiradaNome?: string; retiradaTelefone?: string; qrCode?: string; createdAt: string; retiradaEm?: string; itens: { quantidade: number; precoVendido: number; peca: { nome: string; codigo: string } }[]; }
@@ -69,7 +72,7 @@ export default function VitrineManagePage() {
   function copiarLink() { navigator.clipboard.writeText(`${window.location.origin}/vitrine`); setCopiado(true); setTimeout(()=>setCopiado(false),2000); }
 
   const fm = (v:number) => v.toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
-  const pecasFiltradas = pecas.filter(p => p.vitrine);
+  const pecasFiltradas = pecas.filter(visivel);
   const destaques = pecasFiltradas.filter(p => p.destaque).slice(0, 8);
   const ofertas = pecasFiltradas.filter(p => p.oferta && p.precoOferta).slice(0, 8);
 
@@ -290,7 +293,7 @@ export default function VitrineManagePage() {
                 {pecasPorSecao.map(sec => sec.pecas.length > 0 && (
                   <section key={sec.slug}>
                     <div className="flex items-center justify-between mb-3">
-                      <h2 className="text-base font-extrabold text-slate-800">{sec.nome} <span className="text-slate-400 font-normal text-xs">({sec.pecas.filter(p=>p.vitrine).length} visiveis)</span></h2>
+                      <h2 className="text-base font-extrabold text-slate-800">{sec.nome} <span className="text-slate-400 font-normal text-xs">({sec.pecas.filter(visivel).length} visiveis)</span></h2>
                       <button onClick={() => setCatAtiva(sec.catId)} className="text-xs text-brand-600 hover:text-brand-700 font-bold">Filtrar só {sec.nome}</button>
                     </div>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">{sec.pecas.map(p => <AdminProdutoCard key={p.id} p={p} onToggle={toggle} onUpload={handleUpload} uploading={uploading} />)}</div>

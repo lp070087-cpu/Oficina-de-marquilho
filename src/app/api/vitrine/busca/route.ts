@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { VITRINE_VISIBILITY, CAMPOS_BUSCA_VITRINE, buildBuscaVitrine, publicarPeca } from '@/lib/vitrine-utils';
 
 export async function GET(req: NextRequest) {
   try {
@@ -13,17 +14,12 @@ export async function GET(req: NextRequest) {
     const limit = 24;
     const skip = (page - 1) * limit;
 
-    const where: any = { ativo: true, vitrine: true };
+    // Regra oficial de visibilidade + busca tokenizada com suporte a CATEGORIA:
+    // AND de palavras × OR de campos, case-insensitive. Cada palavra deve casar
+    // com nome/codigo/barras/marca/descricao/compatibilidade OU categoria.nome.
+    const where: any = { ...VITRINE_VISIBILITY };
     if (q) {
-      where.OR = [
-        { nome: { contains: q, mode: 'insensitive' } },
-        { codigo: { contains: q, mode: 'insensitive' } },
-        { codigoBarras: { contains: q, mode: 'insensitive' } },
-        { marca: { contains: q, mode: 'insensitive' } },
-        { descricao: { contains: q, mode: 'insensitive' } },
-        { descricaoCurta: { contains: q, mode: 'insensitive' } },
-        { compatibilidade: { contains: q, mode: 'insensitive' } },
-      ];
+      where.AND = buildBuscaVitrine(q);
     }
     if (categoria) where.categoria = { slug: categoria };
     if (marca) where.marca = { equals: marca, mode: 'insensitive' };
@@ -54,14 +50,14 @@ export async function GET(req: NextRequest) {
       }),
       prisma.peca.count({ where }),
       prisma.peca.findMany({
-        where: { ativo: true, vitrine: true, marca: { not: null } },
+        where: { ...VITRINE_VISIBILITY, marca: { not: null } },
         select: { marca: true }, distinct: ['marca'],
       }),
     ]);
 
     // Sugestões (autocomplete) com produtos
     const sugestoes = q && page === 1 ? await prisma.peca.findMany({
-      where: { ativo: true, vitrine: true, nome: { contains: q, mode: 'insensitive' } },
+      where: { ...VITRINE_VISIBILITY, nome: { contains: q, mode: 'insensitive' } },
       select: { id: true, nome: true, codigo: true, imagemUrl: true, precoVenda: true, marca: true },
       take: 6,
     }) : [];
@@ -73,20 +69,20 @@ export async function GET(req: NextRequest) {
       take: 3,
     }) : [];
 
-    // Marcas sugeridas pela busca
+    // Marcas sugeridas pela busca (derivadas de Peca.marca dos produtos visíveis)
     const marcasSug = q && page === 1 ? await prisma.peca.findMany({
-      where: { ativo: true, vitrine: true, marca: { contains: q, mode: 'insensitive' } },
+      where: { ...VITRINE_VISIBILITY, marca: { contains: q, mode: 'insensitive' } },
       select: { marca: true }, distinct: ['marca'],
       take: 3,
     }) : [];
 
     return NextResponse.json({
-      produtos,
+      produtos: produtos.map(publicarPeca),
       total,
       paginas: Math.ceil(total / limit),
       pagina: page,
       marcas: marcasDisponiveis.map(m => m.marca).filter(Boolean),
-      sugestoes,
+      sugestoes: sugestoes.map(publicarPeca),
       categoriasSug,
       marcasSug: marcasSug.map(m => ({ nome: m.marca })),
     });

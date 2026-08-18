@@ -3,6 +3,7 @@
 interface PecaVitrine {
   id: string; nome: string; codigo: string; precoVenda: number; precoOferta?: number;
   quantidade: number; estoqueMinimo: number; destaque: boolean; oferta: boolean; vitrine: boolean;
+  quantidadeLoja?: number; ativo?: boolean;
   marca?: string; compatibilidade?: string; imagemUrl?: string; descricaoCurta?: string;
   categoria: { nome: string; slug: string };
 }
@@ -19,8 +20,13 @@ export default function AdminProdutoCard({ p, onToggle, onUpload, uploading }: {
   const desconto = temOferta ? Math.round(((preco - precoOferta) / preco) * 100) : 0;
   const precoPix = Math.round(precoOferta * 0.9 * 100) / 100;
 
+  // Correção 1 (DONA): o campo manual `vitrine` NÃO controla mais a exposição pública.
+  // A disponibilidade real na Vitrine é: ativo && quantidadeLoja > 0 && precoVenda > 0.
+  // O botão antigo 👁/🙈 foi REMOVIDO — este é um indicador somente leitura.
+  const disponivelVitrine = p.ativo !== false && (Number(p.quantidadeLoja ?? 0) > 0) && (Number(p.precoVenda) > 0);
+
   return (
-    <div className={`bg-white rounded-lg border overflow-hidden hover:shadow-md transition-all group flex flex-col ${p.vitrine ? 'border-slate-200' : 'border-dashed border-amber-300 bg-amber-50/30'}`}>
+    <div className={`bg-white rounded-lg border overflow-hidden hover:shadow-md transition-all group flex flex-col ${disponivelVitrine ? 'border-slate-200' : 'border-dashed border-amber-300 bg-amber-50/30'}`}>
       {/* Imagem - menor e mais compacta */}
       <div className="relative h-40 overflow-hidden">
         {/* Selos */}
@@ -29,16 +35,17 @@ export default function AdminProdutoCard({ p, onToggle, onUpload, uploading }: {
           {p.destaque && !temOferta && <span className="bg-amber-500 text-white text-[9px] font-extrabold px-1.5 py-0.5 rounded-sm uppercase">⭐ Destaque</span>}
         </div>
 
-        {/* Botoes de acao */}
-        <div className="absolute top-2 right-2 z-20 flex gap-0.5">
-          <button onClick={() => onToggle(p.id, 'vitrine', !p.vitrine)}
-            className={`px-1.5 py-0.5 rounded text-[8px] font-bold border ${p.vitrine ? 'bg-brand-600 text-white border-brand-600' : 'bg-white text-amber-700 border-amber-300'}`}>
-            {p.vitrine ? '👁' : '🙈'}
-          </button>
-          <button onClick={() => onToggle(p.id, 'destaque', !p.destaque)}
-            className={`px-1.5 py-0.5 rounded text-[8px] font-bold border ${p.destaque ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-slate-500 border-slate-200'}`}>⭐</button>
-          <button onClick={() => onToggle(p.id, 'oferta', !p.oferta)}
-            className={`px-1.5 py-0.5 rounded text-[8px] font-bold border ${p.oferta ? 'bg-red-500 text-white border-red-500' : 'bg-white text-slate-500 border-slate-200'}`}>🔥</button>
+        {/* Botoes de acao (sem toggle de vitrine — disponibilidade é derivada da regra oficial) */}
+        <div className="absolute top-2 right-2 z-20 flex flex-col gap-0.5 items-end">
+          <span className={`px-1.5 py-0.5 rounded text-[8px] font-bold border ${disponivelVitrine ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-white text-amber-700 border-amber-300'}`}>
+            {disponivelVitrine ? 'VISÍVEL' : 'INDISPONÍVEL'}
+          </span>
+          <div className="flex gap-0.5">
+            <button onClick={() => onToggle(p.id, 'destaque', !p.destaque)}
+              className={`px-1.5 py-0.5 rounded text-[8px] font-bold border ${p.destaque ? 'bg-amber-500 text-white border-amber-500' : 'bg-white text-slate-500 border-slate-200'}`}>⭐</button>
+            <button onClick={() => onToggle(p.id, 'oferta', !p.oferta)}
+              className={`px-1.5 py-0.5 rounded text-[8px] font-bold border ${p.oferta ? 'bg-red-500 text-white border-red-500' : 'bg-white text-slate-500 border-slate-200'}`}>🔥</button>
+          </div>
         </div>
 
         {/* Foto + upload overlay */}
@@ -46,7 +53,7 @@ export default function AdminProdutoCard({ p, onToggle, onUpload, uploading }: {
           {p.imagemUrl ? (
             <img src={p.imagemUrl} alt={p.nome} className="w-full h-full object-cover" />
           ) : (
-            <div className={`w-full h-full flex items-center justify-center ${!p.vitrine ? 'bg-amber-50' : 'bg-slate-100'}`}>
+            <div className={`w-full h-full flex items-center justify-center ${!disponivelVitrine ? 'bg-amber-50' : 'bg-slate-100'}`}>
               <svg className="w-10 h-10 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
             </div>
           )}

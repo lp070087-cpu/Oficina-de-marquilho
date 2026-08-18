@@ -4,7 +4,7 @@ const fm = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currenc
 
 interface Produto {
   id: string; nome: string; codigo: string; precoVenda: number; precoOferta?: number;
-  quantidade: number; marca?: string; compatibilidade?: string; imagemUrl?: string;
+  quantidade?: number; quantidadeLoja?: number; marca?: string; compatibilidade?: string; imagemUrl?: string;
   descricaoCurta?: string; categoria: { nome: string; slug: string };
 }
 
@@ -16,7 +16,8 @@ export default function ListaProdutoPremium({ p, onComparar, comparado }: {
   const precoAtual = oferta ? Number(p.precoOferta) : Number(p.precoVenda);
   const descontoPix = precoAtual * 0.95;
   const parcelas = [2, 3, 4].find(x => precoAtual / x >= 20);
-  const disponivel = p.quantidade > 0;
+  // Disponibilidade pelo estoque da LOJA. Nunca expor o estoque central (quantidade).
+  const disponivel = (p.quantidadeLoja ?? 0) > 0;
 
   return (
     <div className="bg-white rounded-xl border border-slate-200 hover:border-brand-300 hover:shadow-md transition-all duration-200 p-4 flex gap-4 group">

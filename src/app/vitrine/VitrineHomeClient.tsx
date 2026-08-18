@@ -9,6 +9,7 @@ import MarcasVitrine from '@/components/vitrine/MarcasVitrine';
 import RodapePremium from '@/components/vitrine/RodapePremium';
 import NewsletterVitrine from '@/components/vitrine/NewsletterVitrine';
 import PromocoesVitrine from '@/components/vitrine/PromocoesVitrine';
+import { getClienteVitrine } from '@/lib/vitrine-session';
 
 const fm = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
@@ -23,9 +24,8 @@ export default function VitrineHomeClient({ destaques, ofertas, lancamentos, pec
   const [recentes, setRecentes] = useState<any[]>([]);
 
   useEffect(() => {
-    const c = sessionStorage.getItem('marquinho-cliente');
-    if (c) {
-      const d = JSON.parse(c);
+    const d = getClienteVitrine();
+    if (d) {
       setCliente(d);
       // Carregar favoritos
       fetch('/api/vitrine/favoritos', { headers: { Authorization: `Bearer ${d.token}` } })
@@ -46,7 +46,7 @@ export default function VitrineHomeClient({ destaques, ofertas, lancamentos, pec
 
   // Recém adicionados = últimos 8 da lista principal
   useEffect(() => {
-    setRecentes(pecas.filter((p: any) => p.vitrine).slice(-8).reverse());
+    setRecentes(pecas.slice(-8).reverse());
   }, [pecas]);
 
   async function toggleFavorito(pecaId: string) {
@@ -62,7 +62,7 @@ export default function VitrineHomeClient({ destaques, ofertas, lancamentos, pec
     });
   }
 
-  const categoriasVitrine = categorias.filter((c: any) => pecas.some((p: any) => p.categoria.slug === c.slug && p.vitrine));
+  const categoriasVitrine = categorias.filter((c: any) => pecas.some((p: any) => p.categoria.slug === c.slug));
 
   return (
     <div className="min-h-screen bg-[#F3F6FB]">
@@ -252,7 +252,7 @@ export default function VitrineHomeClient({ destaques, ofertas, lancamentos, pec
             <h2 className="text-xl font-extrabold text-slate-800 mb-5">📂 Categorias</h2>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
               {categoriasVitrine.slice(0, 12).map((c: any) => {
-                const count = pecas.filter((p: any) => p.categoria.slug === c.slug && p.vitrine).length;
+                const count = pecas.filter((p: any) => p.categoria.slug === c.slug).length;
                 return (
                   <a key={c.slug} href={`/vitrine/catalogo?categoria=${c.slug}`}
                     className="bg-white rounded-xl border border-slate-200 p-4 text-center hover:border-brand-300 hover:shadow-sm transition-all group">
@@ -315,7 +315,7 @@ export default function VitrineHomeClient({ destaques, ofertas, lancamentos, pec
       <RodapePremium />
 
       {/* WHATSAPP FIXO */}
-      <a href="#" className="fixed bottom-6 right-6 w-14 h-14 bg-emerald-500 hover:bg-emerald-600 text-white rounded-full flex items-center justify-center shadow-xl shadow-emerald-500/40 transition-all hover:scale-110 z-50">
+      <a href="https://wa.me/558198143879" target="_blank" rel="noopener noreferrer" className="fixed bottom-6 right-6 w-14 h-14 bg-emerald-500 hover:bg-emerald-600 text-white rounded-full flex items-center justify-center shadow-xl shadow-emerald-500/40 transition-all hover:scale-110 z-50">
         <svg className="w-7 h-7" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347"/></svg>
       </a>
     </div>

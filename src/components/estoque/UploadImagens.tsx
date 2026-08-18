@@ -70,6 +70,27 @@ export default function UploadImagens({ pecaId, imagensAtuais, onImagensChange }
     onImagensChange(novas);
   }
 
+  // Correção 4 (DONA): definir uma imagem como PRINCIPAL (capa do produto na Vitrine).
+  // O PUT /api/pecas/imagens promove a imagem, rebaixa a principal anterior para
+  // GALERIA e atualiza peca.imagemUrl — tudo em uma única chamada.
+  async function handleDefinirPrincipal(index: number) {
+    const img = imagens[index];
+    if (!img.id) return;
+    try {
+      const res = await fetch('/api/pecas/imagens', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: img.id, tipo: 'PRINCIPAL' }),
+      });
+      if (!res.ok) return;
+      setImagens(prev => prev.map((im, i) => ({
+        ...im,
+        tipo: (i === index ? 'PRINCIPAL' : im.tipo === 'PRINCIPAL' ? 'GALERIA' : im.tipo) as TipoImagem,
+        ordem: i === index ? 0 : im.ordem,
+      })));
+    } catch {}
+  }
+
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (file) handleUpload(file);
@@ -108,7 +129,7 @@ export default function UploadImagens({ pecaId, imagensAtuais, onImagensChange }
         ))}
       </div>
 
-      <input ref={fileRef} type="file" accept="image/*" onChange={handleFileChange} className="hidden" />
+      <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" onChange={handleFileChange} className="hidden" />
 
       {erro && <p className="text-[11px] text-red-600 bg-red-50 px-3 py-2 rounded-lg">{erro}</p>}
 
@@ -136,6 +157,15 @@ export default function UploadImagens({ pecaId, imagensAtuais, onImagensChange }
                 <span className="absolute top-1.5 left-1.5 text-[9px] font-bold px-1.5 py-0.5 rounded bg-black/60 text-white">
                   {tipo?.label || img.tipo}
                 </span>
+                {img.tipo !== 'PRINCIPAL' && (
+                  <button
+                    onClick={() => handleDefinirPrincipal(i)}
+                    className="absolute bottom-1.5 left-1.5 px-1.5 py-0.5 rounded bg-brand-600 text-white text-[9px] font-bold opacity-0 group-hover:opacity-100 transition-opacity hover:bg-brand-700"
+                    title="Definir como foto principal"
+                  >
+                    ★ Principal
+                  </button>
+                )}
                 <button
                   onClick={() => handleRemover(i)}
                   className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-red-500 text-white text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"

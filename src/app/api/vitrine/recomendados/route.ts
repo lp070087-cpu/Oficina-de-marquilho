@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
+import { VITRINE_VISIBILITY, publicarPeca } from '@/lib/vitrine-utils';
 
 // GET — "quem viu este produto também viu" / "quem comprou também comprou"
 export async function GET(req: NextRequest) {
@@ -23,11 +24,11 @@ export async function GET(req: NextRequest) {
       const peca = await prisma.peca.findUnique({ where: { id: pecaId }, select: { categoriaId: true } });
       if (!peca) return NextResponse.json({ produtos: [] });
       const relacionados = await prisma.peca.findMany({
-        where: { ativo: true, vitrine: true, categoriaId: peca.categoriaId, id: { not: pecaId } },
+        where: { ...VITRINE_VISIBILITY, categoriaId: peca.categoriaId, id: { not: pecaId } },
         include: { categoria: { select: { nome: true, slug: true } } },
         take: 8,
       });
-      return NextResponse.json({ produtos: relacionados });
+      return NextResponse.json({ produtos: relacionados.map(publicarPeca) });
     }
 
     // Produtos vistos pelas mesmas sessões/clientes
@@ -44,11 +45,11 @@ export async function GET(req: NextRequest) {
 
     const pecaIds = [...new Set(outrasVisualizacoes.map(v => v.pecaId))].slice(0, 8);
     const produtos = await prisma.peca.findMany({
-      where: { id: { in: pecaIds }, ativo: true, vitrine: true },
+      where: { id: { in: pecaIds }, ...VITRINE_VISIBILITY },
       include: { categoria: { select: { nome: true, slug: true } } },
     });
 
-    return NextResponse.json({ produtos });
+    return NextResponse.json({ produtos: produtos.map(publicarPeca) });
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
   }

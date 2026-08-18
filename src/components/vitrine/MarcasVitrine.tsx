@@ -21,7 +21,7 @@ export default function MarcasVitrine() {
       <p className="text-sm text-slate-500 mb-8">Confira as marcas disponíveis em nossa loja</p>
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
         {comProdutos.map((m: any) => (
-          <a key={m.id} href={`/vitrine/busca?marca=${encodeURIComponent(m.nome)}`}
+          <a key={m.slug || m.nome} href={`/vitrine/busca?marca=${encodeURIComponent(m.nome)}`}
             className="bg-white border border-slate-200 rounded-xl p-5 flex flex-col items-center text-center hover:border-brand-300 hover:shadow-lg transition-all group">
             <div className="w-16 h-16 rounded-xl bg-slate-50 flex items-center justify-center mb-3 group-hover:bg-brand-50 transition-colors">
               {m.logoUrl ? <img src={m.logoUrl} alt={m.nome} className="max-w-full max-h-full object-contain" /> : <span className="text-2xl font-extrabold text-brand-600">{m.nome.charAt(0)}</span>}

@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import CardProdutoPremium from '@/components/vitrine/CardProdutoPremium';
+import { getClienteVitrine } from '@/lib/vitrine-session';
 
 export default function FavoritosPage() {
   const router = useRouter();
@@ -11,9 +12,8 @@ export default function FavoritosPage() {
   const [cliente, setCliente] = useState<any>(null);
 
   useEffect(() => {
-    const c = sessionStorage.getItem('marquinho-cliente');
-    if (!c) { router.push('/vitrine/login'); return; }
-    const d = JSON.parse(c);
+    const d = getClienteVitrine();
+    if (!d) { router.push('/vitrine/login'); return; }
     setCliente(d);
 
     fetch('/api/vitrine/favoritos', { headers: { Authorization: `Bearer ${d.token}` } })

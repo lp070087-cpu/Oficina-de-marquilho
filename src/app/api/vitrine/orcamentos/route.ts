@@ -2,6 +2,21 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getSession, getVitrineSession } from '@/lib/auth';
 import { checkRateLimit } from '@/lib/rate-limit';
+import { publicarPeca } from '@/lib/vitrine-utils';
+
+/**
+ * Correção 8 — dados internos protegidos.
+ * O browser público NUNCA deve receber: precoCusto, custoMedio, estoqueMinimo,
+ * quantidade (central), localizacao. Sanitiza as peças de um orçamento para o
+ * cliente da Vitrine. O painel admin (DONO/BALCAO) mantém os dados completos.
+ */
+function sanitizarOrcamento(o: any) {
+  if (!o) return o;
+  return {
+    ...o,
+    itens: (o.itens || []).map((i: any) => ({ ...i, peca: publicarPeca(i.peca) })),
+  };
+}
 
 export async function POST(req: NextRequest) {
   const rl = checkRateLimit(req, { key: 'vitrine:orcamentos', maxRequests: 5, windowMs: 60_000 });
@@ -46,9 +61,10 @@ export async function POST(req: NextRequest) {
         total,
         itens: { create: itensData },
       },
-      include: { itens: { include: { peca: { include: { categoria: { select: { nome: true } } } } } }, cliente: true },
+      include: { itens: { include: { peca: { include: { categoria: { select: { nome: true } } } } } } },
     });
-    return NextResponse.json(orcamento, { status: 201 });
+    // Correção 8: nunca enviar `cliente` completo (contém hash de senha) nem campos internos da peça.
+    return NextResponse.json(sanitizarOrcamento(orcamento), { status: 201 });
   } catch {
     return NextResponse.json({ error: 'Erro ao criar orcamento' }, { status: 500 });
   }
@@ -79,7 +95,8 @@ export async function GET(req: NextRequest) {
       orderBy: { createdAt: 'desc' },
       take: 50,
     });
-    return NextResponse.json(orcamentos);
+    // Correção 8: sanitiza peças (remove precoCusto/custoMedio/estoqueMinimo/quantidade/localizacao).
+    return NextResponse.json(orcamentos.map(sanitizarOrcamento));
   } catch {
     return NextResponse.json({ error: 'Erro ao buscar orcamentos' }, { status: 500 });
   }

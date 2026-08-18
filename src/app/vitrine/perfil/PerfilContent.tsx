@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { getClienteVitrine } from '@/lib/vitrine-session';
 
 const fm = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
@@ -35,9 +36,8 @@ export default function PerfilContent() {
   const [pedidoExpandido, setPedidoExpandido] = useState<string | null>(null);
 
   useEffect(() => {
-    const c = sessionStorage.getItem('marquinho-cliente');
-    if (!c) { router.push('/vitrine/login'); return; }
-    const d = JSON.parse(c);
+    const d = getClienteVitrine();
+    if (!d) { router.push('/vitrine/login'); return; }
     setCliente(d);
 
     // Buscar pedidos da vitrine

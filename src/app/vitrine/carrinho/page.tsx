@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import { getClienteVitrine } from '@/lib/vitrine-session';
 
 const fm = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
@@ -20,14 +21,19 @@ export default function CarrinhoPage() {
   useEffect(() => {
     const s = sessionStorage.getItem('marquinho-cart');
     if (s) setCart(JSON.parse(s));
-    const c = sessionStorage.getItem('marquinho-cliente');
-    if (c) setCliente(JSON.parse(c));
+    const c = getClienteVitrine();
+    if (c) setCliente(c);
   }, []);
 
   function atualizarQtd(i: number, q: number) {
     const n = [...cart];
+    const limite = Number(n[i]?.peca?.quantidadeLoja ?? 0);
     if (q <= 0) n.splice(i, 1);
-    else n[i] = { ...n[i], quantidade: q };
+    else if (limite > 0 && q > limite) {
+      setMsg('Quantidade máxima em estoque (loja) atingida.');
+      setTimeout(() => setMsg(''), 2500);
+      return;
+    } else n[i] = { ...n[i], quantidade: q };
     setCart(n);
     sessionStorage.setItem('marquinho-cart', JSON.stringify(n));
   }

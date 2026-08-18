@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getVitrineSession } from '@/lib/auth';
+import { VITRINE_VISIBILITY, publicarPeca } from '@/lib/vitrine-utils';
 
 export async function GET(req: NextRequest) {
   const authHeader = req.headers.get('Authorization') || '';
@@ -9,7 +10,7 @@ export async function GET(req: NextRequest) {
 
   try {
     const favoritos = await prisma.favorito.findMany({
-      where: { clienteId: session.clienteId },
+      where: { clienteId: session.clienteId, peca: { ...VITRINE_VISIBILITY } },
       include: {
         peca: {
           include: { categoria: { select: { nome: true, slug: true } } },
@@ -17,7 +18,7 @@ export async function GET(req: NextRequest) {
       },
       orderBy: { createdAt: 'desc' },
     });
-    return NextResponse.json(favoritos);
+    return NextResponse.json(favoritos.map(f => ({ ...f, peca: publicarPeca(f.peca) })));
   } catch (e: any) {
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
