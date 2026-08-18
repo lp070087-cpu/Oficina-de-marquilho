@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import EstoqueCategorias from '@/components/estoque/EstoqueCategorias';
 import { useEstoqueRefresh } from '@/lib/estoque-events';
+import { pecaMatchBusca } from '@/lib/peca-utils';
 
 interface Peca { id:string; nome:string; codigo:string; codigoBarras?:string; quantidadeLoja:number; quantidade:number; estoqueMinimo:number; marca?:string; precoVenda:number; categoria:{nome:string;slug:string;id:string}; }
 
@@ -27,8 +28,8 @@ export default function EstoqueLojaPage() {
   const filter = pecas.filter(p => {
     if (catSlug && p.categoria?.slug !== catSlug) return false;
     if (!busca) return true;
-    const q = busca.toLowerCase();
-    return p.nome.toLowerCase().includes(q) || p.codigo.toLowerCase().includes(q) || (p.codigoBarras||'').toLowerCase().includes(q) || (p.marca||'').toLowerCase().includes(q);
+    // BLOCO 3 — busca tokenizada: nome, SKU, codigo de barras, marca
+    return pecaMatchBusca(p, busca, ['nome', 'codigo', 'codigoBarras', 'marca']);
   });
 
   const totalPages = Math.ceil(filter.length/PER_PAGE);
@@ -42,10 +43,9 @@ export default function EstoqueLojaPage() {
       <input value={busca} onChange={e=>{setBusca(e.target.value);setPage(1);}} placeholder="Buscar..." className="input-field max-w-md mb-4"/>
       <EstoqueCategorias active={catSlug} onChange={(s)=>{setCatSlug(s);setPage(1);}}/>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mb-6">
+      <div className="grid grid-cols-2 gap-4 mb-6">
         <div className="card-stat"><p className="text-[11px] text-slate-500 uppercase">Total itens</p><p className="text-2xl font-bold">{filter.length}</p></div>
         <div className="card-stat"><p className="text-[11px] text-slate-500 uppercase">Unidades na loja</p><p className="text-2xl font-bold">{filter.reduce((s,p)=>s+(p.quantidadeLoja||0),0)}</p></div>
-        <div className="card-stat"><p className="text-[11px] text-slate-500 uppercase">Valor loja</p><p className="text-2xl font-bold">{fm(filter.reduce((s,p)=>s+Number(p.precoVenda)*(p.quantidadeLoja||0),0))}</p></div>
       </div>
 
       {loading?<p className="text-sm text-slate-400">Carregando...</p>:error?(

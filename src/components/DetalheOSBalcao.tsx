@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import PagamentoModal from '@/components/pdv/PagamentoModal';
 import { imprimirNotaServico } from '@/lib/imprimirNotaServico';
+import { pecaMatchBusca } from '@/lib/peca-utils';
 
 interface Peca {
   id: string; nome: string; codigo: string; codigoBarras?: string; precoVenda: number;
@@ -129,15 +130,11 @@ export default function DetalheOSBalcao({ os: initialOS, onClose }: { os: OS; on
   }), [pecas, dados.modeloMoto]);
 
   // Filtrar conforme busca no autocomplete
-  // Busca unificada: Nome, SKU, Codigo de Barras
+  // Busca tokenizada (BLOCO 3): nome, SKU, codigo de barras, compatibilidade
   const pecasFiltradas = useMemo(() => {
-    const termo = pecaBusca.trim().toLowerCase();
+    const termo = pecaBusca.trim();
     const base = termo
-      ? pecasOrdenadas.filter(p =>
-          p.nome.toLowerCase().includes(termo) ||
-          p.codigo.toLowerCase().includes(termo) ||
-          (p.codigoBarras || '').toLowerCase().includes(termo)
-        )
+      ? pecasOrdenadas.filter(p => pecaMatchBusca(p, termo, ['nome', 'codigo', 'codigoBarras', 'compatibilidade']))
       : pecasOrdenadas;
     return base.slice(0, 15);
   }, [pecasOrdenadas, pecaBusca]);

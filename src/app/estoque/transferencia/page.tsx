@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import ScannerUniversal from '@/components/scanner/ScannerUniversal';
 import EstoqueCategorias from '@/components/estoque/EstoqueCategorias';
 import { useEstoqueRefresh } from '@/lib/estoque-events';
+import { pecaMatchBusca } from '@/lib/peca-utils';
 
 interface Categoria { id:string; nome:string; slug:string; }
 interface Peca { id:string; nome:string; codigo:string; codigoBarras?:string; imagemUrl?:string; quantidade:number; quantidadeLoja:number; estoqueMinimo:number; marca?:string; compatibilidade?:string; categoria:{nome:string;id:string;slug:string}; }
@@ -46,13 +47,12 @@ export default function TransferenciaPage() {
   const filter = pecas.filter(p => {
     if (catSlug && p.categoria.slug !== catSlug) return false;
     if (!busca) return true;
-    const q = busca.toLowerCase();
-    if (filtro==='todos') return p.nome.toLowerCase().includes(q)||p.codigo.toLowerCase().includes(q)||(p.codigoBarras||'').includes(q);
-    if (filtro==='nome') return p.nome.toLowerCase().includes(q);
-    if (filtro==='sku') return p.codigo.toLowerCase().includes(q);
-    if (filtro==='barcode') return (p.codigoBarras||'').includes(q);
-    if (filtro==='interno') return p.codigo.toLowerCase().includes(q)||(p.codigoBarras||'').includes(q);
-    return true;
+    // BLOCO 3 — busca tokenizada, respeitando o filtro selecionado
+    if (filtro==='nome') return pecaMatchBusca(p, busca, ['nome']);
+    if (filtro==='sku') return pecaMatchBusca(p, busca, ['codigo']);
+    if (filtro==='barcode') return pecaMatchBusca(p, busca, ['codigoBarras']);
+    if (filtro==='interno') return pecaMatchBusca(p, busca, ['codigo','codigoBarras']);
+    return pecaMatchBusca(p, busca, ['nome','codigo','codigoBarras','marca']);
   });
 
   const totalPages = Math.ceil(filter.length / PER_PAGE);

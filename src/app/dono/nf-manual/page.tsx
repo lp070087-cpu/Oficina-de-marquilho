@@ -1,9 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { imprimirNfManual } from '@/lib/imprimirNotaServico';
+import { mascaraMoeda, parseMoeda, fmtMoeda } from '@/lib/moeda-utils';
 
-interface ItemNF { id: string; nome: string; codigo: string; quantidade: number; valorUnitario: number; }
+interface ItemNF { id: string; pecaId?: string; nome: string; codigo: string; codigoBarras?: string; quantidade: number; valorUnitario: number; }
+
+interface Sugestao { id: string; nome: string; codigo: string; codigoBarras?: string; precoVenda: number; quantidade: number; quantidadeLoja: number; estoqueMinimo: number; }
 
 export default function NFManualPage() {
   const [cliente, setCliente] = useState('');
@@ -11,23 +14,71 @@ export default function NFManualPage() {
   const [endereco, setEndereco] = useState('');
   const [obs, setObs] = useState('');
   const [itens, setItens] = useState<ItemNF[]>([]);
-  const [formItem, setFormItem] = useState({ nome:'', codigo:'', quantidade:'1', valorUnitario:'' });
   const [msg, setMsg] = useState('');
 
-  function addItem() {
-    if (!formItem.nome) { setMsg('Preencha o nome do produto.'); return; }
-    setItens([...itens, { id: Date.now().toString(), nome: formItem.nome, codigo: formItem.codigo, quantidade: parseInt(formItem.quantidade)||1, valorUnitario: parseFloat(formItem.valorUnitario)||0 }]);
-    setFormItem({ nome:'', codigo:'', quantidade:'1', valorUnitario:'' });
+  // Busca real de produtos (BLOCO 1): consulta /api/pecas/pesquisa e mostra
+  // sugestões com SKU, código de barras, estoque disponível e preço. Não cria
+  // produtos novos — cada item da NF precisa ser um produto existente.
+  const [busca, setBusca] = useState('');
+  const [buscando, setBuscando] = useState(false);
+  const [sugestoes, setSugestoes] = useState<Sugestao[]>([]);
+  const [sugestoesOpen, setSugestoesOpen] = useState(false);
+  const buscaRef = useRef<HTMLInputElement>(null);
+  const sugestoesRef = useRef<HTMLDivElement>(null);
+
+  const carregarSugestoes = useCallback(async (q: string) => {
+    const termo = q.trim();
+    if (termo.length < 2) { setSugestoes([]); setBuscando(false); return; }
+    setBuscando(true);
+    try {
+      const res = await fetch(`/api/pecas/pesquisa?q=${encodeURIComponent(termo)}`);
+      const data = await res.json();
+      const lista: Sugestao[] = Array.isArray(data?.pecas) ? data.pecas : [];
+      setSugestoes(lista.slice(0, 12));
+      setSugestoesOpen(true);
+    } catch { setSugestoes([]); }
+    setBuscando(false);
+  }, []);
+
+  const debounceRef = useRef<NodeJS.Timeout | null>(null);
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => { carregarSugestoes(busca); }, 300);
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
+  }, [busca, carregarSugestoes]);
+
+  // Fechar sugestões ao clicar fora
+  useEffect(() => {
+    function handler(e: MouseEvent) {
+      if (sugestoesRef.current && !sugestoesRef.current.contains(e.target as Node) && buscaRef.current && !buscaRef.current.contains(e.target as Node)) {
+        setSugestoesOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
+  function selecionarSugestao(s: Sugestao) {
+    setItens(prev => [...prev, { id: `${s.id}-${Date.now()}`, pecaId: s.id, nome: s.nome, codigo: s.codigo, codigoBarras: s.codigoBarras, quantidade: 1, valorUnitario: Number(s.precoVenda) || 0 }]);
+    setBusca('');
+    setSugestoes([]);
+    setSugestoesOpen(false);
     setMsg('');
+    if (buscaRef.current) buscaRef.current.focus();
   }
 
   function removeItem(id: string) { setItens(itens.filter(i => i.id !== id)); }
+  function atualizarQtd(id: string, qtd: number) { setItens(itens.map(i => i.id === id ? { ...i, quantidade: Math.max(1, qtd) } : i)); }
+  function atualizarValor(id: string, v: string) { setItens(itens.map(i => i.id === id ? { ...i, valorUnitario: parseMoeda(v) } : i)); }
 
-  const total = itens.reduce((s,i) => s + i.valorUnitario * i.quantidade, 0);
-  const fm = (v:number) => v.toLocaleString('pt-BR', { style:'currency', currency:'BRL' });
+  const total = itens.reduce((s, i) => s + (i.valorUnitario || 0) * i.quantidade, 0);
+  const fm = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
-  function imprimir() {
-    // Mesma identidade visual das demais notas (cabeçalho oficial + rodapé sem SEFAZ)
+  function gerarDocumento(autoPrint: boolean) {
+    if (itens.length === 0) { setMsg('Adicione pelo menos um produto.'); return; }
+    // MESMO documento/layout para IMPRIMIR e GERAR PDF — muda apenas se o
+    // window.print() dispara sozinho (imprimir) ou se o usuário usa o botão
+    // no documento (salvar PDF). Cabeçalho oficial (DADOS_EMPRESA) via headerHtml.
     imprimirNfManual({
       numero: new Date().getTime().toString().slice(-6),
       cliente,
@@ -41,8 +92,11 @@ export default function NFManualPage() {
         valorUnitario: i.valorUnitario,
       })),
       total,
+      autoPrint,
     });
   }
+
+  const estoqueLabel = (s: Sugestao) => `Central ${s.quantidade} · Loja ${s.quantidadeLoja || 0}`;
 
   return (
     <div className="p-6 max-w-3xl mx-auto">
@@ -70,12 +124,56 @@ export default function NFManualPage() {
 
         {msg && <div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded text-xs">{msg}</div>}
 
-        <div className="flex flex-wrap gap-2 items-end">
-          <div className="flex-1"><label className="text-[10px] font-semibold text-slate-500 uppercase">Produto</label><input value={formItem.nome} onChange={e=>setFormItem({...formItem,nome:e.target.value})} className="input-field mt-1 text-xs" placeholder="Nome do produto"/></div>
-          <div className="w-20 sm:w-24"><label className="text-[10px] font-semibold text-slate-500 uppercase">Codigo</label><input value={formItem.codigo} onChange={e=>setFormItem({...formItem,codigo:e.target.value})} className="input-field mt-1 text-xs"/></div>
-          <div className="w-12 sm:w-16"><label className="text-[10px] font-semibold text-slate-500 uppercase">Qtd</label><input type="number" value={formItem.quantidade} onChange={e=>setFormItem({...formItem,quantidade:e.target.value})} className="input-field mt-1 text-xs" min="1"/></div>
-          <div className="w-28"><label className="text-[10px] font-semibold text-slate-500 uppercase">Vlr Unit</label><input type="number" step="0.01" value={formItem.valorUnitario} onChange={e=>setFormItem({...formItem,valorUnitario:e.target.value})} className="input-field mt-1 text-xs"/></div>
-          <button onClick={addItem} className="btn-primary text-xs px-3 h-[38px]">+</button>
+        {/* Busca real de produtos (BLOCO 1) */}
+        <div className="relative">
+          <label className="text-[10px] font-semibold text-slate-500 uppercase">Buscar produto por nome, SKU ou codigo de barras</label>
+          <div className="relative mt-1">
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+            <input
+              ref={buscaRef}
+              value={busca}
+              onChange={e => { setBusca(e.target.value); if (e.target.value.trim().length >= 2) setSugestoesOpen(true); }}
+              onFocus={() => { if (sugestoes.length > 0) setSugestoesOpen(true); }}
+              onKeyDown={e => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  if (sugestoes.length > 0) { selecionarSugestao(sugestoes[0]); }
+                } else if (e.key === 'Escape') setSugestoesOpen(false);
+              }}
+              className="input-field pl-10 text-xs"
+              placeholder="Digite pelo menos 2 letras..."
+            />
+            {buscando && <div className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 border-2 border-brand-600 border-t-transparent rounded-full animate-spin"/>}
+          </div>
+
+          {sugestoesOpen && (
+            <div ref={sugestoesRef} className="absolute z-30 mt-1 w-full bg-white border border-slate-200 rounded-xl shadow-lg overflow-hidden max-h-72 overflow-y-auto">
+              {sugestoes.length === 0 ? (
+                <p className="px-4 py-3 text-xs text-slate-400">{buscando ? 'Buscando...' : 'Nenhum produto encontrado.'}</p>
+              ) : (
+                sugestoes.map(s => (
+                  <button
+                    key={s.id}
+                    onClick={() => selecionarSugestao(s)}
+                    className="w-full text-left px-4 py-2.5 hover:bg-brand-50/60 transition-colors border-b border-slate-50 last:border-0"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold text-slate-800 truncate">{s.nome}</p>
+                        <p className="text-[10px] text-slate-400 font-mono mt-0.5">
+                          {s.codigo}{s.codigoBarras ? ` · ${s.codigoBarras}` : ''}
+                        </p>
+                      </div>
+                      <div className="text-right flex-shrink-0">
+                        <p className="text-xs font-bold text-brand-600">{fm(Number(s.precoVenda) || 0)}</p>
+                        <p className="text-[10px] text-slate-400">{estoqueLabel(s)}</p>
+                      </div>
+                    </div>
+                  </button>
+                ))
+              )}
+            </div>
+          )}
         </div>
 
         {itens.length > 0 && (
@@ -84,7 +182,10 @@ export default function NFManualPage() {
               <thead><tr className="bg-slate-50"><th className="text-left py-2 px-3 font-medium text-slate-500">Produto</th><th className="text-left py-2 px-3 font-medium text-slate-500">Cod</th><th className="text-center py-2 px-3 font-medium text-slate-500">Qtd</th><th className="text-right py-2 px-3 font-medium text-slate-500">Unit</th><th className="text-right py-2 px-3 font-medium text-slate-500">Total</th><th className="text-right py-2 px-3"></th></tr></thead>
               <tbody>{itens.map(i=>(
                 <tr key={i.id} className="border-t border-slate-50">
-                  <td className="py-1.5 px-3 text-slate-700">{i.nome}</td><td className="py-1.5 px-3 text-slate-400 font-mono">{i.codigo||'-'}</td><td className="py-1.5 px-3 text-center">{i.quantidade}</td><td className="py-1.5 px-3 text-right text-slate-500">{fm(i.valorUnitario)}</td><td className="py-1.5 px-3 text-right font-bold">{fm(i.valorUnitario*i.quantidade)}</td>
+                  <td className="py-1.5 px-3 text-slate-700">{i.nome}</td><td className="py-1.5 px-3 text-slate-400 font-mono">{i.codigo||'-'}</td>
+                  <td className="py-1.5 px-3 text-center"><input type="number" min="1" value={i.quantidade} onChange={e=>atualizarQtd(i.id, parseInt(e.target.value)||1)} className="w-16 text-center input-field !py-1 !px-1 text-xs"/></td>
+                  <td className="py-1.5 px-3 text-right"><input value={fmtMoeda(i.valorUnitario)} onChange={e=>atualizarValor(i.id, e.target.value)} className="w-28 text-right input-field !py-1 !px-1 text-xs"/></td>
+                  <td className="py-1.5 px-3 text-right font-bold">{fm(i.valorUnitario*i.quantidade)}</td>
                   <td className="py-1.5 px-3 text-right"><button onClick={()=>removeItem(i.id)} className="text-red-500 text-[10px]">x</button></td>
                 </tr>
               ))}</tbody>
@@ -99,10 +200,23 @@ export default function NFManualPage() {
         <textarea value={obs} onChange={e=>setObs(e.target.value)} className="input-field" rows={2} placeholder="Observacoes adicionais..."/>
       </div>
 
-      <div className="flex gap-2 justify-end">
-        <button onClick={imprimir} disabled={itens.length===0} className="btn-primary text-xs inline-flex items-center gap-2">
+      {/* BLOCO 1 — dois botões separados, MESMO documento/layout */}
+      <div className="flex flex-wrap gap-2 justify-end">
+        <button
+          onClick={() => gerarDocumento(true)}
+          disabled={itens.length===0}
+          className="btn-primary text-xs inline-flex items-center gap-2 disabled:opacity-50"
+        >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
-          Imprimir / Gerar PDF
+          IMPRIMIR
+        </button>
+        <button
+          onClick={() => gerarDocumento(false)}
+          disabled={itens.length===0}
+          className="btn-secondary text-xs inline-flex items-center gap-2 disabled:opacity-50"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"/></svg>
+          GERAR PDF
         </button>
       </div>
     </div>

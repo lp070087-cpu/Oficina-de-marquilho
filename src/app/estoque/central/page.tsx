@@ -4,6 +4,9 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import EstoqueCategorias from '@/components/estoque/EstoqueCategorias';
 import { useEstoqueRefresh } from '@/lib/estoque-events';
+import { mascaraMoeda, parseMoeda, fmtMoeda } from '@/lib/moeda-utils';
+
+type CardFiltro = 'todos' | 'baixo' | 'zerado' | 'naLoja' | 'unidades';
 
 interface Categoria { id: string; nome: string; slug: string; }
 interface Peca {
@@ -38,6 +41,13 @@ export default function EstoqueCentralPage() {
   const [sortDir, setSortDir] = useState<SortDir>('asc');
   const [page, setPage] = useState(1);
   const [perPage, setPerPage] = useState(20);
+
+  // BLOCO 9 — filtro ativo dos cards de inventário
+  const [cardFiltro, setCardFiltro] = useState<CardFiltro>('todos');
+
+  // BLOCO 10 — edição inline de preço
+  const [editandoPreco, setEditandoPreco] = useState<{ id: string; precoVenda: string; salvando: boolean } | null>(null);
+  const precoInputRef = useRef<HTMLInputElement | null>(null);
 
   // Modal
   const [modal, setModal] = useState<{ open: boolean; peca?: Peca }>({ open: false });
@@ -118,8 +128,18 @@ export default function EstoqueCentralPage() {
 
   useEffect(() => { if (categorias.length > 0 || catSlug === '') fetchData(); }, [fetchData]);
 
+  // BLOCO 9 — filtro dos cards aplicado SOBRE o resultado da busca (combina com
+  // busca + categoria vindas da API). Baixo = abaixo do mínimo (inclui zerado);
+  // Zerado = quantidade <= 0; Na loja = quantidadeLoja > 0; Produtos/Unidades = todos.
+  const porCardFiltro = (p: Peca) => {
+    if (cardFiltro === 'baixo') return p.quantidade <= p.estoqueMinimo;
+    if (cardFiltro === 'zerado') return p.quantidade <= 0;
+    if (cardFiltro === 'naLoja') return (p.quantidadeLoja || 0) > 0;
+    return true;
+  };
+
   // FASE 5 — Filtragem removida: API /api/pecas ja busca por q em todos os campos (nome, codigo, codigoBarras, marca, descricao, subcategoria, compatibilidade, descricaoCurta)
-  const sorted = [...pecas].sort((a, b) => {
+  const sorted = [...pecas].filter(porCardFiltro).sort((a, b) => {
     const dir = sortDir === 'asc' ? 1 : -1;
     if (sortField === 'nome') return dir * a.nome.localeCompare(b.nome);
     if (sortField === 'codigo') return dir * a.codigo.localeCompare(b.codigo);
@@ -158,8 +178,44 @@ export default function EstoqueCentralPage() {
   }
 
   function fmtMoeda(v:number){return v.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});}
-  function parseMoeda(v:string){return parseFloat((v||'').replace(/\./g,'').replace(',','.'))||0;}
-  function onBlurPreco(field:'precoVenda'|'precoCusto'){const val=parseMoeda(form[field]);setForm({...form,[field]:fmtMoeda(val)});}
+  function parseMoedaLocal(v:string){return parseFloat((v||'').replace(/\./g,'').replace(',','.'))||0;}
+  function onBlurPreco(field:'precoVenda'|'precoCusto'){const val=parseMoedaLocal(form[field]);setForm({...form,[field]:fmtMoeda(val)});}
+
+  // BLOCO 10 — edição inline de preço (somente DONO/ESTOQUE, garantido no backend)
+  function iniciarEdicaoPreco(p: Peca) {
+    setEditandoPreco({ id: p.id, precoVenda: fmtMoeda(Number(p.precoVenda)), salvando: false });
+    setTimeout(() => { precoInputRef.current?.focus(); precoInputRef.current?.select(); }, 30);
+  }
+
+  async function salvarPrecoInline() {
+    if (!editandoPreco) return;
+    const novo = parseMoeda(editandoPreco.precoVenda);
+    if (!Number.isFinite(novo) || novo < 0) { setEditandoPreco(null); return; }
+    const atual = parseMoedaLocal(editandoPreco.precoVenda);
+    // Sem mudança → apenas fecha o editor
+    const pecaAtual = pecas.find(p => p.id === editandoPreco.id);
+    if (!pecaAtual || Math.abs(Number(pecaAtual.precoVenda) - atual) < 0.005) { setEditandoPreco(null); return; }
+
+    setEditandoPreco(prev => prev ? { ...prev, salvando: true } : prev);
+    try {
+      const res = await fetch(`/api/pecas/${editandoPreco.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ precoVenda: atual }),
+      });
+      if (res.ok) {
+        setToast({ type: 'success', message: 'Preço atualizado.' });
+        fetchData();
+        triggerRefresh();
+      } else {
+        const e = await res.json();
+        setToast({ type: 'error', message: e.error || 'Erro ao salvar preço.' });
+      }
+    } catch {
+      setToast({ type: 'error', message: 'Erro de conexao ao salvar preço.' });
+    }
+    setEditandoPreco(null);
+  }
 
   function abrirForm(peca?: Peca) {
     setFormErrors({});
@@ -206,8 +262,8 @@ export default function EstoqueCentralPage() {
 
     const body = {
       ...form,
-      precoVenda: parseMoeda(form.precoVenda),
-      precoCusto: parseMoeda(form.precoCusto),
+      precoVenda: parseMoedaLocal(form.precoVenda),
+      precoCusto: parseMoedaLocal(form.precoCusto),
       quantidade: Number(form.quantidade) || 0,
       quantidadeLoja: Number(form.quantidadeLoja) || 0,
       estoqueMinimo: Number(form.estoqueMinimo) || 5,
@@ -372,25 +428,34 @@ export default function EstoqueCentralPage() {
         </div>
       </div>
 
-      {/* STATS */}
+      {/* STATS — cards clicáveis que filtram a tabela (BLOCO 9) */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-5">
         {[
-          { label: 'Produtos', value: stats.total, icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4', color: 'text-brand-600 bg-brand-50' },
-          { label: 'Unidades', value: stats.unidades, icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2', color: 'text-blue-600 bg-blue-50' },
-          { label: 'Estoque baixo', value: stats.baixo, icon: 'M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z', color: stats.baixo > 0 ? 'text-amber-600 bg-amber-50' : 'text-emerald-600 bg-emerald-50', urgent: stats.baixo > 0 },
-          { label: 'Sem estoque', value: stats.zerado, icon: 'M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636', color: stats.zerado > 0 ? 'text-red-600 bg-red-50' : 'text-slate-500 bg-slate-50', urgent: stats.zerado > 0 },
-          { label: 'Na loja', value: stats.naLoja, icon: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4', color: 'text-violet-600 bg-violet-50' },
-        ].map((s, i) => (
-          <div key={i} className={`card-stat flex items-center gap-3 p-4 ${s.urgent ? 'ring-1 ring-amber-200' : ''}`}>
-            <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${s.color}`}>
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d={s.icon}/></svg>
-            </div>
-            <div>
-              <p className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">{s.label}</p>
-              <p className="text-lg font-bold text-slate-800">{s.value.toLocaleString('pt-BR')}</p>
-            </div>
-          </div>
-        ))}
+          { label: 'Produtos', value: stats.total, icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4', color: 'text-brand-600 bg-brand-50', filtro: 'todos' as CardFiltro },
+          { label: 'Unidades', value: stats.unidades, icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2', color: 'text-blue-600 bg-blue-50', filtro: 'unidades' as CardFiltro },
+          { label: 'Estoque baixo', value: stats.baixo, icon: 'M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z', color: stats.baixo > 0 ? 'text-amber-600 bg-amber-50' : 'text-emerald-600 bg-emerald-50', urgent: stats.baixo > 0, filtro: 'baixo' as CardFiltro },
+          { label: 'Sem estoque', value: stats.zerado, icon: 'M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636', color: stats.zerado > 0 ? 'text-red-600 bg-red-50' : 'text-slate-500 bg-slate-50', urgent: stats.zerado > 0, filtro: 'zerado' as CardFiltro },
+          { label: 'Na loja', value: stats.naLoja, icon: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4', color: 'text-violet-600 bg-violet-50', filtro: 'naLoja' as CardFiltro },
+        ].map((s, i) => {
+          const ativo = cardFiltro === s.filtro;
+          return (
+            <button
+              key={i}
+              onClick={() => { setCardFiltro(ativo ? 'todos' : s.filtro); setPage(1); }}
+              className={`card-stat flex items-center gap-3 p-4 text-left transition-all cursor-pointer ${ativo ? 'ring-2 ring-brand-500 shadow-sm bg-brand-50/40' : ''} ${s.urgent ? 'ring-1 ring-amber-200' : ''}`}
+              title="Clique para filtrar a tabela"
+            >
+              <div className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${s.color}`}>
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d={s.icon}/></svg>
+              </div>
+              <div>
+                <p className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">{s.label}</p>
+                <p className="text-lg font-bold text-slate-800">{s.value.toLocaleString('pt-BR')}</p>
+                {ativo && <p className="text-[9px] font-bold text-brand-600 uppercase tracking-wider">Filtrando…</p>}
+              </div>
+            </button>
+          );
+        })}
       </div>
 
       {/* BUSCA + FILTROS */}
@@ -504,7 +569,35 @@ export default function EstoqueCentralPage() {
                           </span>
                         </td>
                         <td className="py-2.5 px-3 text-center font-semibold text-brand-600 text-xs">{p.quantidadeLoja || 0}</td>
-                        <td className="py-2.5 px-3 text-right font-medium text-slate-700 text-xs">{fm(Number(p.precoVenda))}</td>
+                        <td className="py-2.5 px-3 text-right text-xs">
+                          {editandoPreco?.id === p.id ? (
+                            <div className="flex items-center justify-end gap-1">
+                              <input
+                                ref={precoInputRef}
+                                type="text"
+                                inputMode="decimal"
+                                value={editandoPreco.precoVenda}
+                                onChange={e => setEditandoPreco(prev => prev ? { ...prev, precoVenda: mascaraMoeda(e.target.value, prev.precoVenda) } : prev)}
+                                onBlur={salvarPrecoInline}
+                                onKeyDown={e => {
+                                  if (e.key === 'Enter') { e.preventDefault(); salvarPrecoInline(); }
+                                  if (e.key === 'Escape') { e.preventDefault(); setEditandoPreco(null); }
+                                }}
+                                className="w-24 text-right input-field !py-1 !px-2 text-xs"
+                                disabled={editandoPreco.salvando}
+                              />
+                              {editandoPreco.salvando && <span className="text-[9px] text-slate-400 animate-pulse">Salvando…</span>}
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => iniciarEdicaoPreco(p)}
+                              className="font-medium text-slate-700 text-xs hover:text-brand-600 hover:underline underline-offset-2 transition-colors"
+                              title="Clique para editar o preco"
+                            >
+                              {fm(Number(p.precoVenda))}
+                            </button>
+                          )}
+                        </td>
                         <td className="py-2.5 px-3 text-right">
                           <div className="flex items-center justify-end gap-1">
                             <button
@@ -702,12 +795,12 @@ export default function EstoqueCentralPage() {
 
               <div>
                 <label className="text-xs font-semibold text-slate-600 uppercase">Preco custo (R$)</label>
-                <input type="text" inputMode="decimal" value={form.precoCusto} onChange={e => setForm({ ...form, precoCusto: e.target.value })} onBlur={() => onBlurPreco('precoCusto')} className="input-field mt-1.5 text-xs" placeholder="0,00"/>
+                <input type="text" inputMode="decimal" value={form.precoCusto} onChange={e => setForm({ ...form, precoCusto: mascaraMoeda(e.target.value, form.precoCusto) })} onBlur={() => onBlurPreco('precoCusto')} className="input-field mt-1.5 text-xs" placeholder="0,00"/>
               </div>
 
               <div>
                 <label className="text-xs font-semibold text-slate-600 uppercase">Preco venda (R$)</label>
-                <input type="text" inputMode="decimal" value={form.precoVenda} onChange={e => setForm({ ...form, precoVenda: e.target.value })} onBlur={() => onBlurPreco('precoVenda')} className="input-field mt-1.5 text-xs" placeholder="0,00"/>
+                <input type="text" inputMode="decimal" value={form.precoVenda} onChange={e => setForm({ ...form, precoVenda: mascaraMoeda(e.target.value, form.precoVenda) })} onBlur={() => onBlurPreco('precoVenda')} className="input-field mt-1.5 text-xs" placeholder="0,00"/>
               </div>
 
               <div>

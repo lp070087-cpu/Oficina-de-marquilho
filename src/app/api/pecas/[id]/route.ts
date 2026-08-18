@@ -12,7 +12,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
     const { id } = await params;
     const peca = await prisma.peca.findUnique({
       where: { id, ativo: true },
-      include: { categoria: { select: { nome: true } } },
+      include: { categoria: { select: { nome: true, id: true, slug: true } } },
     });
     if (!peca) return NextResponse.json({ error: 'Peca nao encontrada' }, { status: 404 });
     return NextResponse.json(peca);
@@ -27,15 +27,20 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     }
     const { id } = await params;
     const body = await req.json();
-    if (!body.nome) return NextResponse.json({ error: 'Nome é obrigatório' }, { status: 400 });
     const existing = await prisma.peca.findUnique({ where: { id } });
     if (!existing) return NextResponse.json({ error: 'Peça não encontrada' }, { status: 404 });
 
     const podePreco = podeEditarPrecos(session);
 
     const has = (v: unknown) => v !== undefined && v !== null;
+    // Atualização parcial (BLOCO 10 — edição inline de preço): permite enviar
+    // SOMENTE precoVenda/precoCusto sem nome. O cadastro completo continua
+    // exigindo nome; um update sem nome e sem preço é ignorado.
+    if (!has(body.nome) && !has(body.precoVenda) && !has(body.precoCusto) && !has(body.codigo)) {
+      return NextResponse.json({ error: 'Nada para atualizar' }, { status: 400 });
+    }
     const data: any = {
-      nome: body.nome,
+      nome: has(body.nome) ? body.nome : existing.nome,
       descricao: has(body.descricao) ? body.descricao : existing.descricao,
       codigo: has(body.codigo) ? body.codigo : existing.codigo,
       // Preservar campos opcionais quando o formulário não os enviar (nunca zerar).
@@ -62,7 +67,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     const peca = await prisma.peca.update({
       where: { id },
       data,
-      include: { categoria: { select: { nome: true } } },
+      include: { categoria: { select: { nome: true, id: true, slug: true } } },
     });
     return NextResponse.json(peca);
   } catch (e: any) { return NextResponse.json({ error: e.message }, { status: 500 }); }

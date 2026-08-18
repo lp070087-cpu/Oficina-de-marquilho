@@ -1,7 +1,9 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import React from 'react';
+import { mascaraMoeda } from '@/lib/moeda-utils';
+import { pecaMatchBusca } from '@/lib/peca-utils';
 
 interface Categoria { id: string; nome: string; slug: string; _count?: { pecas: number }; }
 interface Peca {
@@ -51,6 +53,10 @@ export default function EstoquePage() {
   const [form, setForm] = useState({ nome: '', codigo: '', descricao: '', subcategoria: '', marca: '', compatibilidade: '', precoVenda: '', precoCusto: '', quantidade: '', estoqueMinimo: '5', categoriaId: '' });
   const [msg, setMsg] = useState('');
 
+  // BLOCO 10 — edição inline de preço (DONA/ESTOQUE têm permissão)
+  const [editandoPreco, setEditandoPreco] = useState<{ id: string; precoVenda: string; salvando: boolean } | null>(null);
+  const precoInputRef = useRef<HTMLInputElement | null>(null);
+
   useEffect(() => {
     Promise.all([fetch('/api/categorias').then(r=>r.json()), fetch('/api/pecas').then(r=>r.json()), fetch('/api/estoque/stats').then(r=>r.json())])
       .then(([cats,pecasData,statsData])=>{
@@ -64,11 +70,10 @@ export default function EstoquePage() {
 
   const fetchPecas = async () => { const res = await fetch('/api/pecas'); setPecas(await res.json()); };
 
-  const pecasFiltradas = pecas.filter(p=>{if(!busca)return true;const q=busca.toLowerCase();return p.nome.toLowerCase().includes(q)||p.codigo.toLowerCase().includes(q)||(p.codigoBarras||'').toLowerCase().includes(q)||(p.marca||'').toLowerCase().includes(q);});
+  const pecasFiltradas = pecas.filter(p=>{if(!busca)return true;return pecaMatchBusca(p, busca, ['nome','codigo','codigoBarras','marca','compatibilidade']);});
   // Contadores reais (agregados no banco) com fallback para a listagem enquanto a API não carrega
   const totalPecas = statsApi.totalProdutos > 0 ? statsApi.totalProdutos : pecas.length;
   const estoqueBaixo = statsApi.totalProdutos > 0 ? statsApi.estoqueBaixo : pecas.filter(p=>p.estoqueMinimo > 0 && p.quantidade < p.estoqueMinimo).length;
-  const valorTotalEstoque = pecas.reduce((acc,p)=>acc+Number(p.precoCusto)*p.quantidade,0);
 
   const categoriasComContagem = useMemo(() => categorias.map(c=>({...c,_count:{pecas:pecas.filter(p=>p.categoriaId===c.id).length}})).filter(c=>(c._count?.pecas??0)>0), [categorias, pecas]);
   const NO_SUBCAT_DONO = '__sem_subcategoria__';
@@ -103,6 +108,34 @@ export default function EstoquePage() {
   function fmtMoeda(v:number){return v.toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});}
   function parseMoeda(v:string){return parseFloat((v||'').replace(/\./g,'').replace(',','.'))||0;}
   function onBlurPreco(field:'precoVenda'|'precoCusto'){const val=parseMoeda(form[field]);setForm({...form,[field]:fmtMoeda(val)});}
+
+  // BLOCO 10 — edição inline de preço
+  function iniciarEdicaoPreco(p: Peca) {
+    setEditandoPreco({ id: p.id, precoVenda: fmtMoeda(Number(p.precoVenda)), salvando: false });
+    setTimeout(() => { precoInputRef.current?.focus(); precoInputRef.current?.select(); }, 30);
+  }
+
+  async function salvarPrecoInline() {
+    if (!editandoPreco) return;
+    const atual = parseMoeda(editandoPreco.precoVenda);
+    if (!Number.isFinite(atual) || atual < 0) { setEditandoPreco(null); return; }
+    const pecaAtual = pecas.find(p => p.id === editandoPreco.id);
+    if (!pecaAtual || Math.abs(Number(pecaAtual.precoVenda) - atual) < 0.005) { setEditandoPreco(null); return; }
+
+    setEditandoPreco(prev => prev ? { ...prev, salvando: true } : prev);
+    try {
+      const res = await fetch(`/api/pecas/${editandoPreco.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ precoVenda: atual }),
+      });
+      if (res.ok) { setMsg(''); fetchPecas(); }
+      else { const e = await res.json(); setMsg(e.error || 'Erro ao salvar preço.'); }
+    } catch {
+      setMsg('Erro de conexao ao salvar preço.');
+    }
+    setEditandoPreco(null);
+  }
   function abrirForm(peca?:Peca){
     if(peca){setForm({nome:peca.nome,codigo:peca.codigo,descricao:peca.descricao||'',subcategoria:peca.subcategoria&&peca.subcategoria!==NO_SUBCAT_DONO?peca.subcategoria:'',marca:peca.marca||'',compatibilidade:peca.compatibilidade||'',precoVenda:fmtMoeda(Number(peca.precoVenda)),precoCusto:fmtMoeda(Number(peca.precoCusto)),quantidade:String(peca.quantidade),estoqueMinimo:String(peca.estoqueMinimo),categoriaId:peca.categoriaId});setModal({open:true,peca});}
     else{setForm({nome:'',codigo:'',descricao:'',subcategoria:subcategoriaSelecionada&&subcategoriaSelecionada!==NO_SUBCAT_DONO?subcategoriaSelecionada:'',marca:'',compatibilidade:'',precoVenda:'',precoCusto:'',quantidade:'',estoqueMinimo:'5',categoriaId:categoriaSelecionada?.id||''});setModal({open:true});}
@@ -130,8 +163,6 @@ export default function EstoquePage() {
             <div className="text-center"><p className="text-slate-400">Total pecas</p><p className="text-sm font-bold text-slate-800">{totalPecas}</p></div>
             <div className="w-px h-8 bg-slate-200"/>
             <div className="text-center"><p className="text-slate-400">Estoque baixo</p><p className={`text-sm font-bold ${estoqueBaixo>0?'text-amber-600':'text-emerald-600'}`}>{estoqueBaixo}</p></div>
-            <div className="w-px h-8 bg-slate-200"/>
-            <div className="text-center"><p className="text-slate-400">Valor em estoque</p><p className="text-sm font-bold text-slate-800">{formatMoney(valorTotalEstoque)}</p></div>
           </div>
           <div className="flex items-center gap-2">
             <button onClick={exportarCSV} className="btn-secondary inline-flex items-center gap-2 text-xs"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>Exportar CSV</button>
@@ -209,7 +240,35 @@ export default function EstoquePage() {
                           <td className="py-3 px-4"><p className="font-medium text-slate-800">{p.nome}</p>{p.descricao&&<p className="text-xs text-slate-400 mt-0.5 truncate max-w-[200px]">{p.descricao}</p>}</td>
                           <td className="py-3 px-4 text-xs text-slate-500">{p.marca||'-'}</td>
                           <td className="py-3 px-4 text-xs text-slate-500 max-w-[120px] truncate">{p.compatibilidade||'-'}</td>
-                          <td className="py-3 px-4 text-xs font-medium text-slate-700">{formatMoney(Number(p.precoVenda))}</td>
+                          <td className="py-3 px-4 text-xs">
+                            {editandoPreco?.id === p.id ? (
+                              <div className="flex items-center gap-1">
+                                <input
+                                  ref={precoInputRef}
+                                  type="text"
+                                  inputMode="decimal"
+                                  value={editandoPreco.precoVenda}
+                                  onChange={e => setEditandoPreco(prev => prev ? { ...prev, precoVenda: mascaraMoeda(e.target.value, prev.precoVenda) } : prev)}
+                                  onBlur={salvarPrecoInline}
+                                  onKeyDown={e => {
+                                    if (e.key === 'Enter') { e.preventDefault(); salvarPrecoInline(); }
+                                    if (e.key === 'Escape') { e.preventDefault(); setEditandoPreco(null); }
+                                  }}
+                                  className="w-24 text-right input-field !py-1 !px-2 text-xs"
+                                  disabled={editandoPreco.salvando}
+                                />
+                                {editandoPreco.salvando && <span className="text-[9px] text-slate-400 animate-pulse">Salvando…</span>}
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => iniciarEdicaoPreco(p)}
+                                className="font-medium text-slate-700 hover:text-brand-600 hover:underline underline-offset-2 transition-colors"
+                                title="Clique para editar o preco"
+                              >
+                                {formatMoney(Number(p.precoVenda))}
+                              </button>
+                            )}
+                          </td>
                           <td className="py-3 px-4 text-center"><span className={`inline-flex items-center justify-center min-w-[44px] px-2.5 py-1 rounded text-xs font-bold ${p.quantidade<=p.estoqueMinimo?'bg-amber-100 text-amber-700':'bg-slate-100 text-slate-700'}`}>{p.quantidade}</span></td>
                           <td className="py-3 px-4 text-center"><span className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-semibold ${p.quantidade<=p.estoqueMinimo?'bg-amber-50 text-amber-700':'bg-emerald-50 text-emerald-700'}`}><span className={`w-1.5 h-1.5 rounded-full ${p.quantidade<=p.estoqueMinimo?'bg-amber-500':'bg-emerald-500'}`}/>{p.quantidade<=p.estoqueMinimo?'Baixo':'OK'}</span></td>
                           <td className="py-3 px-4 text-right"><button onClick={()=>abrirForm(p)} className="text-xs text-brand-600 hover:text-brand-700 font-medium mr-3">Editar</button><button onClick={()=>remover(p.id)} className="text-xs text-slate-400 hover:text-red-600">Remover</button></td>
@@ -237,8 +296,8 @@ export default function EstoquePage() {
               <div><label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Compatibilidade</label><input value={form.compatibilidade} onChange={e=>setForm({...form,compatibilidade:e.target.value})} className="input-field mt-1.5" placeholder="Ex: CG 125 2000-2008"/></div>
               <div><label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Categoria</label><select value={form.categoriaId} onChange={e=>setForm({...form,categoriaId:e.target.value})} className="input-field mt-1.5"><option value="">Selecionar</option>{categorias.map(c=>(<option key={c.id} value={c.id}>{c.nome}</option>))}</select></div>
               <div><label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Descricao</label><input value={form.descricao} onChange={e=>setForm({...form,descricao:e.target.value})} className="input-field mt-1.5"/></div>
-              <div><label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Preco venda (R$)</label><input type="text" inputMode="decimal" value={form.precoVenda} onChange={e=>setForm({...form,precoVenda:e.target.value})} onBlur={()=>onBlurPreco('precoVenda')} className="input-field mt-1.5" placeholder="0,00"/></div>
-              <div><label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Preco custo (R$)</label><input type="text" inputMode="decimal" value={form.precoCusto} onChange={e=>setForm({...form,precoCusto:e.target.value})} onBlur={()=>onBlurPreco('precoCusto')} className="input-field mt-1.5" placeholder="0,00"/></div>
+              <div><label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Preco venda (R$)</label><input type="text" inputMode="decimal" value={form.precoVenda} onChange={e=>setForm({...form,precoVenda:mascaraMoeda(e.target.value,form.precoVenda)})} onBlur={()=>onBlurPreco('precoVenda')} className="input-field mt-1.5" placeholder="0,00"/></div>
+              <div><label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Preco custo (R$)</label><input type="text" inputMode="decimal" value={form.precoCusto} onChange={e=>setForm({...form,precoCusto:mascaraMoeda(e.target.value,form.precoCusto)})} onBlur={()=>onBlurPreco('precoCusto')} className="input-field mt-1.5" placeholder="0,00"/></div>
               <div><label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Quantidade</label><input type="number" value={form.quantidade} onChange={e=>setForm({...form,quantidade:e.target.value})} className="input-field mt-1.5"/></div>
               <div><label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Estoque minimo</label><input type="number" value={form.estoqueMinimo} onChange={e=>setForm({...form,estoqueMinimo:e.target.value})} className="input-field mt-1.5"/></div>
             </div>

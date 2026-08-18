@@ -333,12 +333,16 @@ export interface NfManualParaImprimir {
   formaPagamento?: string;
   itens: { nome: string; codigo: string; quantidade: number; valorUnitario: number }[];
   total: number;
+  /** true (padrão) dispara window.print() automaticamente; false abre o mesmo
+   *  documento com um botão "Imprimir / Salvar PDF" para o usuário controlar. */
+  autoPrint?: boolean;
 }
 
 export function imprimirNfManual(opts: NfManualParaImprimir): void {
   const w = abrirJanela('Nota Fiscal Manual');
   if (!w) return;
   const impressoEm = new Date().toLocaleString('pt-BR');
+  const autoPrint = opts.autoPrint !== false;
 
   const linhasItens = opts.itens.map((i) =>
     `<tr><td>${esc(i.codigo)}</td><td>${esc(i.nome)}</td><td class="center">${i.quantidade}</td><td class="right">${fm(i.valorUnitario)}</td><td class="right">${fm(i.valorUnitario * i.quantidade)}</td></tr>`
@@ -346,7 +350,9 @@ export function imprimirNfManual(opts: NfManualParaImprimir): void {
 
   w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>NF Manual ${esc(String(opts.numero))}</title><style>
     ${CSS_NOTA_CLIENTE}
+    ${autoPrint ? '' : '.btn-print{position:fixed;top:12px;right:12px;z-index:99;background:#2563eb;color:#fff;border:none;border-radius:8px;padding:10px 18px;font-size:13px;font-weight:700;cursor:pointer;box-shadow:0 4px 12px rgba(37,99,235,.35)}@media print{.btn-print{display:none}}'}
   </style></head><body>
+    ${autoPrint ? '' : '<button class="btn-print" onclick="window.print()">🖨 Imprimir / Salvar PDF</button>'}
     ${headerHtml('Nota Fiscal Manual')}
     <div class="info">
       <div><span>NF:</span> ${esc(String(opts.numero))}</div>
@@ -366,7 +372,7 @@ export function imprimirNfManual(opts: NfManualParaImprimir): void {
     </table></div>
     ${opts.observacoes ? `<div class="section-title">Observações</div><p style="font-size:12px;color:#555">${esc(opts.observacoes)}</p>` : ''}
     ${footerHtml()}
-    <script>setTimeout(function(){window.print();},300);</script>
+    ${autoPrint ? '<script>setTimeout(function(){window.print();},300);</script>' : ''}
   </body></html>`);
   w.document.close();
 }

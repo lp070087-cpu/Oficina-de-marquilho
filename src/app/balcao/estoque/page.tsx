@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import React from 'react';
 import CarrinhoLateral, { CarrinhoLateralItem } from '@/components/pdv/CarrinhoLateral';
+import { pecaMatchBusca } from '@/lib/peca-utils';
 
 interface Categoria { id: string; nome: string; slug: string; }
 interface Peca { id: string; nome: string; codigo: string; codigoBarras?: string; subcategoria?: string; marca?: string; compatibilidade?: string; precoVenda: number; precoCusto: number; quantidade: number; quantidadeLoja: number; quantidadeCentral: number; estoqueMinimo: number; descricao?: string; categoriaId: string; categoria: { nome: string }; }
@@ -44,10 +45,9 @@ export default function BalcaoEstoque() {
 
   useEffect(()=>{Promise.all([fetch('/api/categorias').then(r=>r.json()),fetch('/api/pecas').then(r=>r.json())]).then(([cats,pecasData])=>{setCategorias(cats);setPecas(pecasData);setLoading(false);}).catch(()=>setLoading(false));},[]);
   const fetchPecas=async()=>{const res=await fetch('/api/pecas');setPecas(await res.json());};
-  // Busca: nome, SKU, codigoBarras, marca e compatibilidade
-  const pecasFiltradas=pecas.filter(p=>{const qb=busca.trim();if(!qb)return true;const q=qb.toLowerCase();return p.nome.toLowerCase().includes(q)||p.codigo.toLowerCase().includes(q)||(p.codigoBarras||'').toLowerCase().includes(q)||(p.marca||'').toLowerCase().includes(q)||(p.compatibilidade||'').toLowerCase().includes(q);});
+  // Busca tokenizada: nome, SKU, codigoBarras, marca e compatibilidade
+  const pecasFiltradas=pecas.filter(p=>{const qb=busca.trim();if(!qb)return true;return pecaMatchBusca(p, qb, ['nome','codigo','codigoBarras','marca','compatibilidade']);});
   const totalPecas=pecas.reduce((acc,p)=>acc+(p.quantidadeLoja||0),0);const estoqueBaixo=pecas.filter(p=>(p.quantidadeLoja||0)<=p.estoqueMinimo).length;
-  const valorTotalEstoque=pecas.reduce((acc,p)=>acc+Number(p.precoCusto)*(p.quantidadeLoja||0),0);
   const categoriasComContagem=useMemo(()=>categorias.map(c=>({...c,_count:{pecas:pecas.filter(p=>p.categoriaId===c.id).length}})).filter(c=>c._count.pecas>0),[categorias,pecas]);
   const subcategorias=categoriaSelecionada?[...new Set(pecas.filter(p=>p.categoriaId===categoriaSelecionada.id&&p.subcategoria).map(p=>p.subcategoria!))].sort() : [];
   const temSemSubcategoria = categoriaSelecionada ? pecas.some(p=>p.categoriaId===categoriaSelecionada.id&&!p.subcategoria) : false;
@@ -158,7 +158,7 @@ export default function BalcaoEstoque() {
           <h1 className="text-xl font-bold text-slate-800 tracking-tight">{view==='categorias'?'ESTOQUE DE PECAS':view==='subcategorias'?categoriaSelecionada?.nome.toUpperCase():labelSubcategoria?.toUpperCase()}</h1>
         </div>
         <div className="flex flex-wrap items-center gap-5">
-          <div className="flex items-center gap-5 text-xs"><div className="text-center"><p className="text-slate-400">Total</p><p className="text-sm font-bold text-slate-800">{totalPecas}</p></div><div className="w-px h-8 bg-slate-200 hidden sm:block"/><div className="text-center"><p className="text-slate-400">Baixo</p><p className={`text-sm font-bold ${estoqueBaixo>0?'text-amber-600':'text-emerald-600'}`}>{estoqueBaixo}</p></div><div className="w-px h-8 bg-slate-200 hidden sm:block"/><div className="text-center"><p className="text-slate-400">Valor</p><p className="text-sm font-bold text-slate-800">{formatMoney(valorTotalEstoque)}</p></div></div>
+          <div className="flex items-center gap-5 text-xs"><div className="text-center"><p className="text-slate-400">Total</p><p className="text-sm font-bold text-slate-800">{totalPecas}</p></div><div className="w-px h-8 bg-slate-200 hidden sm:block"/><div className="text-center"><p className="text-slate-400">Baixo</p><p className={`text-sm font-bold ${estoqueBaixo>0?'text-amber-600':'text-emerald-600'}`}>{estoqueBaixo}</p></div></div>
           <div className="flex items-center gap-2"><button onClick={exportarCSV} className="btn-secondary inline-flex items-center gap-2 text-xs"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>Exportar CSV</button><button onClick={()=>abrirForm()} className="btn-primary inline-flex items-center gap-2 text-xs"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>Nova peca</button>{carrinho.length > 0 && <button onClick={() => setCarrinhoOpen(true)} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold bg-amber-100 text-amber-700 hover:bg-amber-200 transition-colors border border-amber-300">CARRINHO ({carrinho.reduce((s,i)=>s+i.quantidade,0)})</button>}</div>
         </div>
       </div>

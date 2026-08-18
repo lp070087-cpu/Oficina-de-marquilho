@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getSession } from '@/lib/auth';
-import { normalizarSubcategoria, podeEditarPrecos } from '@/lib/peca-utils';
+import { buildBuscaPorPalavras, normalizarSubcategoria, podeEditarPrecos } from '@/lib/peca-utils';
 
 export async function GET(req: NextRequest) {
   try {
@@ -19,20 +19,10 @@ export async function GET(req: NextRequest) {
     const where: any = { ativo: true };
     const andConditions: any[] = [];
 
-    // Busca unificada: Nome, SKU (codigo), Codigo de Barras, Marca, Descricao
+    // Busca unificada tokenizada: cada palavra da query deve aparecer em pelo
+    // menos um dos campos (nome, SKU, codigo de barras, marca, descricao, ...).
     if (q) {
-      andConditions.push({
-        OR: [
-          { nome: { contains: q, mode: 'insensitive' } },
-          { codigo: { contains: q, mode: 'insensitive' } },
-          { codigoBarras: { contains: q, mode: 'insensitive' } },
-          { marca: { contains: q, mode: 'insensitive' } },
-          { descricao: { contains: q, mode: 'insensitive' } },
-          { subcategoria: { contains: q, mode: 'insensitive' } },
-          { compatibilidade: { contains: q, mode: 'insensitive' } },
-          { descricaoCurta: { contains: q, mode: 'insensitive' } },
-        ],
-      });
+      andConditions.push(...buildBuscaPorPalavras(q, ['nome', 'codigo', 'codigoBarras', 'marca', 'descricao', 'subcategoria', 'compatibilidade', 'descricaoCurta', 'localizacao']));
     }
     if (cat) where.categoriaId = cat;
     if (barcode) where.codigoBarras = barcode;
@@ -58,7 +48,7 @@ export async function GET(req: NextRequest) {
 
     const pecas = await prisma.peca.findMany({
       where,
-      include: { categoria: { select: { nome: true } } },
+      include: { categoria: { select: { nome: true, id: true, slug: true } } },
       orderBy: { nome: 'asc' },
       take: 5000,
     });
@@ -98,7 +88,7 @@ export async function POST(req: NextRequest) {
       localizacao: body.localizacao || null,
       categoriaId: body.categoriaId,
     },
-    include: { categoria: { select: { nome: true } } },
+    include: { categoria: { select: { nome: true, id: true, slug: true } } },
   });
   return NextResponse.json(peca, { status: 201 });
   } catch (error) {

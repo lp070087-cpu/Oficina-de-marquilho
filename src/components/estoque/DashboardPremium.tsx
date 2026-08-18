@@ -166,11 +166,9 @@ export default function DashboardPremium() {
 
   return (
     <div className="space-y-4">
-      {/* RESUMO CENTRAL vs LOJA */}
+      {/* RESUMO INVENTÁRIO CENTRAL vs LOJA (sem valores financeiros agregados) */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { label: 'Valor Central', value: fm(data.valorCentral), icon: '🏢', color: 'text-blue-600 bg-blue-50' },
-          { label: 'Valor Loja', value: fm(data.valorLoja), icon: '🏪', color: 'text-violet-600 bg-violet-50' },
           { label: 'Unid. Central', value: data.unidadesCentral.toLocaleString('pt-BR'), icon: '📦', color: 'text-emerald-600 bg-emerald-50' },
           { label: 'Unid. Loja', value: data.unidadesLoja.toLocaleString('pt-BR'), icon: '🛒', color: 'text-amber-600 bg-amber-50' },
         ].map((k, i) => (

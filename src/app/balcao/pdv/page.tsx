@@ -42,12 +42,32 @@ export default function BalcaoPdvPage() {
 
   const total = itens.reduce((s, i) => s + i.subtotal, 0);
   const preloadRef = useRef(false);
+  const hydratedRef = useRef(false);
+  const CARRINHO_KEY = 'pdv_carrinho';
 
-  // Consome itens pre-carregados via sessionStorage (Estoque → VENDER / Adicionar ao Carrinho)
+  // BLOCO 5 — Persistência do carrinho:
+  // 1. Hidrata o carrinho salvo em sessionStorage('pdv_carrinho') ao montar
+  //    (navegar para fora e voltar / refresh / fechar modal mantém os itens).
+  // 2. Consome itens pré-carregados via sessionStorage('pdv_preload')
+  //    (Estoque → VENDER / Adicionar ao Carrinho) mesclando por cima.
+  // 3. Um effect separado grava sessionStorage('pdv_carrinho') sempre que o
+  //    carrinho mudar — limpo apenas em venda concluída ou cancelar explícito.
   useEffect(() => {
     if (preloadRef.current) return;
     preloadRef.current = true;
     (async () => {
+      // 1) Hidratar carrinho persistido (nunca limpar aqui — a limpeza é
+      //    exclusiva de venda concluída / cancelamento explícito).
+      let persistido: ItemCarrinho[] = [];
+      try {
+        const raw = sessionStorage.getItem(CARRINHO_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed) && parsed.length > 0) persistido = parsed;
+        }
+      } catch { /* ignore parse errors */ }
+      if (persistido.length > 0) setItens(persistido);
+
       let preloadData: any[] = [];
       try {
         const raw = sessionStorage.getItem('pdv_preload');
@@ -58,7 +78,10 @@ export default function BalcaoPdvPage() {
       } catch { /* ignore parse errors */ }
       try { sessionStorage.removeItem('pdv_preload'); } catch { /* cleanup */ }
 
-      if (preloadData.length === 0) return;
+      if (preloadData.length === 0) {
+        hydratedRef.current = true;
+        return;
+      }
 
       // Busca dados completos de cada peca via API
       const novosItems: ItemCarrinho[] = [];
@@ -89,7 +112,10 @@ export default function BalcaoPdvPage() {
         } catch (err) { console.error('[PDV] Erro ao buscar peca para carrinho:', pre.pecaId, err); }
       }
 
-      if (novosItems.length === 0) return;
+      if (novosItems.length === 0) {
+        hydratedRef.current = true;
+        return;
+      }
 
       setItens(prev => {
         const merged = [...prev];
@@ -104,8 +130,16 @@ export default function BalcaoPdvPage() {
         }
         return merged;
       });
+      hydratedRef.current = true;
     })();
   }, []);
+
+  // BLOCO 5 — grava o carrinho em sessionStorage a cada mudança, exceto logo
+  // após o mount (evita sobrescrever o item persistido antes da hidratação).
+  useEffect(() => {
+    if (!hydratedRef.current) return;
+    try { sessionStorage.setItem(CARRINHO_KEY, JSON.stringify(itens)); } catch { /* sessionStorage indisponivel */ }
+  }, [itens]);
 
   // Atualizacoes do carrinho
   const updateQuantidade = useCallback((id: string, qtd: number) => {
@@ -153,6 +187,8 @@ export default function BalcaoPdvPage() {
     setClienteNome('');
     setShowCliente(false);
     setErro('');
+    // BLOCO 5 — cancelamento explícito limpa o carrinho persistido.
+    try { sessionStorage.removeItem(CARRINHO_KEY); } catch { /* ignore */ }
   }, [pedidoId]);
 
   const handleFinalizar = useCallback(async () => {
@@ -258,6 +294,8 @@ export default function BalcaoPdvPage() {
       setClienteTelefone('');
       setClienteNome('');
       setShowCliente(false);
+      // BLOCO 5 — venda concluída com sucesso limpa o carrinho persistido.
+      try { sessionStorage.removeItem(CARRINHO_KEY); } catch { /* ignore */ }
     } catch {
       setErro('Erro ao processar venda. Tente novamente.');
     }
@@ -330,6 +368,8 @@ export default function BalcaoPdvPage() {
     setItens([]);
     setPedidoId(null);
     setErro('');
+    // BLOCO 5 — "Nova venda" (após fechar o comprovante) também zera o persistido.
+    try { sessionStorage.removeItem(CARRINHO_KEY); } catch { /* ignore */ }
   }, []);
 
   const fm = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });

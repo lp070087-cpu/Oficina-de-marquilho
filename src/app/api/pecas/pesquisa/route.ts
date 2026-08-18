@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getSession } from '@/lib/auth';
+import { buildBuscaPorPalavras } from '@/lib/peca-utils';
 
 export async function GET(req: NextRequest) {
   try {
@@ -13,24 +14,14 @@ export async function GET(req: NextRequest) {
     const loja = req.nextUrl.searchParams.get('loja') === 'true';
     if (!q || q.length < 2) return NextResponse.json({ pecas: [] });
 
-    const termo = q.toLowerCase();
+    const palavras = buildBuscaPorPalavras(q, ['nome', 'codigo', 'codigoBarras', 'marca', 'compatibilidade', 'descricao', 'subcategoria', 'localizacao', 'descricaoCurta']);
 
-    // Busca em múltiplos campos
+    // Busca em múltiplos campos (tokenizada: TODAS as palavras em qualquer campo)
     const pecas = await prisma.peca.findMany({
       where: {
         ativo: true,
         ...(loja ? { quantidadeLoja: { gt: 0 } } : {}),
-        OR: [
-          { nome: { contains: termo, mode: 'insensitive' } },
-          { codigo: { contains: termo, mode: 'insensitive' } },
-          { codigoBarras: { contains: termo, mode: 'insensitive' } },
-          { marca: { contains: termo, mode: 'insensitive' } },
-          { compatibilidade: { contains: termo, mode: 'insensitive' } },
-          { descricao: { contains: termo, mode: 'insensitive' } },
-          { subcategoria: { contains: termo, mode: 'insensitive' } },
-          { localizacao: { contains: termo, mode: 'insensitive' } },
-          { descricaoCurta: { contains: termo, mode: 'insensitive' } },
-        ],
+        AND: palavras,
       },
       include: {
         categoria: { select: { nome: true, id: true, slug: true } },
