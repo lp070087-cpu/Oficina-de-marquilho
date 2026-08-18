@@ -1,6 +1,6 @@
 'use client';
 
-import { imprimirNotaVenda, DADOS_EMPRESA } from '@/lib/imprimirNotaServico';
+import { imprimirNotaVenda, normalizarVendaParaImpressao, DADOS_EMPRESA } from '@/lib/imprimirNotaServico';
 
 interface ItemComprovante {
   nome: string;
@@ -153,32 +153,10 @@ export default function ComprovanteVenda({ venda, onFechar }: ComprovanteVendaPr
   }
 
   function imprimirA4() {
-    // MESMA IDENTIDADE das notas de OS e NF Manual — cabeçalho/CSS/rodapé centralizados
-    imprimirNotaVenda({
-      numero: venda.numero,
-      notaNumero: venda.notaFiscal?.numero,
-      clienteNome: venda.clienteNome,
-      clienteTelefone: venda.clienteTelefone,
-      clienteCpf: venda.clienteCpf,
-      subtotal: Number(venda.subtotal) || 0,
-      descontoTotal: Number(venda.descontoTotal) || 0,
-      total: Number(venda.total) || 0,
-      createdAt: venda.createdAt,
-      itens: itens.map(i => ({
-        nome: i.nome,
-        codigo: i.codigo,
-        quantidade: i.quantidade,
-        precoUnitario: i.precoUnitario,
-        subtotal: i.subtotal,
-      })),
-      pagamentos: (venda.pagamentos || []).map(p => ({
-        tipo: p.tipo,
-        valor: Number(p.valor) || 0,
-        troco: Number(p.troco) || 0,
-        bandeira: p.bandeira,
-        parcelas: p.parcelas,
-      })),
-    });
+    // Fonte única: normalizarVendaParaImpressao() + imprimirNotaVenda().
+    // Mesma identidade das notas de OS e NF Manual — cabeçalho/CSS/rodapé
+    // centralizados. Sem mapeamento manual de itens/pagamentos aqui.
+    imprimirNotaVenda(normalizarVendaParaImpressao(venda));
   }
 
   function enviarWhatsApp() {

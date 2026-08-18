@@ -272,6 +272,59 @@ export interface VendaParaImprimir {
   pagamentos: PagamentoNotaVenda[];
 }
 
+// ============================================================================
+// C.1) NORMALIZAÇÃO ÚNICA — VENDA → VendaParaImprimir
+// ============================================================================
+// Aceita os DOIS shapes que o sistema produz e devolve EXATAMENTE o mesmo
+// objeto para imprimirNotaVenda():
+//   A) resposta do POST /api/vendas (venda "flat"):
+//        itens[].peca.{nome,codigo,imagemUrl,marca} · itens[].precoVendido
+//        pagamentos[].{tipo,valor,troco,bandeira,parcelas}
+//        notaFiscal?: { numero?: string }  (preenchido no fluxo PDV/Venda Avulsa)
+//   B) venda carregada via GET /api/notas (n.venda aninhado na Nota):
+//        itens[].peca.{nome,codigo} · itens[].precoVendido
+//        pagamentos[].{tipo,valor,troco,bandeira,parcelas}
+//        notaNumero = n.numero (NF V-XXXX) repassado pelo caller.
+// Regra: nenhum call-site deve re-mapear itens/pagamentos à mão. A fonte de
+// verdade é única (aqui), garantindo impressão e reimpressão idênticas.
+export function normalizarVendaParaImpressao(venda: any, notaNumero?: string): VendaParaImprimir {
+  const itens = (venda?.itens || []).map((i: any): ItemNotaVenda => {
+    const precoUnit =
+      Number.isFinite(Number(i.precoUnitario)) && Number(i.precoUnitario) !== 0
+        ? Number(i.precoUnitario)
+        : Number(i.precoVendido) || 0;
+    return {
+      nome: i.nome || i.peca?.nome || '—',
+      codigo: i.codigo || i.peca?.codigo || '',
+      quantidade: Number(i.quantidade) || 0,
+      precoUnitario: precoUnit,
+      subtotal: Number(i.subtotal) || 0,
+    };
+  });
+
+  const pagamentos = (venda?.pagamentos || []).map((p: any): PagamentoNotaVenda => ({
+    tipo: p.tipo,
+    valor: Number(p.valor) || 0,
+    troco: Number(p.troco) || 0,
+    bandeira: p.bandeira || undefined,
+    parcelas: p.parcelas || undefined,
+  }));
+
+  return {
+    numero: Number(venda.numero),
+    notaNumero: notaNumero || venda.notaFiscal?.numero || undefined,
+    clienteNome: venda.clienteNome,
+    clienteTelefone: venda.clienteTelefone,
+    clienteCpf: venda.clienteCpf,
+    subtotal: Number(venda.subtotal) || 0,
+    descontoTotal: Number(venda.descontoTotal) || 0,
+    total: Number(venda.total) || 0,
+    createdAt: venda.createdAt,
+    itens,
+    pagamentos,
+  };
+}
+
 const TIPO_LABEL: Record<string, string> = {
   DINHEIRO: 'Dinheiro', PIX: 'PIX', CARTAO_DEBITO: 'Débito', CARTAO_CREDITO: 'Crédito',
 };

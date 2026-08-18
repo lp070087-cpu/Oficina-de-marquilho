@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { imprimirNotaServico, imprimirNotaVenda } from '@/lib/imprimirNotaServico';
+import { imprimirNotaServico, imprimirNotaVenda, normalizarVendaParaImpressao } from '@/lib/imprimirNotaServico';
 
 interface Nota {
   id: string;
@@ -82,31 +82,8 @@ export default function NotasBalcaoPage() {
   // Mesmo módulo compartilhado da Central de Notas (DONA) — DOCUMENTO B, sem terceira versão
   function imprimirNota(n: Nota) {
     if (origem(n) === 'VENDA_PDV' && n.venda) {
-      imprimirNotaVenda({
-        numero: n.venda.numero,
-        notaNumero: n.numero,
-        clienteNome: n.venda.clienteNome,
-        clienteTelefone: n.venda.clienteTelefone,
-        clienteCpf: n.venda.clienteCpf,
-        subtotal: Number(n.venda.subtotal) || 0,
-        descontoTotal: Number(n.venda.descontoTotal) || 0,
-        total: Number(n.venda.total) || 0,
-        createdAt: n.venda.createdAt,
-        itens: (n.venda.itens || []).map(i => ({
-          nome: i.peca?.nome || '—',
-          codigo: i.peca?.codigo || '',
-          quantidade: i.quantidade,
-          precoUnitario: Number(i.precoVendido) || 0,
-          subtotal: Number(i.subtotal) || 0,
-        })),
-        pagamentos: (n.venda.pagamentos || []).map(p => ({
-          tipo: p.tipo,
-          valor: Number(p.valor) || 0,
-          troco: Number(p.troco) || 0,
-          bandeira: p.bandeira || undefined,
-          parcelas: p.parcelas || undefined,
-        })),
-      });
+      // Fonte única de normalização + layout — idêntica à impressão original do PDV.
+      imprimirNotaVenda(normalizarVendaParaImpressao(n.venda, n.numero));
       return;
     }
     imprimirNotaServico({
