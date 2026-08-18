@@ -28,7 +28,6 @@ interface OficinaKPIs {
   aguardandoMecanico: number;
   emServico: number;
   teste: number;
-  lavagem: number;
   prontas: number;
   entregues: number;
   canceladas: number;
@@ -108,7 +107,7 @@ export default function DashboardOficina() {
         <KpiCard label="Recepção" value={data.abertas + data.aguardandoMecanico} color="bg-sky-50 border-sky-200" textColor="text-sky-700" />
         <KpiCard label="Em Serviço" value={data.emAndamento + data.emServico} color="bg-blue-50 border-blue-200" textColor="text-blue-700" />
         <KpiCard label="Aguard. Peças" value={data.aguardandoPecas} color="bg-orange-50 border-orange-200" textColor="text-orange-700" />
-        <KpiCard label="Teste / Lavagem" value={(data.teste || 0) + (data.lavagem || 0)} color="bg-teal-50 border-teal-200" textColor="text-teal-700" />
+        <KpiCard label="Teste" value={(data.teste || 0)} color="bg-teal-50 border-teal-200" textColor="text-teal-700" />
         <KpiCard label={`Prontas (Entregar)`} value={data.prontas} color="bg-emerald-50 border-emerald-200" textColor="text-emerald-700" />
       </div>
 

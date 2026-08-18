@@ -15,6 +15,9 @@ export default function NFManualPage() {
   const [obs, setObs] = useState('');
   const [itens, setItens] = useState<ItemNF[]>([]);
   const [msg, setMsg] = useState('');
+  // BLOCO 7 — Desconto (R$) fixo: máscara de maquininha, sem negativo,
+  // nunca maior que o subtotal. Só vale para o documento impresso.
+  const [descontoStr, setDescontoStr] = useState('');
 
   // Busca real de produtos (BLOCO 1): consulta /api/pecas/pesquisa e mostra
   // sugestões com SKU, código de barras, estoque disponível e preço. Não cria
@@ -72,6 +75,9 @@ export default function NFManualPage() {
   function atualizarValor(id: string, v: string) { setItens(itens.map(i => i.id === id ? { ...i, valorUnitario: parseMoeda(v) } : i)); }
 
   const total = itens.reduce((s, i) => s + (i.valorUnitario || 0) * i.quantidade, 0);
+  // BLOCO 7 — desconto em R$: nunca negativo, nunca maior que o subtotal.
+  const descontoValor = Math.min(Math.max(parseMoeda(descontoStr), 0), Math.max(total, 0));
+  const totalFinal = Math.max(total - descontoValor, 0);
   const fm = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
   function gerarDocumento(autoPrint: boolean) {
@@ -91,7 +97,9 @@ export default function NFManualPage() {
         quantidade: i.quantidade,
         valorUnitario: i.valorUnitario,
       })),
-      total,
+      total: totalFinal,
+      desconto: descontoValor,
+      subtotal: total,
       autoPrint,
     });
   }
@@ -198,6 +206,39 @@ export default function NFManualPage() {
       <div className="card space-y-4 mb-6">
         <h3 className="text-sm font-bold text-slate-800">Observacoes</h3>
         <textarea value={obs} onChange={e=>setObs(e.target.value)} className="input-field" rows={2} placeholder="Observacoes adicionais..."/>
+      </div>
+
+      {/* BLOCO 7 — Desconto fixo em R$ com recálculo imediato */}
+      <div className="card space-y-4 mb-6">
+        <h3 className="text-sm font-bold text-slate-800">Totais e Desconto</h3>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+          <div>
+            <label className="text-[10px] font-semibold text-slate-500 uppercase">Subtotal</label>
+            <p className="text-lg font-extrabold text-slate-800 mt-1">{fm(total)}</p>
+          </div>
+          <div>
+            <label className="text-[10px] font-semibold text-slate-500 uppercase">Desconto (R$)</label>
+            <input
+              value={descontoStr}
+              onChange={e => setDescontoStr(mascaraMoeda(e.target.value, descontoStr))}
+              inputMode="numeric"
+              placeholder="R$ 0,00"
+              className="input-field mt-1 text-sm font-bold"
+            />
+            {descontoValor > total && (
+              <p className="text-[10px] text-red-500 mt-0.5">Desconto não pode ser maior que o subtotal.</p>
+            )}
+          </div>
+          <div>
+            <label className="text-[10px] font-semibold text-slate-500 uppercase">Total</label>
+            <p className="text-lg font-extrabold text-brand-700 mt-1">{fm(totalFinal)}</p>
+          </div>
+        </div>
+        {descontoValor > 0 && (
+          <p className="text-[11px] text-slate-400">
+            Desconto de {fm(descontoValor)} aplicado — total final {fm(totalFinal)}.
+          </p>
+        )}
       </div>
 
       {/* BLOCO 1 — dois botões separados, MESMO documento/layout */}

@@ -9,11 +9,12 @@ import CentroCustos from './CentroCustos';
 import Comissoes from './Comissoes';
 import DRE from './DRE';
 import AlertasFinanceiros from './AlertasFinanceiros';
-import AuditoriaFinanceira from './AuditoriaFinanceira';
-import IAFInanceira from './IAFInanceira';
 import RelatoriosFinanceiros from './RelatoriosFinanceiros';
 
-type Tab = 'dashboard' | 'fluxo' | 'receber' | 'pagar' | 'custos' | 'comissoes' | 'dre' | 'relatorios' | 'alertas' | 'ia' | 'auditoria';
+// BLOCO 9 — IA Financeira e Auditoria removidas da UI (menu superior) por
+// decisão da loja. Os componentes (IAFInanceira, AuditoriaFinanceira) e as
+// rotas continuam existindo no projeto — apenas não são mais exibidos.
+type Tab = 'dashboard' | 'fluxo' | 'receber' | 'pagar' | 'custos' | 'comissoes' | 'dre' | 'relatorios' | 'alertas';
 
 const TABS: { key: Tab; label: string; icon?: string }[] = [
   { key: 'dashboard', label: 'Dashboard', icon: '📊' },
@@ -25,8 +26,6 @@ const TABS: { key: Tab; label: string; icon?: string }[] = [
   { key: 'dre', label: 'DRE', icon: '📈' },
   { key: 'relatorios', label: 'Relatórios', icon: '📋' },
   { key: 'alertas', label: 'Alertas', icon: '🔔' },
-  { key: 'ia', label: 'IA Financeira', icon: '🤖' },
-  { key: 'auditoria', label: 'Auditoria', icon: '🔍' },
 ];
 
 export default function FinanceiroPagina() {
@@ -73,8 +72,6 @@ export default function FinanceiroPagina() {
         {tab === 'dre' && <DRE />}
         {tab === 'relatorios' && <RelatoriosFinanceiros />}
         {tab === 'alertas' && <AlertasFinanceiros />}
-        {tab === 'ia' && <IAFInanceira />}
-        {tab === 'auditoria' && <AuditoriaFinanceira />}
       </div>
     </div>
   );

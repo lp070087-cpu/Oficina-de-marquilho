@@ -50,6 +50,10 @@ export default function PagamentoModal({ open, total, onClose, onConfirmar }: Pa
   const restante = Math.round((totalVenda - totalPagoFmt) * 100) / 100;
   const fechado = Math.abs(restante) < 0.005; // exatamente 0 dentro de centavos
   const saldoUnico = pagamentos.length === 1 && fechado;
+  // BLOCO 1 — Sem divisão iniciada (nenhum ADICIONAR), uma forma selecionada
+  // cobre o total inteiro e o CONFIRMAR fica liberado imediatamente.
+  const semDivisao = pagamentos.length === 0 && Number.isFinite(totalVenda) && totalVenda > 0;
+  const podeConfirmar = semDivisao || (fechado && pagamentos.length > 0);
 
   const fm = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   const labelDe = (t: string) => TIPOS.find(x => x.key === t)?.label || t;
@@ -104,8 +108,16 @@ export default function PagamentoModal({ open, total, onClose, onConfirmar }: Pa
     // Total inválido
     if (!Number.isFinite(totalVenda) || totalVenda <= 0) return;
 
-    // Só libera quando TOTAL PAGO === TOTAL DA VENDA
-    if (!fechado || pagamentos.length === 0) return;
+    // BLOCO 1 — SEM divisão iniciada: pagamento único na forma selecionada.
+    // Venda R$ 50,00 + PIX selecionado → confirma PIX = R$ 50,00 direto,
+    // sem precisar clicar em ADICIONAR. ADICIONAR fica só para dividir (2+ formas).
+    if (pagamentos.length === 0) {
+      onConfirmar([{ tipo: tipoAtual, valor: totalVenda, troco: 0 }], 0);
+      return;
+    }
+
+    // Divisão iniciada: só libera quando TOTAL PAGO === TOTAL DA VENDA
+    if (!fechado) return;
 
     // O servidor (POST /api/vendas) recalcula o troco do DINHEIRO; aqui o troco
     // único é sempre 0 porque o cliente paga exatamente o valor (dividido ou não).
@@ -208,7 +220,7 @@ export default function PagamentoModal({ open, total, onClose, onConfirmar }: Pa
             </div>
             {pagamentos.length === 0 ? (
               <p className="text-[11px] text-slate-400 bg-slate-50 rounded-lg p-3 text-center">
-                Nenhum pagamento adicionado ainda. Escolha a forma, informe o valor e clique em ADICIONAR.
+                Pagamento único na forma selecionada ({labelDe(tipoAtual)}). Para dividir entre formas, use o valor + ADICIONAR.
               </p>
             ) : (
               <div className="space-y-1">
@@ -259,14 +271,16 @@ export default function PagamentoModal({ open, total, onClose, onConfirmar }: Pa
           <button onClick={onClose} className="btn-secondary text-xs flex-1">Cancelar</button>
           <button
             onClick={handleConfirmar}
-            disabled={!Number.isFinite(totalVenda) || totalVenda <= 0 || !fechado || pagamentos.length === 0}
+            disabled={!Number.isFinite(totalVenda) || totalVenda <= 0 || !podeConfirmar}
             className="btn-primary text-xs flex-1 disabled:opacity-50"
           >
             {!Number.isFinite(totalVenda) || totalVenda <= 0
               ? 'Valor inválido'
-              : fechado && pagamentos.length > 0
-                ? `Confirmar Pagamento · ${fm(totalVenda)}${saldoUnico ? ` (${labelDe(pagamentos[0].tipo)})` : ''}`
-                : `Falta pagar ${fm(restante)}`}
+              : semDivisao
+                ? `Confirmar Pagamento · ${fm(totalVenda)} (${labelDe(tipoAtual)})`
+                : fechado && pagamentos.length > 0
+                  ? `Confirmar Pagamento · ${fm(totalVenda)}${saldoUnico ? ` (${labelDe(pagamentos[0].tipo)})` : ''}`
+                  : `Falta pagar ${fm(restante)}`}
           </button>
         </div>
       </div>

@@ -5,6 +5,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import EstoqueCategorias from '@/components/estoque/EstoqueCategorias';
 import { useEstoqueRefresh } from '@/lib/estoque-events';
 import { mascaraMoeda, parseMoeda, fmtMoeda } from '@/lib/moeda-utils';
+import { DADOS_EMPRESA } from '@/lib/imprimirNotaServico';
 
 type CardFiltro = 'todos' | 'baixo' | 'zerado' | 'naLoja' | 'unidades';
 
@@ -363,12 +364,21 @@ export default function EstoqueCentralPage() {
       }
     }
 
-    w.document.write('<!DOCTYPE html><html><head><title>' + titulo + ' - Marquinho</title>' +
+    const dadosEmpresaHtml = [
+      '<div style="text-align:center;font-size:15px;font-weight:900;letter-spacing:-0.3px">' + DADOS_EMPRESA.fantasia + '</div>',
+      '<div style="text-align:center;font-size:11px;font-weight:700">' + DADOS_EMPRESA.razao + '</div>',
+      '<div style="text-align:center;font-size:9px;color:#555">CNPJ: ' + DADOS_EMPRESA.cnpj + ' · IE: ' + DADOS_EMPRESA.ie + '</div>',
+      '<div style="text-align:center;font-size:9px;color:#555">' + DADOS_EMPRESA.endereco + ' — ' + DADOS_EMPRESA.cidade + '</div>',
+      '<div style="text-align:center;font-size:9px;color:#555">WHATSAPP: ' + DADOS_EMPRESA.telefone1 + ' · ' + DADOS_EMPRESA.telefone2 + '</div>',
+    ].join('');
+
+    w.document.write('<!DOCTYPE html><html><head><title>' + titulo + ' - ' + DADOS_EMPRESA.fantasia + '</title>' +
       '<style>body{font-family:Arial;padding:20px;font-size:11px}h1{text-align:center;font-size:16px;margin-bottom:5px}' +
       'table{width:100%;border-collapse:collapse}th,td{border:1px solid #ccc;padding:4px 6px}th{background:#2563eb;color:#fff;font-size:10px}' +
       'tr[style*="background"] td{font-size:11px;letter-spacing:0.5px}' +
       '@media print{body{padding:5mm}button{display:none}}</style></head><body>' +
-      '<h1>Marquinho Moto Pecas - ' + titulo + '</h1><p style="text-align:center">' + new Date().toLocaleDateString('pt-BR') + ' · ' + data.length + ' produtos</p>' +
+      dadosEmpresaHtml +
+      '<h1 style="margin-top:10px">' + titulo + '</h1><p style="text-align:center">' + new Date().toLocaleDateString('pt-BR') + ' · ' + data.length + ' produtos</p>' +
       '<table><thead><tr>' + colunas.map(c => '<th>' + c + '</th>').join('') + '</tr></thead><tbody>' + rows + '</tbody></table>' +
       '<button onclick="window.print()" style="margin-top:15px;padding:8px 16px;background:#2563eb;color:#fff;border:none;border-radius:6px;cursor:pointer">Imprimir</button></body></html>');
     w.document.close();

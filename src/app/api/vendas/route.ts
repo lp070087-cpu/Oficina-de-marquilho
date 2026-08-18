@@ -35,6 +35,15 @@ export async function POST(req: NextRequest) {
     }
 
     const venda = await prisma.$transaction(async (tx) => {
+      // BLOCO 2 — NENHUMA venda sem sessão de caixa ABERTA. Dupla proteção com o
+      // frontend (balcao/pdv e balcao/venda): aqui é o bloqueio definitivo.
+      // Não auto-abre caixa e não altera vendas antigas — apenas recusa novas.
+      const sessao = await tx.sessaoCaixa.findFirst({
+        where: { status: 'ABERTA' },
+        orderBy: { abertoEm: 'desc' },
+      });
+      if (!sessao) throw new Error('SEM_CAIXA_ABERTO');
+
       const pedido = await tx.pedido.findUnique({
         where: { id: pedidoId },
         include: { itens: { include: { peca: true } } },
@@ -209,40 +218,33 @@ export async function POST(req: NextRequest) {
         console.error('Falha ao emitir nota automatica:', e);
       }
 
-      // Sessao de caixa: registrar vendas
-      const sessao = await tx.sessaoCaixa.findFirst({
-        where: { status: 'ABERTA' },
-        orderBy: { abertoEm: 'desc' },
+      // Sessao de caixa: registrar vendas (sessão obrigatória já validada no topo)
+      const vendasDinheiro = pagamentos.filter((p: any) => p.tipo === 'DINHEIRO').reduce((s: number, p: any) => s + (parseFloat(p.valor) || 0), 0);
+      const vendasPix = pagamentos.filter((p: any) => p.tipo === 'PIX').reduce((s: number, p: any) => s + (parseFloat(p.valor) || 0), 0);
+      const vendasCartao = pagamentos.filter((p: any) => ['CARTAO_DEBITO', 'CARTAO_CREDITO'].includes(p.tipo)).reduce((s: number, p: any) => s + (parseFloat(p.valor) || 0), 0);
+
+      await tx.sessaoCaixa.update({
+        where: { id: sessao.id },
+        data: {
+          totalVendas: { increment: Number(pedido.total) },
+          saldoDinheiro: { increment: vendasDinheiro },
+        },
       });
 
-      if (sessao) {
-        const vendasDinheiro = pagamentos.filter((p: any) => p.tipo === 'DINHEIRO').reduce((s: number, p: any) => s + (parseFloat(p.valor) || 0), 0);
-        const vendasPix = pagamentos.filter((p: any) => p.tipo === 'PIX').reduce((s: number, p: any) => s + (parseFloat(p.valor) || 0), 0);
-        const vendasCartao = pagamentos.filter((p: any) => ['CARTAO_DEBITO', 'CARTAO_CREDITO'].includes(p.tipo)).reduce((s: number, p: any) => s + (parseFloat(p.valor) || 0), 0);
-
-        await tx.sessaoCaixa.update({
-          where: { id: sessao.id },
-          data: {
-            totalVendas: { increment: Number(pedido.total) },
-            saldoDinheiro: { increment: vendasDinheiro },
-          },
+      if (vendasDinheiro > 0) {
+        await tx.movimentacaoCaixa.create({
+          data: { sessaoId: sessao.id, tipo: 'VENDA_DINHEIRO', valor: vendasDinheiro, descricao: `Venda #${v.numero}`, usuario: session.name || 'Balcao', vendaId: v.id },
         });
-
-        if (vendasDinheiro > 0) {
-          await tx.movimentacaoCaixa.create({
-            data: { sessaoId: sessao.id, tipo: 'VENDA_DINHEIRO', valor: vendasDinheiro, descricao: `Venda #${v.numero}`, usuario: session.name || 'Balcao', vendaId: v.id },
-          });
-        }
-        if (vendasPix > 0) {
-          await tx.movimentacaoCaixa.create({
-            data: { sessaoId: sessao.id, tipo: 'VENDA_PIX', valor: vendasPix, descricao: `Venda #${v.numero}`, usuario: session.name || 'Balcao', vendaId: v.id },
-          });
-        }
-        if (vendasCartao > 0) {
-          await tx.movimentacaoCaixa.create({
-            data: { sessaoId: sessao.id, tipo: 'VENDA_CARTAO', valor: vendasCartao, descricao: `Venda #${v.numero}`, usuario: session.name || 'Balcao', vendaId: v.id },
-          });
-        }
+      }
+      if (vendasPix > 0) {
+        await tx.movimentacaoCaixa.create({
+          data: { sessaoId: sessao.id, tipo: 'VENDA_PIX', valor: vendasPix, descricao: `Venda #${v.numero}`, usuario: session.name || 'Balcao', vendaId: v.id },
+        });
+      }
+      if (vendasCartao > 0) {
+        await tx.movimentacaoCaixa.create({
+          data: { sessaoId: sessao.id, tipo: 'VENDA_CARTAO', valor: vendasCartao, descricao: `Venda #${v.numero}`, usuario: session.name || 'Balcao', vendaId: v.id },
+        });
       }
 
       return tx.venda.findUnique({
@@ -271,6 +273,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(venda, { status: 201 });
   } catch (e: any) {
     const msg = e?.message || 'Erro ao processar venda';
+    if (msg === 'SEM_CAIXA_ABERTO') {
+      return NextResponse.json({ error: 'Nenhum caixa aberto. Abra o caixa antes de realizar uma venda.' }, { status: 400 });
+    }
     if (msg.includes('Estoque insuficiente') || msg.includes('Quantidade invalida') || msg.includes('Soma dos pagamentos')) {
       return NextResponse.json({ error: msg }, { status: 400 });
     }

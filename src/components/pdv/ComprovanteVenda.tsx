@@ -1,6 +1,6 @@
 'use client';
 
-import { imprimirNotaVenda, normalizarVendaParaImpressao, DADOS_EMPRESA } from '@/lib/imprimirNotaServico';
+import { imprimirNotaVenda, normalizarVendaParaImpressao, headerEmpresaCompacto } from '@/lib/imprimirNotaServico';
 
 interface ItemComprovante {
   nome: string;
@@ -98,18 +98,9 @@ export default function ComprovanteVenda({ venda, onFechar }: ComprovanteVendaPr
       <div class="pg-item"><span>${TIPO_LABEL[p.tipo] || p.tipo}${p.bandeira ? ' (' + esc(p.bandeira) + ')' : ''}${p.parcelas ? ' ' + p.parcelas + 'x' : ''}</span><span>${fm(Number(p.valor))}</span></div>
     `).join('');
 
-    const dadosEmpresa = [
-      DADOS_EMPRESA.razao,
-      `CNPJ: ${DADOS_EMPRESA.cnpj}`,
-      `IE: ${DADOS_EMPRESA.ie}`,
-      DADOS_EMPRESA.endereco,
-      DADOS_EMPRESA.cidade,
-      `WHATSAPP: ${DADOS_EMPRESA.telefone1} · ${DADOS_EMPRESA.telefone2}`,
-    ].map((linha) => `<div class="emp">${esc(linha)}</div>`).join('');
-
     return `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Venda #${venda.numero}</title><style>
       *{margin:0;padding:0;box-sizing:border-box}body{font-family:"DejaVu Sans Mono","Courier New",monospace;font-size:10px;color:#111;width:280px;margin:0 auto;padding:8px 6px;background:#fff;line-height:1.45}
-      .center{text-align:center}.logo{font-size:17px;font-weight:900;margin-bottom:2px;letter-spacing:-0.5px}.ofic{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;color:#222}.emp{font-size:7px;color:#444;margin-top:1px;letter-spacing:0.3px}
+      .center{text-align:center}.logo{font-size:17px;font-weight:900;margin-bottom:2px;letter-spacing:-0.5px}.ofic{font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:#222}.emp{font-size:7px;color:#444;margin-top:1px;letter-spacing:0.3px}.doc-titulo-term{display:inline-block;margin-top:5px;font-size:9px;font-weight:900;letter-spacing:1.5px;color:#111;border:1.5px solid #000;border-radius:3px;padding:2px 8px;text-transform:uppercase}
       .vn{font-size:21px;font-weight:900;margin:6px 0 3px;letter-spacing:-0.5px}.dt{font-size:8px;margin-bottom:6px;color:#444}
       .sep{border:none;border-top:1.5px solid #000;margin:6px 0}.sep-dot{border:none;border-top:1px dotted #000;margin:5px 0}
       .cliente{font-size:10px;margin:3px 0;color:#222}.cliente span{font-weight:700}
@@ -122,13 +113,8 @@ export default function ComprovanteVenda({ venda, onFechar }: ComprovanteVendaPr
       .footer{text-align:center;font-size:8px;margin-top:10px;padding-top:5px;border-top:1px solid #000;color:#444}
       @media print{body{width:72mm;padding:3mm}@page{margin:0}}
     </style></head><body>
-      <div class="center">
-        <div class="logo">MARQUINHO</div>
-        <div class="ofic">Moto Pecas</div>
-        ${dadosEmpresa}
-        <div class="vn">VENDA #${venda.numero}</div>
-        <div class="dt">${dataStr} — ${horaStr}</div>
-      </div>
+      ${headerEmpresaCompacto(`Venda #${venda.numero}`)}
+      <div class="dt">${dataStr} — ${horaStr}</div>
       <hr class="sep">
       ${venda.clienteNome ? `<div class="cliente"><span>Cliente:</span> ${esc(venda.clienteNome)}${venda.clienteTelefone ? '<br><span>Tel:</span> ' + esc(venda.clienteTelefone) : ''}${venda.clienteCpf ? '<br><span>CPF:</span> ' + esc(venda.clienteCpf) : ''}</div><hr class="sep-dot">` : ''}
       <div>ITENS</div>
@@ -140,7 +126,7 @@ export default function ComprovanteVenda({ venda, onFechar }: ComprovanteVendaPr
       <div>PAGAMENTO</div>
       ${linhasPg}
       <hr class="sep">
-      <div class="footer">Marquinho Moto Pecas — ${dataStr}<br>Obrigado pela preferencia!</div>
+      <div class="footer">Marquinho Moto Peças — ${dataStr}<br>Obrigado pela preferência!</div>
       <script>setTimeout(function(){window.print();},300);</script>
     </body></html>`;
   }

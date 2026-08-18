@@ -191,9 +191,24 @@ export default function BalcaoPdvPage() {
     try { sessionStorage.removeItem(CARRINHO_KEY); } catch { /* ignore */ }
   }, [pedidoId]);
 
+  // BLOCO 2 — nenhuma venda sem sessão de caixa ABERTA (proteção no frontend)
+  const verificarCaixaAberto = useCallback(async (): Promise<boolean> => {
+    try {
+      const res = await fetch('/api/caixa');
+      const data = await res.json();
+      if (data?.sessaoAberta) return true;
+      setErro('Nenhum caixa aberto. Abra o caixa antes de realizar uma venda.');
+    } catch {
+      setErro('Não foi possível verificar o caixa. Tente novamente.');
+    }
+    return false;
+  }, []);
+
   const handleFinalizar = useCallback(async () => {
     if (itens.length === 0) return;
     setErro('');
+    // BLOCO 2 — bloqueia antes de criar pedido / abrir pagamento
+    if (!(await verificarCaixaAberto())) return;
     // FASE 15-N: impede venda com itens sem preço (R$ 0,00) — não inventar preço
     const semPreco = itens.filter(i => !Number.isFinite(i.precoUnitario) || i.precoUnitario <= 0);
     if (semPreco.length > 0) {
@@ -261,7 +276,7 @@ export default function BalcaoPdvPage() {
 
     // Abre o modal de pagamento direto (mesmo fluxo que antes era "Ir para Pagamento")
     setPagamentoOpen(true);
-  }, [itens, pedidoId, clienteTelefone, clienteNome]);
+  }, [itens, pedidoId, clienteTelefone, clienteNome, verificarCaixaAberto]);
 
   const handleConfirmarPagamento = useCallback(async (pagamentos: Pagamento[], trocoTotal: number) => {
     setPagamentoOpen(false);

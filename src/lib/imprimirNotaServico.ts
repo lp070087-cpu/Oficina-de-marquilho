@@ -89,6 +89,27 @@ function headerHtml(titulo: string): string {
   </div>`;
 }
 
+// ============================================================================
+// CABEÇALHO OFICIAL COMPACTO (documentos TÉRMICOS 72mm / 280px)
+// ============================================================================
+// Usado na Nota Mecânico (checklist) e na Nota de Venda Térmica do PDV.
+// Mesma fonte única de DADOS_EMPRESA dos documentos A4 — substitui os antigos
+// cabeçalhos manuais "MARQUINHO / Moto Pecas / Atacado & Varejo" que ainda
+// existiam em alguns componentes. O parâmetro opcional `titulo` é renderizado
+// abaixo dos dados da empresa (ex.: "NOTA MECÂNICO", "VENDA #1234").
+export function headerEmpresaCompacto(titulo?: string): string {
+  return `<div class="center">
+    <div class="logo">${DADOS_EMPRESA.fantasia}</div>
+    <div class="ofic">${DADOS_EMPRESA.razao}</div>
+    <div class="emp">CNPJ: ${DADOS_EMPRESA.cnpj}</div>
+    <div class="emp">IE: ${DADOS_EMPRESA.ie}</div>
+    <div class="emp">${DADOS_EMPRESA.endereco}</div>
+    <div class="emp">${DADOS_EMPRESA.cidade}</div>
+    <div class="emp">WHATSAPP: ${DADOS_EMPRESA.telefone1} · ${DADOS_EMPRESA.telefone2}</div>
+    ${titulo ? `<div class="doc-titulo-term">${titulo}</div>` : ''}
+  </div>`;
+}
+
 function footerHtml(extra?: string): string {
   return `<div class="footer">${extra ? extra + '<br>' : ''}Marquinho Moto Peças — Obrigado pela preferência!<br>Documento interno — sem integração SEFAZ</div>`;
 }
@@ -386,6 +407,11 @@ export interface NfManualParaImprimir {
   formaPagamento?: string;
   itens: { nome: string; codigo: string; quantidade: number; valorUnitario: number }[];
   total: number;
+  /** BLOCO 7 — desconto fixo em R$ (opcional). Quando presente, a nota imprime
+   *  SUBTOTAL / DESCONTO (−) / TOTAL em vez de apenas TOTAL. */
+  desconto?: number;
+  /** Subtotal (sem desconto). Usado pelo Bloco 7 para exibir a linha SUBTOTAL. */
+  subtotal?: number;
   /** true (padrão) dispara window.print() automaticamente; false abre o mesmo
    *  documento com um botão "Imprimir / Salvar PDF" para o usuário controlar. */
   autoPrint?: boolean;
@@ -421,6 +447,8 @@ export function imprimirNfManual(opts: NfManualParaImprimir): void {
     <div class="section-title">Produtos</div>
     <table><thead><tr><th>SKU</th><th>Descrição</th><th class="center">Qtd</th><th class="right">V. Unit.</th><th class="right">Total</th></tr></thead><tbody>${linhasItens || '<tr><td colspan="5" style="text-align:center;color:#999">Nenhum item</td></tr>'}</tbody></table>
     <div class="totais"><table>
+      ${opts.subtotal != null ? `<tr><td class="right">Subtotal</td><td class="right">${fm(opts.subtotal)}</td></tr>` : ''}
+      ${Number(opts.desconto) > 0 ? `<tr><td class="right">Desconto</td><td class="right">− ${fm(opts.desconto)}</td></tr>` : ''}
       <tr class="total"><td class="right">TOTAL</td><td class="right">${fm(opts.total)}</td></tr>
     </table></div>
     ${opts.observacoes ? `<div class="section-title">Observações</div><p style="font-size:12px;color:#555">${esc(opts.observacoes)}</p>` : ''}

@@ -189,9 +189,25 @@ export default function VendaAvulsaPage() {
     }));
   }
 
+  // BLOCO 2 — nenhuma venda sem sessão de caixa ABERTA (proteção no frontend)
+  async function verificarCaixaAberto(): Promise<boolean> {
+    try {
+      const res = await fetch('/api/caixa');
+      const data = await res.json();
+      if (data?.sessaoAberta) return true;
+      setMsg('Nenhum caixa aberto. Abra o caixa antes de realizar uma venda.');
+    } catch {
+      setMsg('Não foi possível verificar o caixa. Tente novamente.');
+    }
+    return false;
+  }
+
   async function criarPedido() {
     if (itens.length === 0) return;
     setMsg('');
+
+    // BLOCO 2 — bloqueia antes de criar pedido / abrir pagamento
+    if (!(await verificarCaixaAberto())) return;
 
     // Guarda de preço zero na finalização
     const semPreco = itens.filter(i => !Number.isFinite(i.precoUnitario) || i.precoUnitario <= 0);

@@ -4,7 +4,10 @@ import { getSession } from '@/lib/auth';
 import { emitEvent } from '@/lib/event-bus';
 
 // FASE 5 — Status válidos conforme enum StatusOS do Prisma
-const STATUS_VALIDOS = ['ABERTA', 'EM_ANDAMENTO', 'AGUARDANDO_PECAS', 'PRONTA', 'CONCLUIDA', 'CANCELADA', 'AGUARDANDO_MECANICO', 'EM_SERVICO', 'TESTE', 'LAVAGEM'];
+// LAVAGEM removido da lista de status válidos (BLOCO 8) — não pode mais ser
+// escolhido em NOVAS OS. O enum Prisma NÃO foi alterado, então OS antigas com
+// status LAVAGEM continuam legíveis e intocadas no Neon.
+const STATUS_VALIDOS = ['ABERTA', 'EM_ANDAMENTO', 'AGUARDANDO_PECAS', 'PRONTA', 'CONCLUIDA', 'CANCELADA', 'AGUARDANDO_MECANICO', 'EM_SERVICO', 'TESTE'];
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
