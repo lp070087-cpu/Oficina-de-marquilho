@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getSession } from '@/lib/auth';
-import { writeFile, mkdir } from 'fs/promises';
-import path from 'path';
+import { put } from '@vercel/blob';
 
 // GET — listar banners
 export async function GET(req: NextRequest) {
@@ -41,23 +40,30 @@ export async function POST(req: NextRequest) {
     const desktopFile = formData.get('imagemDesktop') as File | null;
     const mobileFile = formData.get('imagemMobile') as File | null;
 
-    const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'banners');
-    await mkdir(uploadDir, { recursive: true });
-
     if (desktopFile) {
       const bytes = await desktopFile.arrayBuffer();
       const ext = desktopFile.name.split('.').pop() || 'png';
       const filename = `banner_desktop_${Date.now()}.${ext}`;
-      await writeFile(path.join(uploadDir, filename), Buffer.from(bytes));
-      imagemDesktop = `/uploads/banners/${filename}`;
+      // Migração Vercel Blob (2026-08-18): upload para Blob em vez de filesystem efêmero.
+      const blob = await put(`banners/${filename}`, Buffer.from(bytes), {
+        access: 'public',
+        addRandomSuffix: true,
+        contentType: `image/${ext === 'jpg' ? 'jpeg' : ext}`,
+      });
+      imagemDesktop = blob.url;
     }
 
     if (mobileFile) {
       const bytes = await mobileFile.arrayBuffer();
       const ext = mobileFile.name.split('.').pop() || 'png';
       const filename = `banner_mobile_${Date.now()}.${ext}`;
-      await writeFile(path.join(uploadDir, filename), Buffer.from(bytes));
-      imagemMobile = `/uploads/banners/${filename}`;
+      // Migração Vercel Blob (2026-08-18): upload para Blob em vez de filesystem efêmero.
+      const blob = await put(`banners/${filename}`, Buffer.from(bytes), {
+        access: 'public',
+        addRandomSuffix: true,
+        contentType: `image/${ext === 'jpg' ? 'jpeg' : ext}`,
+      });
+      imagemMobile = blob.url;
     }
 
     const banner = await prisma.bannerCarrossel.create({

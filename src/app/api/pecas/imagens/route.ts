@@ -1,8 +1,35 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getSession } from '@/lib/auth';
-import { writeFile, mkdir } from 'fs/promises';
-import path from 'path';
+import { put, del } from '@vercel/blob';
+
+// Helper: verifica se a URL pertence ao Vercel Blob (só chama del() nesses casos).
+function isBlobUrl(url: string): boolean {
+  return typeof url === 'string' && url.includes('.public.blob.vercel-storage.com');
+}
+
+// Correção 4 (DONA, 2026-08-18): formatos permitidos SÃO APENAS PNG/JPG/JPEG/WEBP.
+// GIF foi REMOVIDO. Validação por extensão + MIME + magic-bytes (não confia em MIME spoofável).
+const ALLOWED_EXTENSIONS = ['png', 'jpg', 'jpeg', 'webp'];
+
+function validarImagem(file: File, buffer: Buffer): string | null {
+  const rawExt = file.name.split('.').pop()?.toLowerCase() || '';
+  if (!ALLOWED_EXTENSIONS.includes(rawExt)) {
+    return 'Tipo de arquivo nao permitido. Use PNG, JPG, JPEG ou WebP.';
+  }
+  if (file.name.includes('/') || file.name.includes('\\') || file.name.includes('..')) {
+    return 'Nome de arquivo invalido.';
+  }
+  const magic = buffer.subarray(0, 12);
+  const isPNG  = magic[0] === 0x89 && magic[1] === 0x50 && magic[2] === 0x4E && magic[3] === 0x47;
+  const isJPEG = magic[0] === 0xFF && magic[1] === 0xD8 && magic[2] === 0xFF;
+  const isWebP = magic[0] === 0x52 && magic[1] === 0x49 && magic[2] === 0x46 && magic[3] === 0x46
+    && magic[8] === 0x57 && magic[9] === 0x45 && magic[10] === 0x42 && magic[11] === 0x50;
+  if ((rawExt === 'png' && !isPNG) || ((rawExt === 'jpg' || rawExt === 'jpeg') && !isJPEG) || (rawExt === 'webp' && !isWebP)) {
+    return 'Conteudo do arquivo nao corresponde a extensao informada.';
+  }
+  return null;
+}
 
 export async function POST(req: NextRequest) {
   try {
@@ -20,25 +47,33 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Imagem e pecaId obrigatorios' }, { status: 400 });
     }
 
-    const ALLOWED_TYPES = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp', 'image/gif'];
-    if (!ALLOWED_TYPES.includes(file.type)) {
-      return NextResponse.json({ error: 'Tipo de arquivo nao permitido. Use PNG, JPEG, WebP ou GIF.' }, { status: 400 });
+    // Correção 4: sanear pecaId (previne path traversal)
+    if (!/^[a-zA-Z0-9_-]{1,40}$/.test(pecaId)) {
+      return NextResponse.json({ error: 'ID de peca invalido' }, { status: 400 });
     }
+
     if (file.size > 10 * 1024 * 1024) {
       return NextResponse.json({ error: 'Arquivo muito grande. Maximo 10MB.' }, { status: 400 });
     }
 
-    const ext = file.name.split('.').pop()?.toLowerCase() || 'png';
-    const fileName = `peca-${pecaId}-${tipo.toLowerCase()}-${Date.now()}.${ext}`;
     const bytes = await file.arrayBuffer();
     const buffer = Buffer.from(bytes);
+    const erroValidacao = validarImagem(file, buffer);
+    if (erroValidacao) {
+      return NextResponse.json({ error: erroValidacao }, { status: 400 });
+    }
 
-    const dirPath = path.join(process.cwd(), 'public', 'uploads', 'pecas');
-    await mkdir(dirPath, { recursive: true });
-    const filePath = path.join(dirPath, fileName);
-    await writeFile(filePath, buffer);
+    const ext = (file.name.split('.').pop()?.toLowerCase() || 'png').replace('jpg', 'jpg');
+    const fileName = `peca-${pecaId}-${tipo.toLowerCase()}-${Date.now()}.${ext}`;
 
-    const url = `/uploads/pecas/${fileName}`;
+    // Migração Vercel Blob (2026-08-18): upload para Blob em vez de filesystem efêmero.
+    const blob = await put(`pecas/${fileName}`, buffer, {
+      access: 'public',
+      addRandomSuffix: true,
+      contentType: `image/${ext === 'jpg' ? 'jpeg' : ext}`,
+    });
+
+    const url = blob.url;
 
     // Determinar ordem
     const count = await prisma.pecaImagem.count({ where: { pecaId, tipo } });
@@ -76,6 +111,48 @@ export async function GET(req: NextRequest) {
   } catch (e: any) { return NextResponse.json({ error: e.message }, { status: 500 }); }
 }
 
+/**
+ * Correção 4 — definir imagem principal / reordenar galeria.
+ * Body: { id: string; tipo?: 'PRINCIPAL' | 'GALERIA'; ordem?: number }
+ * Quando tipo = 'PRINCIPAL', a imagem se torna a capa (imagemUrl da peça) e a
+ * anterior principal vira GALERIA. Não mexe em outros campos do produto.
+ */
+export async function PUT(req: NextRequest) {
+  try {
+    const session = await getSession();
+    if (!session || !['DONO', 'BALCAO', 'ESTOQUE'].includes(session.role)) {
+      return NextResponse.json({ error: 'Nao autorizado' }, { status: 403 });
+    }
+    const body = await req.json();
+    const { id, tipo, ordem } = body;
+    if (!id) return NextResponse.json({ error: 'id obrigatorio' }, { status: 400 });
+
+    const atual = await prisma.pecaImagem.findUnique({ where: { id } });
+    if (!atual) return NextResponse.json({ error: 'Imagem nao encontrada' }, { status: 404 });
+
+    const data: any = {};
+    if (typeof ordem === 'number') data.ordem = ordem;
+
+    if (tipo === 'PRINCIPAL') {
+      // Demove a principal anterior para GALERIA e promove a selecionada.
+      await prisma.pecaImagem.updateMany({
+        where: { pecaId: atual.pecaId, tipo: 'PRINCIPAL' },
+        data: { tipo: 'GALERIA' },
+      });
+      data.tipo = 'PRINCIPAL';
+      data.ordem = 0;
+      await prisma.peca.update({ where: { id: atual.pecaId }, data: { imagemUrl: atual.url } });
+    } else if (tipo === 'GALERIA' && atual.tipo === 'PRINCIPAL') {
+      data.tipo = 'GALERIA';
+    }
+
+    const imagem = await prisma.pecaImagem.update({ where: { id }, data });
+    return NextResponse.json(imagem);
+  } catch (e: any) {
+    return NextResponse.json({ error: e.message }, { status: 500 });
+  }
+}
+
 export async function DELETE(req: NextRequest) {
   try {
     const session = await getSession();
@@ -84,7 +161,33 @@ export async function DELETE(req: NextRequest) {
     }
     const id = req.nextUrl.searchParams.get('id');
     if (!id) return NextResponse.json({ error: 'id obrigatorio' }, { status: 400 });
+
+    const imagem = await prisma.pecaImagem.findUnique({ where: { id } });
+    if (!imagem) return NextResponse.json({ error: 'Imagem nao encontrada' }, { status: 404 });
+
+    // Se era a capa, promover a próxima (ordem) como principal — mantém a peça com imagem.
+    const eraPrincipal = imagem.tipo === 'PRINCIPAL';
     await prisma.pecaImagem.delete({ where: { id } });
+
+    // Migração Vercel Blob (2026-08-18): se a URL pertencer ao Blob, remover o arquivo remoto.
+    // URLs antigas (/uploads/...) não pertencem ao Blob e não chamam del().
+    if (isBlobUrl(imagem.url)) {
+      try { await del(imagem.url); } catch (e: any) { console.error('Erro ao deletar blob:', e); }
+    }
+
+    if (eraPrincipal) {
+      const proxima = await prisma.pecaImagem.findFirst({
+        where: { pecaId: imagem.pecaId },
+        orderBy: { ordem: 'asc' },
+      });
+      if (proxima) {
+        await prisma.pecaImagem.update({ where: { id: proxima.id }, data: { tipo: 'PRINCIPAL', ordem: 0 } });
+        await prisma.peca.update({ where: { id: imagem.pecaId }, data: { imagemUrl: proxima.url } });
+      } else {
+        await prisma.peca.update({ where: { id: imagem.pecaId }, data: { imagemUrl: null } });
+      }
+    }
+
     return NextResponse.json({ ok: true });
   } catch (e: any) { return NextResponse.json({ error: e.message }, { status: 500 }); }
 }

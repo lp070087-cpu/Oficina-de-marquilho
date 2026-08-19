@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSession } from '@/lib/auth';
 import { checkRateLimit } from '@/lib/rate-limit';
-import { writeFile } from 'fs/promises';
-import path from 'path';
+import { put } from '@vercel/blob';
 import prisma from '@/lib/prisma';
 
 export async function POST(req: NextRequest) {
@@ -63,16 +62,15 @@ export async function POST(req: NextRequest) {
 
   const fileName = `${pecaId}-${Date.now()}.${rawExt}`;
 
-  // C1 — Garantir que o caminho resolvido permanece dentro de public/uploads
-  const uploadsRoot = path.resolve(process.cwd(), 'public', 'uploads');
-  const resolvedPath = path.resolve(uploadsRoot, fileName);
-  if (!resolvedPath.startsWith(uploadsRoot + path.sep)) {
-    return NextResponse.json({ error: 'Caminho de arquivo inválido' }, { status: 400 });
-  }
+  // Migração Vercel Blob (2026-08-18): upload para Blob em vez de filesystem efêmero.
+  // Salva no Neon SOMENTE a URL pública retornada pelo Blob.
+  const blob = await put(`pecas/${fileName}`, buffer, {
+    access: 'public',
+    addRandomSuffix: true,
+    contentType: `image/${rawExt === 'jpg' ? 'jpeg' : rawExt}`,
+  });
 
-  await writeFile(resolvedPath, buffer);
-
-  const url = `/uploads/${fileName}`;
+  const url = blob.url;
   await prisma.peca.update({ where: { id: pecaId }, data: { imagemUrl: url } });
   return NextResponse.json({ url });
   } catch (error) {
