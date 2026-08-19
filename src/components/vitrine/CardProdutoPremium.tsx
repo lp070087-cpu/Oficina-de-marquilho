@@ -5,10 +5,18 @@ import { useState } from 'react';
 const fm = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
 interface Produto {
-  id: string; nome: string; codigo: string; precoVenda: number; precoOferta?: number;
+  id: string; nome: string; codigo: string; precoVenda: number; precoOferta?: number; precoVitrine?: number;
   quantidade?: number; quantidadeLoja?: number; estoqueMinimo?: number; vitrine?: boolean; destaque?: boolean; oferta?: boolean;
   marca?: string; compatibilidade?: string; imagemUrl?: string; descricaoCurta?: string;
   categoria: { nome: string; slug: string }; createdAt?: string;
+}
+
+// Preço público oficial (item 6): precoVitrine > precoOferta > precoVenda. Só leitura na Vitrine.
+function precoExibicao(p: Produto): number {
+  const pv = p.precoVitrine != null ? Number(p.precoVitrine) : NaN;
+  if (Number.isFinite(pv) && pv > 0) return pv;
+  if (p.oferta && p.precoOferta && Number(p.precoOferta) < Number(p.precoVenda)) return Number(p.precoOferta);
+  return Number(p.precoVenda) || 0;
 }
 
 export default function CardProdutoPremium({
@@ -19,18 +27,19 @@ export default function CardProdutoPremium({
 }) {
   const [imgError, setImgError] = useState(false);
   const [hoverImg, setHoverImg] = useState(false);
-  const oferta = p.oferta && p.precoOferta;
-  const economia = oferta ? Number(p.precoVenda) - Number(p.precoOferta) : 0;
-  const desconto = oferta ? Math.round((economia / Number(p.precoVenda)) * 100) : 0;
+  const precoBase = Number(p.precoVenda);
+  const temOverride = p.precoVitrine != null && Number(p.precoVitrine) > 0;
+  const oferta = p.oferta && p.precoOferta && Number(p.precoOferta) < precoBase && !temOverride;
+  const economia = oferta ? precoBase - Number(p.precoOferta) : 0;
+  const desconto = oferta ? Math.round((economia / precoBase) * 100) : 0;
   // Disponibilidade baseada no estoque da LOJA (quantidadeLoja). Nunca expor o estoque central.
   const qtdLoja = p.quantidadeLoja ?? 0;
   const disponivel = qtdLoja > 0;
   const ultimasUnidades = qtdLoja > 0 && qtdLoja <= 5;
   const novo = p.createdAt ? (new Date().getTime() - new Date(p.createdAt).getTime()) < 7 * 24 * 60 * 60 * 1000 : false;
-  const preco = oferta ? Number(p.precoOferta) : Number(p.precoVenda);
-  const descontoPix = preco * 0.95;
-  const parcelas = [2, 3, 4].find(x => preco / x >= 20);
-  const precoAtual = oferta ? Number(p.precoOferta) : Number(p.precoVenda);
+  const precoAtual = precoExibicao(p);
+  const descontoPix = precoAtual * 0.95;
+  const parcelas = [2, 3, 4].find(x => precoAtual / x >= 20);
 
   return (
     <div className={`bg-white rounded-xl border border-slate-200 hover:border-brand-300 hover:shadow-xl transition-all duration-200 group flex flex-col ${compact ? '' : ''}`}>
@@ -46,8 +55,9 @@ export default function CardProdutoPremium({
         )}
         {/* Badges */}
         <div className="absolute top-2 left-2 flex flex-col gap-1">
+          {p.destaque && <span className="px-2 py-0.5 bg-brand-600 text-white text-[9px] font-extrabold rounded-full shadow-sm">Destaque</span>}
           {oferta && <span className="px-2 py-0.5 bg-red-500 text-white text-[9px] font-extrabold rounded-full shadow-sm">{desconto}% OFF</span>}
-          {novo && !oferta && <span className="px-2 py-0.5 bg-blue-500 text-white text-[9px] font-extrabold rounded-full shadow-sm">Novo</span>}
+          {novo && !oferta && !p.destaque && <span className="px-2 py-0.5 bg-blue-500 text-white text-[9px] font-extrabold rounded-full shadow-sm">Novo</span>}
           {!disponivel && <span className="px-2 py-0.5 bg-slate-700 text-white text-[9px] font-bold rounded-full shadow-sm">Indisponível</span>}
           {ultimasUnidades && disponivel && <span className="px-2 py-0.5 bg-amber-500 text-white text-[9px] font-bold rounded-full shadow-sm">Últimas unidades</span>}
         </div>
@@ -82,7 +92,7 @@ export default function CardProdutoPremium({
         <div className="mt-auto pt-1">
           <div className="flex items-baseline gap-1.5 flex-wrap">
             <span className="text-sm font-extrabold text-slate-800">{fm(precoAtual)}</span>
-            {oferta && <span className="text-[10px] text-slate-400 line-through">{fm(Number(p.precoVenda))}</span>}
+            {(oferta || temOverride) && <span className="text-[10px] text-slate-400 line-through">{fm(precoBase)}</span>}
           </div>
 
           {/* PIX */}

@@ -9,9 +9,13 @@ export async function GET(req: NextRequest) {
     const categoria = searchParams.get('categoria');
     const marca = searchParams.get('marca');
     const compatibilidade = searchParams.get('compatibilidade');
+    const precoMin = searchParams.get('precoMin');
+    const precoMax = searchParams.get('precoMax');
+    const promocao = searchParams.get('promocao') === '1' || searchParams.get('promocao') === 'true';
     const ordem = searchParams.get('ordem') || 'relevancia';
     const page = parseInt(searchParams.get('page') || '1');
-    const limit = 24;
+    // limit opcional (categorias/home podem pedir mais), limitado a 200 para não estourar.
+    const limit = Math.min(parseInt(searchParams.get('limit') || '24') || 24, 200);
     const skip = (page - 1) * limit;
 
     // Regra oficial de visibilidade + busca tokenizada com suporte a CATEGORIA:
@@ -29,6 +33,55 @@ export async function GET(req: NextRequest) {
         OR: [
           { compatibilidade: { contains: compatibilidade, mode: 'insensitive' } },
           { nome: { contains: compatibilidade, mode: 'insensitive' } },
+        ],
+      });
+    }
+
+    // Filtro de PREÇO PÚBLICO (mesma regra do precoPublico: precoVitrine > precoOferta > precoVenda).
+    // Expresso no banco como OR de 3 cenários para respeitar a precedência do preço efetivo.
+    const min = precoMin ? Number(precoMin) : NaN;
+    const max = precoMax ? Number(precoMax) : NaN;
+    const gte = Number.isFinite(min) && min > 0 ? min : undefined;
+    const lte = Number.isFinite(max) && max > 0 ? max : undefined;
+    if (gte !== undefined || lte !== undefined) {
+      const faixa: any = {};
+      if (gte !== undefined) faixa.gte = gte;
+      if (lte !== undefined) faixa.lte = lte;
+      // precoVitrine é a fonte que prevalece quando definido (>0)
+      const cenarioOverride = { precoVitrine: { gt: 0, ...faixa } };
+      // Sem override: usa precoOferta (quando é o preço efetivo: precisa ser >0 E menor que precoVenda)
+      const cenarioOferta = {
+        precoVitrine: null,
+        oferta: true,
+        precoOferta: { gt: 0, lt: prisma.peca.fields.precoVenda, ...faixa },
+      };
+      // Sem override e sem oferta válida: usa precoVenda
+      const cenarioVenda = {
+        precoVitrine: null,
+        OR: [
+          { oferta: false },
+          { precoOferta: null },
+          { precoOferta: { lte: 0 } },
+          { precoOferta: { gte: prisma.peca.fields.precoVenda } }, // oferta não é menor → precoVenda
+        ],
+        precoVenda: { gt: 0, ...faixa },
+      };
+      where.AND = where.AND || [];
+      where.AND.push({ OR: [cenarioOverride, cenarioOferta, cenarioVenda] });
+    }
+
+    // Filtro PROMOÇÃO: só produtos com preço público MENOR que o preço de venda.
+    // (override precoVitrine menor que precoVenda OU oferta válida)
+    if (promocao) {
+      where.AND = where.AND || [];
+      where.AND.push({
+        OR: [
+          { precoVitrine: { gt: 0, lt: prisma.peca.fields.precoVenda } },
+          {
+            precoVitrine: null,
+            oferta: true,
+            precoOferta: { gt: 0, lt: prisma.peca.fields.precoVenda },
+          },
         ],
       });
     }
@@ -55,10 +108,11 @@ export async function GET(req: NextRequest) {
       }),
     ]);
 
-    // Sugestões (autocomplete) com produtos
+    // Sugestões (autocomplete) com produtos — inclui precoVitrine/precoOferta para o preço público
+    // (item 6: precoPublico = precoVitrine > precoOferta > precoVenda).
     const sugestoes = q && page === 1 ? await prisma.peca.findMany({
       where: { ...VITRINE_VISIBILITY, nome: { contains: q, mode: 'insensitive' } },
-      select: { id: true, nome: true, codigo: true, imagemUrl: true, precoVenda: true, marca: true },
+      select: { id: true, nome: true, codigo: true, imagemUrl: true, precoVenda: true, precoOferta: true, precoVitrine: true, oferta: true, marca: true },
       take: 6,
     }) : [];
 

@@ -15,6 +15,8 @@ export async function GET(req: NextRequest) {
     }
 
     let where: any = { ativo: true };
+    const codigo = req.nextUrl.searchParams.get('codigo');
+    if (codigo) where.codigo = codigo.trim().toUpperCase();
     if (!isAdmin) {
       const now = new Date();
       where.dataInicio = { lte: now };

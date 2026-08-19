@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { getClienteVitrine } from '@/lib/vitrine-session';
+import { DADOS_OFICINA } from '@/lib/empresa';
 
 const fm = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
@@ -28,15 +29,25 @@ export default function CheckoutPage() {
   useEffect(() => {
     const s = sessionStorage.getItem('marquinho-cart');
     if (s) setCart(JSON.parse(s));
+    // Cupom aplicado no carrinho (sessão) — persiste para o checkout
+    const cp = sessionStorage.getItem('marquinho-cupom');
+    if (cp) { try { setCupomAplicado(JSON.parse(cp)); } catch { /* */ } }
     const cd = getClienteVitrine();
-    if (!cd) { router.push('/vitrine/login'); return; }
+    if (!cd) { router.push('/vitrine/login?redirect=/vitrine/checkout'); return; }
     setCliente(cd);
     setRetiradaNome(cd.nome || '');
     setRetiradaTelefone(cd.telefone || '');
   }, [router]);
 
-  // Subtotal considera oferta (mesma lógica do carrinho): preço de oferta quando aplicável.
-  const subtotal = cart.reduce((s, i) => s + Number(i.peca.oferta && i.peca.precoOferta ? i.peca.precoOferta : i.peca.precoVenda) * i.quantidade, 0);
+  // Preço público oficial (item 6): precoVitrine > precoOferta > precoVenda.
+  // O servidor recalcula o preço no fechamento (item 12) — isto é apenas o resumo exibido.
+  const precoItem = (peca: any) => {
+    const pv = peca?.precoVitrine != null ? Number(peca.precoVitrine) : NaN;
+    if (Number.isFinite(pv) && pv > 0) return pv;
+    if (peca?.oferta && peca.precoOferta && Number(peca.precoOferta) < Number(peca.precoVenda)) return Number(peca.precoOferta);
+    return Number(peca?.precoVenda) || 0;
+  };
+  const subtotal = cart.reduce((s, i) => s + precoItem(i.peca) * i.quantidade, 0);
   const descontoCupom = cupomAplicado
     ? cupomAplicado.tipo === 'PERCENTUAL' ? subtotal * (Number(cupomAplicado.valor) / 100) : Number(cupomAplicado.valor)
     : 0;
@@ -44,16 +55,26 @@ export default function CheckoutPage() {
 
   async function aplicarCupom() {
     if (!cupom) return;
-    const r = await fetch(`/api/vitrine/cupons?codigo=${cupom.toUpperCase()}`);
-    if (r.ok) {
-      const data = await r.json();
-      if (data.cupons && data.cupons.length > 0) {
-        setCupomAplicado(data.cupons[0]);
-        setMsg('');
+    try {
+      const r = await fetch(`/api/vitrine/cupons?codigo=${encodeURIComponent(cupom)}`);
+      // A rota /api/vitrine/cupons retorna um ARRAY (lista) — não { cupons: [] }.
+      if (r.ok) {
+        const data = await r.json();
+        const lista = Array.isArray(data) ? data : data?.cupons || [];
+        if (lista.length > 0) {
+          setCupomAplicado(lista[0]);
+          setMsg('');
+        } else {
+          setMsg('Cupom inválido ou expirado.');
+          setCupomAplicado(null);
+        }
       } else {
-        setMsg('Cupom inválido ou expirado.');
+        setMsg('Erro ao consultar o cupom.');
         setCupomAplicado(null);
       }
+    } catch {
+      setMsg('Erro de conexão ao consultar o cupom.');
+      setCupomAplicado(null);
     }
   }
 
@@ -81,6 +102,8 @@ export default function CheckoutPage() {
       if (r.ok) {
         const pedido = await r.json();
         sessionStorage.removeItem('marquinho-cart');
+        sessionStorage.removeItem('marquinho-cupom');
+        setCupomAplicado(null);
         setMsg(`Pedido #${pedido.numero} realizado com sucesso!`);
         setTimeout(() => router.push(`/vitrine/perfil?pedido=${pedido.numero}`), 1500);
       } else {
@@ -119,7 +142,7 @@ export default function CheckoutPage() {
                 <p className="font-medium text-slate-700 truncate">{item.peca.nome}</p>
                 <p className="text-slate-400">{item.peca.codigo} x{item.quantidade}</p>
               </div>
-              <span className="font-bold ml-2">{fm(Number(item.peca.oferta && item.peca.precoOferta ? item.peca.precoOferta : item.peca.precoVenda) * item.quantidade)}</span>
+              <span className="font-bold ml-2">{fm(precoItem(item.peca) * item.quantidade)}</span>
             </div>
           ))}
           <div className="flex items-center justify-between pt-3 mt-2 border-t border-slate-200">
@@ -142,8 +165,8 @@ export default function CheckoutPage() {
             </div>
             <div className="flex-1">
               <p className="text-sm font-bold text-slate-800">✓ Retirada na Loja</p>
-              <p className="text-xs text-slate-500">Rua Exemplo, 123 — Centro, São Paulo/SP</p>
-              <p className="text-xs text-slate-400 mt-0.5">Seg-Sex: 8h às 18h · Sáb: 8h às 13h</p>
+              <p className="text-xs text-slate-500">{DADOS_OFICINA.endereco} — {DADOS_OFICINA.cidade}</p>
+              <p className="text-xs text-slate-400 mt-0.5">{DADOS_OFICINA.horario}</p>
             </div>
           </div>
 
@@ -230,7 +253,7 @@ export default function CheckoutPage() {
           {cupomAplicado && (
             <p className="text-xs text-emerald-600 mt-2 font-medium">
               ✓ Cupom {cupomAplicado.codigo} aplicado!
-              {cupomAplicado.tipo === 'PORCENTAGEM' ? ` (${cupomAplicado.valor}% off)` : ` (-${fm(Number(cupomAplicado.valor))})`}
+              {cupomAplicado.tipo === 'PERCENTUAL' ? ` (${cupomAplicado.valor}% off)` : ` (-${fm(Number(cupomAplicado.valor))})`}
             </p>
           )}
         </div>

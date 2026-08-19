@@ -10,8 +10,12 @@ export const metadata: Metadata = {
 };
 
 interface Categoria { id: string; nome: string; slug: string; subcategorias?: { nome: string; slug: string }[]; }
+// Categoria vinda do endpoint 100% data-driven /api/vitrine/categorias (item 1).
+// Já vem filtrada: só categorias com produtos visíveis (ativo && quantidadeLoja>0 && precoVenda>0),
+// com totalProdutos e ordenadas por prioridade (CAPACETES → CAPAS → ACESSÓRIOS → alfabética).
+interface CategoriaVitrine { id: string; nome: string; slug: string; icone?: string; totalProdutos: number; subcategorias: { nome: string; slug: string }[]; }
 interface Peca {
-  id: string; nome: string; codigo: string; precoVenda: number; precoOferta?: number;
+  id: string; nome: string; codigo: string; precoVenda: number; precoOferta?: number; precoVitrine?: number;
   quantidadeLoja: number; destaque: boolean; oferta: boolean;
   marca?: string; compatibilidade?: string; imagemUrl?: string; descricaoCurta?: string;
   categoria: { nome: string; slug: string };
@@ -31,25 +35,30 @@ function limparCategorias(cats: any[]): Categoria[] {
 async function getVitrineData() {
   const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || (process.env.NODE_ENV === 'production' ? 'https://marquinhomotopeças.com' : 'http://localhost:3000');
   try {
-    const [pecasRes, catsRes] = await Promise.all([
+    const [pecasRes, catsRes, catsVitrineRes] = await Promise.all([
       fetch(`${baseUrl}/api/vitrine`, { cache: 'no-store' }),
       fetch(`${baseUrl}/api/categorias`, { cache: 'no-store' }),
+      fetch(`${baseUrl}/api/vitrine/categorias`, { cache: 'no-store' }),
     ]);
+    const catsVitrine = await catsVitrineRes.json().catch(() => []);
     return {
       pecas: ((await pecasRes.json()) as Peca[]) || [],
       categorias: limparCategorias((await catsRes.json()) as any[]) || [],
+      categoriasVitrine: (Array.isArray(catsVitrine) ? catsVitrine : []) as CategoriaVitrine[],
     };
   } catch {
-    return { pecas: [] as Peca[], categorias: [] as Categoria[] };
+    return { pecas: [] as Peca[], categorias: [] as Categoria[], categoriasVitrine: [] as CategoriaVitrine[] };
   }
 }
 
 export default async function VitrineHome() {
-  const { pecas, categorias } = await getVitrineData();
+  const { pecas, categorias, categoriasVitrine } = await getVitrineData();
 
   const vitrine = pecas;
   const destaques = vitrine.filter(p => p.destaque).slice(0, 8);
-  const ofertas = vitrine.filter(p => p.oferta && p.precoOferta).slice(0, 8);
+  // Oferta legada exibida na seção "Ofertas". Itens com preço exclusivo da Vitrine (precoVitrine)
+  // não exibem o badge de oferta (o override prevalece) — por isso ficam de fora desta seção.
+  const ofertas = vitrine.filter(p => p.oferta && p.precoOferta && p.precoVitrine == null).slice(0, 8);
   const lancamentos = [...vitrine].slice(0, 8);
 
   return (
@@ -60,6 +69,7 @@ export default async function VitrineHome() {
         lancamentos={lancamentos}
         pecas={vitrine}
         categorias={categorias}
+        categoriasVitrine={categoriasVitrine}
       />
     </Suspense>
   );

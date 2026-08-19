@@ -6,6 +6,7 @@ import CardProdutoPremium from '@/components/vitrine/CardProdutoPremium';
 import ListaProdutoPremium from '@/components/vitrine/ListaProdutoPremium';
 import FiltrosBarra from '@/components/vitrine/FiltrosBarra';
 import ComparadorVitrine from '@/components/vitrine/ComparadorVitrine';
+import { getClienteVitrine } from '@/lib/vitrine-session';
 
 const fm = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
@@ -16,17 +17,18 @@ export default function CatalogoContent() {
   const [total, setTotal] = useState(0);
   const [pagina, setPagina] = useState(1);
   const [marcas, setMarcas] = useState<string[]>([]);
-  const [categorias, setCategorias] = useState<{ slug: string; nome: string }[]>([]);
+  const [categorias, setCategorias] = useState<{ slug: string; nome: string; subcategorias?: { slug: string; nome: string }[] }[]>([]);
   const [filtros, setFiltros] = useState({
     marca: searchParams.get('marca') || '',
     categoria: searchParams.get('categoria') || '',
-    precoMin: '', precoMax: '', promocao: false, disponivel: false,
+    precoMin: '', precoMax: '', promocao: false,
     compatibilidade: '', subcategoria: '',
   });
   const [ordem, setOrdem] = useState('relevancia');
   const [mode, setMode] = useState<'grid' | 'list'>('grid');
   const [comparar, setComparar] = useState<any[]>([]);
   const [showComparador, setShowComparador] = useState(false);
+  const [cliente, setCliente] = useState<any>(null);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -34,9 +36,16 @@ export default function CatalogoContent() {
       const params = new URLSearchParams();
       const q = searchParams.get('q');
       if (q) params.set('q', q);
-      if (filtros.categoria) params.set('categoria', filtros.categoria);
+      // Subcategoria selecionada → usa o slug da subcategoria (que é a categoria folha
+      // onde a peça realmente aponta). Se não, usa a categoria principal.
+      if (filtros.subcategoria) params.set('categoria', filtros.subcategoria);
+      else if (filtros.categoria) params.set('categoria', filtros.categoria);
       if (filtros.marca) params.set('marca', filtros.marca);
       if (filtros.compatibilidade) params.set('compatibilidade', filtros.compatibilidade);
+      // Filtros de preço/promoção (antes eram estado morto — nunca enviados à API)
+      if (filtros.precoMin) params.set('precoMin', filtros.precoMin);
+      if (filtros.precoMax) params.set('precoMax', filtros.precoMax);
+      if (filtros.promocao) params.set('promocao', '1');
       params.set('ordem', ordem);
       params.set('page', String(pagina));
 
@@ -54,8 +63,14 @@ export default function CatalogoContent() {
   useEffect(() => { fetchData(); }, [fetchData]);
 
   useEffect(() => {
-    fetch('/api/categorias').then(r => r.json()).then(d => {
-      setCategorias(d.map((c: any) => ({ slug: c.slug, nome: c.nome })));
+    const d = getClienteVitrine();
+    if (d) setCliente(d);
+  }, []);
+
+  useEffect(() => {
+    // Item 1: categorias do filtro 100% data-driven (só categorias com produtos visíveis).
+    fetch('/api/vitrine/categorias').then(r => r.json()).then((d: any[]) => {
+      if (Array.isArray(d)) setCategorias(d.map((c: any) => ({ slug: c.slug, nome: c.nome, subcategorias: c.subcategorias || [] })));
     });
   }, []);
 
@@ -82,7 +97,11 @@ export default function CatalogoContent() {
                 Comparar ({comparar.length})
               </button>
             )}
-            <a href="/vitrine/login" className="text-slate-400 hover:text-white">Entrar</a>
+            {cliente ? (
+              <a href="/vitrine/perfil" className="text-slate-400 hover:text-white">Olá, {cliente.nome?.split(' ')[0]}</a>
+            ) : (
+              <a href="/vitrine/login" className="text-slate-400 hover:text-white">Entrar</a>
+            )}
             <a href="/vitrine/carrinho" className="px-4 py-2 bg-brand-600 rounded-lg font-bold">Carrinho</a>
           </div>
         </div>

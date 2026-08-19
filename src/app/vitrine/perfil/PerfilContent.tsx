@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { getClienteVitrine } from '@/lib/vitrine-session';
+import { getClienteVitrine, clearClienteVitrine } from '@/lib/vitrine-session';
+import { DADOS_OFICINA } from '@/lib/empresa';
 
 const fm = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
@@ -31,13 +32,14 @@ export default function PerfilContent() {
 
   const [cliente, setCliente] = useState<any>(null);
   const [pedidos, setPedidos] = useState<any[]>([]);
-  const [tab, setTab] = useState<'pedidos'|'favoritos'|'dados'|'enderecos'>(pedidoDestaque ? 'pedidos' : 'pedidos');
+  const [orcamentos, setOrcamentos] = useState<any[]>([]);
+  const [tab, setTab] = useState<'pedidos'|'orcamentos'|'favoritos'|'dados'>(pedidoDestaque ? 'pedidos' : 'pedidos');
   const [loading, setLoading] = useState(true);
   const [pedidoExpandido, setPedidoExpandido] = useState<string | null>(null);
 
   useEffect(() => {
     const d = getClienteVitrine();
-    if (!d) { router.push('/vitrine/login'); return; }
+    if (!d) { router.push('/vitrine/login?redirect=/vitrine/perfil'); return; }
     setCliente(d);
 
     // Buscar pedidos da vitrine
@@ -53,15 +55,22 @@ export default function PerfilContent() {
         }
       })
       .catch(() => setLoading(false));
+
+    // Buscar orçamentos do cliente (estavam órfãos na página /vitrine/conta)
+    fetch('/api/vitrine/orcamentos', { headers: { Authorization: `Bearer ${d.token}` } })
+      .then(r => r.json()).then(data => { if (Array.isArray(data)) setOrcamentos(data); })
+      .catch(() => {});
   }, [router, pedidoDestaque]);
 
   if (!cliente) return null;
 
+  function sair() { clearClienteVitrine(); router.push('/vitrine'); }
+
   const TABS = [
     { key: 'pedidos' as const, label: '📋 Meus Pedidos' },
+    { key: 'orcamentos' as const, label: '📝 Orçamentos' },
     { key: 'favoritos' as const, label: '❤️ Favoritos' },
     { key: 'dados' as const, label: '👤 Meus Dados' },
-    { key: 'enderecos' as const, label: '📍 Endereços' },
   ];
 
   function getStatusStep(status: string) {
@@ -78,6 +87,7 @@ export default function PerfilContent() {
             <span className="font-extrabold text-sm">Meu Perfil</span>
           </a>
           <span className="text-xs text-slate-400">{cliente.nome}</span>
+          <button onClick={sair} className="text-xs text-slate-400 hover:text-white">Sair</button>
         </div>
       </header>
 
@@ -171,7 +181,7 @@ export default function PerfilContent() {
                       {/* Retirada */}
                       <div className="bg-slate-50 rounded-lg p-3">
                         <p className="text-[10px] text-slate-400 uppercase font-bold mb-1">Retirada na Loja</p>
-                        <p className="text-xs text-slate-600">Rua Exemplo, 123 — Centro, São Paulo/SP</p>
+                        <p className="text-xs text-slate-600">{DADOS_OFICINA.endereco} — {DADOS_OFICINA.cidade}</p>
                         <p className="text-xs text-slate-400">Seg-Sex: 8h às 18h · Sáb: 8h às 13h</p>
                         {p.retiradaNome && <p className="text-xs text-slate-500 mt-1">Retirada por: {p.retiradaNome}</p>}
                       </div>
@@ -226,6 +236,49 @@ export default function PerfilContent() {
           )
         )}
 
+        {/* Orçamentos */}
+        {tab === 'orcamentos' && (
+          orcamentos.length === 0 ? (
+            <div className="bg-white rounded-xl border border-slate-200 p-16 text-center">
+              <p className="text-sm text-slate-400">Nenhum orçamento encontrado</p>
+              <a href="/vitrine" className="text-brand-600 text-xs font-bold mt-2 inline-block">Ver produtos →</a>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {orcamentos.map(o => (
+                <div key={o.id} className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+                  <div className="flex items-center justify-between mb-3">
+                    <div className="flex items-center gap-3">
+                      <span className="text-sm font-extrabold text-brand-600">#{o.numero}</span>
+                      <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${
+                        o.status === 'APROVADO' ? 'bg-emerald-50 text-emerald-700'
+                        : o.status === 'RECUSADO' ? 'bg-red-50 text-red-700'
+                        : o.status === 'CONCLUIDO' ? 'bg-slate-50 text-slate-600'
+                        : 'bg-amber-50 text-amber-700'
+                      }`}>
+                        {o.status === 'PENDENTE' ? 'Pendente' : o.status === 'APROVADO' ? 'Aprovado' : o.status === 'RECUSADO' ? 'Recusado' : 'Concluído'}
+                      </span>
+                    </div>
+                    <span className="text-xs text-slate-400">{new Date(o.createdAt).toLocaleDateString('pt-BR')}</span>
+                  </div>
+                  {o.modeloMoto && <p className="text-xs text-slate-500 mb-2">Moto: {o.modeloMoto}</p>}
+                  <div className="space-y-1 mb-3">
+                    {(o.itens || []).map((item: any, i: number) => (
+                      <div key={i} className="flex items-center justify-between text-xs">
+                        <span className="text-slate-700">{item.peca.nome} <span className="text-slate-400">({item.peca.codigo})</span></span>
+                        <span className="text-slate-500">{item.quantidade}x {fm(Number(item.precoUnitario))}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div className="flex items-center justify-between pt-3 border-t border-slate-100">
+                    <span className="text-xs text-slate-500">Total: <strong className="text-slate-800 text-sm">{fm(Number(o.total))}</strong></span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )
+        )}
+
         {/* Favoritos */}
         {tab === 'favoritos' && (
           <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
@@ -254,18 +307,6 @@ export default function PerfilContent() {
                 </div>
               )}
             </div>
-            <button className="mt-4 px-4 py-2 bg-slate-100 text-slate-600 rounded-lg text-xs font-bold hover:bg-slate-200">Alterar Senha</button>
-          </div>
-        )}
-
-        {/* Endereços */}
-        {tab === 'enderecos' && (
-          <div className="bg-white rounded-xl border border-slate-200 p-12 text-center">
-            <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-3">
-              <svg className="w-6 h-6 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
-            </div>
-            <p className="text-sm text-slate-400">Nenhum endereço cadastrado</p>
-            <button className="mt-3 px-4 py-2 bg-brand-600 text-white rounded-lg text-xs font-bold">Adicionar Endereço</button>
           </div>
         )}
       </div>

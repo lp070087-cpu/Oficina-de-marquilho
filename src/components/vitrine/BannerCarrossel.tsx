@@ -10,11 +10,22 @@ interface Banner {
   corTexto?: string; overlay?: string; opacidade?: string; posicaoConteudo?: string;
 }
 
-export default function BannerCarrossel({ banners }: { banners: Banner[] }) {
+export default function BannerCarrossel({ banners: propBanners }: { banners?: Banner[] }) {
   const [current, setCurrent] = useState(0);
   const [paused, setPaused] = useState(false);
-  const active = banners.filter(b => b.ativo);
+  const [banners, setBanners] = useState<Banner[]>(propBanners || []);
+  const [carregado, setCarregado] = useState(!!propBanners);
 
+  // Item 3: quando chamado sem prop (Vitrine pública), busca do /api/vitrine/banners
+  // que já retorna SÓ banners ativos dentro do período (GET público).
+  useEffect(() => {
+    if (propBanners && propBanners.length > 0) { setBanners(propBanners); setCarregado(true); return; }
+    fetch('/api/vitrine/banners').then(r => r.json()).then((d: Banner[]) => {
+      if (Array.isArray(d)) setBanners(d);
+    }).catch(() => {}).finally(() => setCarregado(true));
+  }, [propBanners]);
+
+  const active = banners.filter(b => b.ativo);
   const next = useCallback(() => setCurrent(prev => (prev + 1) % (active.length || 1)), [active.length]);
   const prev = useCallback(() => setCurrent(prev => prev === 0 ? (active.length || 1) - 1 : prev - 1), [active.length]);
 
@@ -24,6 +35,7 @@ export default function BannerCarrossel({ banners }: { banners: Banner[] }) {
     return () => clearInterval(t);
   }, [active.length, paused, next]);
 
+  if (!carregado) return <div className="h-40 md:h-64 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900" />;
   if (active.length === 0) return null;
 
   const b = active[current];
@@ -35,20 +47,25 @@ export default function BannerCarrossel({ banners }: { banners: Banner[] }) {
       onMouseEnter={() => setPaused(true)} onMouseLeave={() => setPaused(false)}>
       {/* Overlay */}
       <div className="absolute inset-0 z-0" style={overlayStyle} />
-      {/* BG image */}
-      {b.imagemDesktop && <img src={b.imagemDesktop} alt="" className="absolute inset-0 w-full h-full object-cover z-0 opacity-40" />}
+      {/* BG image — desktop (md+) e mobile (abaixo de md), com object-cover/object-position (item 4). */}
+      {b.imagemDesktop && (
+        <img src={b.imagemDesktop} alt="" className="hidden md:block absolute inset-0 w-full h-full object-cover object-center z-0 opacity-40" />
+      )}
+      {b.imagemMobile && (
+        <img src={b.imagemMobile} alt="" className="md:hidden absolute inset-0 w-full h-full object-cover object-center z-0 opacity-40" />
+      )}
 
       {/* Content */}
-      <div className={`relative z-10 max-w-7xl mx-auto px-4 py-14 flex items-center gap-6 lg:gap-10 ${b.posicaoConteudo === 'right' ? 'flex-row-reverse' : ''}`}>
+      <div className={`relative z-10 max-w-7xl mx-auto px-4 py-14 md:py-20 flex items-center gap-6 lg:gap-10 ${b.posicaoConteudo === 'right' ? 'flex-row-reverse' : ''}`}>
         <div className="flex-1">
           {b.titulo && <span className="inline-block bg-brand-600 text-white text-[10px] font-extrabold px-3 py-1 rounded-full uppercase tracking-wider mb-4">{b.titulo}</span>}
-          <h1 className="text-3xl lg:text-4xl font-extrabold mb-3 leading-tight" style={{color:txtColor}}>{b.subtitulo || 'Tudo para sua moto com precos de atacado'}</h1>
-          <p className="text-base text-white/60 mb-6 max-w-lg">Monte seu orcamento online e retire na loja.</p>
+          <h1 className="text-2xl md:text-3xl lg:text-4xl font-extrabold mb-3 leading-tight" style={{color:txtColor}}>{b.subtitulo || 'Tudo para sua moto com precos de atacado'}</h1>
+          <p className="text-sm md:text-base text-white/60 mb-6 max-w-lg">Monte seu orcamento online e retire na loja.</p>
           <div className="flex items-center gap-3 flex-wrap">
             {b.ctaLink && b.ctaTexto && (
               <Link href={b.ctaLink} className="inline-flex items-center gap-2 px-6 py-3 bg-brand-600 hover:bg-brand-700 text-white rounded-md font-extrabold text-sm transition-colors shadow-lg shadow-brand-600/30">{b.ctaTexto}</Link>
             )}
-            <a href="#" className="inline-flex items-center gap-2 px-6 py-3 bg-white/10 hover:bg-white/15 text-white rounded-md font-bold text-sm transition-colors">
+            <a href="https://wa.me/558198143879" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 px-6 py-3 bg-white/10 hover:bg-white/15 text-white rounded-md font-bold text-sm transition-colors">
               <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347"/></svg>
               WhatsApp
             </a>

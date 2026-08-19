@@ -22,7 +22,7 @@ export default function GaleriaPremium({ imagens, videos, nome }: { imagens: Ima
         <div className="aspect-square bg-slate-50 rounded-xl overflow-hidden cursor-zoom-in relative"
           onClick={() => setLightbox(true)}>
           {current && !imgError ? (
-            <img src={current.url} alt={nome} className="w-full h-full object-cover hover:scale-105 transition-transform duration-300" onError={() => setImgError(false)} />
+            <img src={current.url} alt={nome} className="w-full h-full object-cover hover:scale-105 transition-transform duration-300" onError={() => setImgError(true)} />
           ) : (
             <div className="w-full h-full flex items-center justify-center">
               <svg className="w-20 h-20 text-slate-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">

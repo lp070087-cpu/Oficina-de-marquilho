@@ -3,6 +3,7 @@ import prisma from '@/lib/prisma';
 import { getSession, getVitrineSession } from '@/lib/auth';
 import { emitEvent } from '@/lib/event-bus';
 import { checkRateLimit } from '@/lib/rate-limit';
+import { precoPublico } from '@/lib/vitrine-utils';
 
 // GET — listar pedidos do cliente (vitrine) ou todos (admin ?admin=1)
 export async function GET(req: NextRequest) {
@@ -76,6 +77,11 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // Controle de reserva para rollback no catch externo (falha após a reserva).
+  // Declarado FORA do try para ficar visível no catch (escopo de bloco em JS).
+  let reservados: { pecaId: string; qtd: number }[] = [];
+  let pedidoFinalizado = false;
+
   try {
     const authHeader = req.headers.get('authorization') || '';
     const cliente = await getVitrineSession(authHeader);
@@ -95,7 +101,11 @@ export async function POST(req: NextRequest) {
     const clienteData = await prisma.cliente.findUnique({ where: { id: cliente.clienteId } });
     if (!clienteData) return NextResponse.json({ error: 'Cliente não encontrado' }, { status: 404 });
 
-    // Calcular totais e validar estoque da loja
+    // FASE 1 — VALIDAR TODOS os itens ANTES de reservar qualquer estoque.
+    // (Correção de segurança: antes, a reserva acontecia item a item dentro do loop;
+    //  se um item posterior falhasse, as reservas anteriores "vazavam" — o pedido
+    //  não era criado mas o estoque da loja já tinha sido baixado. Agora a validação
+    //  completa acontece primeiro e só depois fazemos a reserva.)
     let subtotal = 0;
     let descontoTotal = 0;
     const itensValidados: any[] = [];
@@ -115,15 +125,13 @@ export async function POST(req: NextRequest) {
         );
       }
 
-      const preco = peca.precoOferta && peca.precoOferta < peca.precoVenda ? peca.precoOferta : peca.precoVenda;
-      const precoFinal = Number(preco);
+      // PREÇO PÚBLICO OFICIAL (item 6 + item 12 — segurança): o cliente NUNCA envia preço.
+      // O servidor RECALCULA o preço público usando a MESMA fonte única da Vitrine:
+      //   precoVitrine (override da DONA) > precoOferta (se válida) > precoVenda.
+      // Isso garante que um cliente não manipule o valor final do pedido e que o
+      // preço exclusivo da Vitrine valha também no fechamento (PDV/OS/Caixa intactos).
+      const precoFinal = precoPublico(peca);
       const sub = precoFinal * qtd;
-
-      // RESERVAR estoque da loja
-      await prisma.peca.update({
-        where: { id: peca.id },
-        data: { quantidadeLoja: { decrement: qtd } },
-      });
 
       itensValidados.push({
         pecaId: peca.id,
@@ -177,6 +185,35 @@ export async function POST(req: NextRequest) {
     }
 
     const total = Math.max(0, subtotal - descontoTotal);
+
+    // FASE 2 — RESERVAR estoque da loja. Todos os itens já foram validados acima,
+    // então esta fase só roda quando TODOS passaram (evita reserva parcial vazada).
+    // Se algo falhar aqui, reverte as reservas já feitas (rollback).
+    try {
+      for (const item of itensValidados) {
+        const atual = await prisma.peca.findUnique({ where: { id: item.pecaId }, select: { quantidadeLoja: true } });
+        if (!atual || (atual.quantidadeLoja ?? 0) < item.quantidade) {
+          throw new Error(`Estoque insuficiente na loja para um dos itens. Tente novamente.`);
+        }
+        await prisma.peca.update({
+          where: { id: item.pecaId },
+          data: { quantidadeLoja: { decrement: item.quantidade } },
+        });
+        reservados.push({ pecaId: item.pecaId, qtd: item.quantidade });
+      }
+    } catch (reservaErr: any) {
+      // ROLLBACK — devolve o que já foi reservado antes do erro
+      for (const r of reservados) {
+        await prisma.peca.update({
+          where: { id: r.pecaId },
+          data: { quantidadeLoja: { increment: r.qtd } },
+        }).catch(() => { /* melhor esforço no rollback */ });
+      }
+      return NextResponse.json(
+        { error: reservaErr?.message || 'Erro ao reservar estoque. Tente novamente.' },
+        { status: 400 }
+      );
+    }
 
     // Gerar QR code (id do pedido como conteúdo)
     const pedido = await prisma.pedido.create({
@@ -267,8 +304,21 @@ export async function POST(req: NextRequest) {
       },
     });
 
+    pedidoFinalizado = true;
     return NextResponse.json(result, { status: 201 });
   } catch (e: any) {
+    // ROLLBACK GLOBAL — se algo falhar ANTES do pedido ser finalizado e o estoque
+    // já tiver sido reservado, devolve o estoque da loja. (Idempotente: só roda se
+    // houver reserva pendente e o pedido não tiver sido confirmado.)
+    if (!pedidoFinalizado && reservados.length > 0) {
+      for (const r of reservados) {
+        await prisma.peca.update({
+          where: { id: r.pecaId },
+          data: { quantidadeLoja: { increment: r.qtd } },
+        }).catch(() => { /* melhor esforço no rollback */ });
+      }
+      reservados = [];
+    }
     return NextResponse.json({ error: e.message }, { status: 500 });
   }
 }

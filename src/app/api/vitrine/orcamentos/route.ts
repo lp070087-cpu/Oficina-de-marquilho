@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getSession, getVitrineSession } from '@/lib/auth';
 import { checkRateLimit } from '@/lib/rate-limit';
-import { publicarPeca } from '@/lib/vitrine-utils';
+import { publicarPeca, precoPublico } from '@/lib/vitrine-utils';
 
 /**
  * Correção 8 — dados internos protegidos.
@@ -49,7 +49,8 @@ export async function POST(req: NextRequest) {
     for (const item of itens) {
       const peca = pecaMap.get(item.pecaId);
       if (!peca) return NextResponse.json({ error: `Peca ${item.pecaId} nao encontrada.` }, { status: 404 });
-      const preco = Number(peca.precoVenda);
+      // Preço público oficial (item 6): precoVitrine > precoOferta > precoVenda. Recalculado no servidor.
+      const preco = precoPublico(peca);
       total += preco * item.quantidade;
       itensData.push({ pecaId: item.pecaId, quantidade: item.quantidade, precoUnitario: preco });
     }

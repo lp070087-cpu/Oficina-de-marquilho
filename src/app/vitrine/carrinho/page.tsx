@@ -12,6 +12,7 @@ export default function CarrinhoPage() {
   const router = useRouter();
   const [cart, setCart] = useState<CartItem[]>([]);
   const [cupom, setCupom] = useState('');
+  const [cupomAplicado, setCupomAplicado] = useState<any>(null);
   const [observacao, setObservacao] = useState('');
   const [cliente, setCliente] = useState<any>(null);
   const [sideOpen, setSideOpen] = useState(false);
@@ -21,6 +22,9 @@ export default function CarrinhoPage() {
   useEffect(() => {
     const s = sessionStorage.getItem('marquinho-cart');
     if (s) setCart(JSON.parse(s));
+    // Cupom aplicado na sessão (vai para o checkout)
+    const cp = sessionStorage.getItem('marquinho-cupom');
+    if (cp) { try { setCupomAplicado(JSON.parse(cp)); } catch { /* */ } }
     const c = getClienteVitrine();
     if (c) setCliente(c);
   }, []);
@@ -38,12 +42,47 @@ export default function CarrinhoPage() {
     sessionStorage.setItem('marquinho-cart', JSON.stringify(n));
   }
 
-  const subtotal = cart.reduce((s, i) => s + (Number(i.peca.oferta && i.peca.precoOferta ? i.peca.precoOferta : i.peca.precoVenda)) * i.quantidade, 0);
-  const desconto = 0; // cupom support prepared
-  const total = subtotal - desconto;
+  // Preço público oficial (item 6): precoVitrine > precoOferta > precoVenda.
+  const precoItem = (peca: any) => {
+    const pv = peca?.precoVitrine != null ? Number(peca.precoVitrine) : NaN;
+    if (Number.isFinite(pv) && pv > 0) return pv;
+    if (peca?.oferta && peca.precoOferta && Number(peca.precoOferta) < Number(peca.precoVenda)) return Number(peca.precoOferta);
+    return Number(peca?.precoVenda) || 0;
+  };
+  const subtotal = cart.reduce((s, i) => s + precoItem(i.peca) * i.quantidade, 0);
+  // Desconto do cupom (mesma regra do checkout): PERCENTUAL = % sobre o subtotal; senão valor fixo.
+  const desconto = cupomAplicado
+    ? cupomAplicado.tipo === 'PERCENTUAL' ? subtotal * (Number(cupomAplicado.valor) / 100) : Number(cupomAplicado.valor)
+    : 0;
+  const total = Math.max(0, subtotal - desconto);
+
+  async function aplicarCupom() {
+    const codigo = cupom.trim();
+    if (!codigo) return;
+    try {
+      const r = await fetch(`/api/vitrine/cupons?codigo=${encodeURIComponent(codigo)}`);
+      const data = await r.json();
+      const lista = Array.isArray(data) ? data : data?.cupons || [];
+      if (r.ok && lista.length > 0) {
+        setCupomAplicado(lista[0]);
+        sessionStorage.setItem('marquinho-cupom', JSON.stringify(lista[0]));
+        setMsg('Cupom aplicado com sucesso!');
+      } else {
+        setCupomAplicado(null);
+        sessionStorage.removeItem('marquinho-cupom');
+        setMsg('Cupom inválido ou expirado.');
+      }
+      setTimeout(() => setMsg(''), 2500);
+    } catch {
+      setMsg('Erro ao aplicar o cupom.');
+      setTimeout(() => setMsg(''), 2500);
+    }
+  }
 
   function irCheckout() {
-    if (!cliente) { router.push('/vitrine/login'); return; }
+    // Item 9: se não logado, manda para o login guardando a intenção — após entrar
+    // o cliente volta direto ao checkout (em vez de cair sempre no carrinho).
+    if (!cliente) { router.push('/vitrine/login?redirect=/vitrine/checkout'); return; }
     router.push('/vitrine/checkout');
   }
 
@@ -79,7 +118,8 @@ export default function CarrinhoPage() {
             {/* Items */}
             <div className="lg:col-span-2 space-y-2">
               {cart.map((item, i) => {
-                const preco = item.peca.oferta && item.peca.precoOferta ? Number(item.peca.precoOferta) : Number(item.peca.precoVenda);
+                const preco = precoItem(item.peca);
+                const temOverride = item.peca?.precoVitrine != null && Number(item.peca.precoVitrine) > 0;
                 return (
                   <div key={i} className="bg-white rounded-xl border border-slate-200 p-4 flex flex-col sm:flex-row gap-4">
                     <a href={`/vitrine/produto/${item.peca.id}`} className="w-20 h-20 rounded-lg bg-slate-100 flex-shrink-0 overflow-hidden">
@@ -97,7 +137,7 @@ export default function CarrinhoPage() {
                         </div>
                         <div className="text-right">
                           <span className="text-sm font-extrabold text-slate-800">{fm(preco * item.quantidade)}</span>
-                          {item.peca.oferta && item.peca.precoOferta && <p className="text-[10px] text-slate-400 line-through">{fm(Number(item.peca.precoVenda) * item.quantidade)}</p>}
+                          {(temOverride || (item.peca.oferta && item.peca.precoOferta)) && <p className="text-[10px] text-slate-400 line-through">{fm(Number(item.peca.precoVenda) * item.quantidade)}</p>}
                         </div>
                       </div>
                     </div>
@@ -122,9 +162,15 @@ export default function CarrinhoPage() {
                 <div className="mb-4">
                   <label className="text-[10px] text-slate-400 uppercase font-bold mb-1 block">Cupom de desconto</label>
                   <div className="flex gap-1">
-                    <input value={cupom} onChange={e => setCupom(e.target.value)} placeholder="CUPOM10" className="input-field text-xs flex-1" />
-                    <button className="px-3 py-2 bg-slate-100 text-slate-600 rounded-lg text-xs font-bold hover:bg-slate-200">Aplicar</button>
+                    <input value={cupom} onChange={e => setCupom(e.target.value.toUpperCase())} placeholder="CUPOM10" className="input-field text-xs flex-1" />
+                    <button onClick={aplicarCupom} className="px-3 py-2 bg-slate-100 text-slate-600 rounded-lg text-xs font-bold hover:bg-slate-200">Aplicar</button>
                   </div>
+                  {cupomAplicado && (
+                    <p className="text-[10px] text-emerald-600 font-medium mt-1.5">
+                      ✓ {cupomAplicado.codigo} aplicado
+                      {cupomAplicado.tipo === 'PERCENTUAL' ? ` (${cupomAplicado.valor}% off)` : ` (-${fm(Number(cupomAplicado.valor))})`}
+                    </p>
+                  )}
                 </div>
 
                 {/* Observação */}

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { setClienteVitrine } from '@/lib/vitrine-session';
 
@@ -12,6 +12,15 @@ export default function VitrineLogin() {
   const [verSenha, setVerSenha] = useState(false);
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState('');
+  // Item 9 — redireciona de volta para onde o cliente estava (ex: /vitrine/checkout)
+  // após login/cadastro. Só aceita caminhos internos (evita open redirect).
+  const [redirect, setRedirect] = useState('/vitrine/carrinho');
+  useEffect(() => {
+    try {
+      const r = new URLSearchParams(window.location.search).get('redirect');
+      if (r && r.startsWith('/vitrine/')) setRedirect(r);
+    } catch { /* ignora */ }
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -37,7 +46,7 @@ export default function VitrineLogin() {
           id: cliente.id, nome: cliente.nome, telefone: cliente.telefone,
           email: cliente.email || null, modeloMoto: cliente.modeloMoto, token,
         }, manterConectado);
-        router.push('/vitrine/carrinho');
+        router.push(redirect);
       } else {
         const e = await r.json();
         setMsg(e.error || 'Erro.');

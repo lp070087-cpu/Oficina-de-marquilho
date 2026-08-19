@@ -9,6 +9,7 @@ interface PecaCarrinho {
   codigo?: string;
   precoVenda?: number;
   precoOferta?: number;
+  precoVitrine?: number;
   oferta?: boolean;
   imagemUrl?: string;
   marca?: string;

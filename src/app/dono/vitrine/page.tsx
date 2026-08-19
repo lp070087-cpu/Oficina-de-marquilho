@@ -6,7 +6,7 @@ import AdminVitrine from '@/components/vitrine/AdminVitrinePremium';
 
 interface Categoria { id: string; nome: string; slug: string; }
 interface Peca {
-  id: string; nome: string; codigo: string; precoVenda: number; precoOferta?: number;
+  id: string; nome: string; codigo: string; precoVenda: number; precoOferta?: number; precoVitrine?: number;
   quantidade: number; estoqueMinimo: number; vitrine: boolean; destaque: boolean; oferta: boolean;
   quantidadeLoja?: number; ativo?: boolean;
   marca?: string; compatibilidade?: string; imagemUrl?: string; descricaoCurta?: string;
@@ -38,8 +38,19 @@ export default function VitrineManagePage() {
   const [catAtiva, setCatAtiva] = useState('');
   const [uploading, setUploading] = useState('');
   const [editandoBanner, setEditandoBanner] = useState(false);
-  const [bannerTexto, setBannerTexto] = useState('Tudo para sua moto com precos de atacado');
-  const [bannerAtivo, setBannerAtivo] = useState(true);
+  // Item 3/4 — editor de banner POR IMAGEM (Vercel Blob). Desktop ~1600x400 · Mobile ~600x300.
+  const [banners, setBanners] = useState<any[]>([]);
+  const [novoBanner, setNovoBanner] = useState({ titulo: '', subtitulo: '', ctaTexto: '', ctaLink: '', ordem: 0, ativo: true });
+  const [bannerDesktop, setBannerDesktop] = useState<File | null>(null);
+  const [bannerMobile, setBannerMobile] = useState<File | null>(null);
+  const [bannerDesktopPrev, setBannerDesktopPrev] = useState('');
+  const [bannerMobilePrev, setBannerMobilePrev] = useState('');
+  const [bannerSalvando, setBannerSalvando] = useState(false);
+  const [bannerMsg, setBannerMsg] = useState('');
+  // Item 5 — Botão SALVAR ALTERAÇÕES (confirmação/feedback; as alterações já são gravadas
+  // individualmente, o botão sincroniza tudo e confirma visualmente).
+  const [salvandoTudo, setSalvandoTudo] = useState(false);
+  const [salvoMsg, setSalvoMsg] = useState('');
 
   const fetchPecas = useCallback(async () => {
     const p = new URLSearchParams(); if (catAtiva) p.set('categoria', catAtiva);
@@ -49,8 +60,9 @@ export default function VitrineManagePage() {
   const fetchCats = async () => { const r = await fetch('/api/categorias'); setCategorias(await r.json()); };
   const fetchOrcamentos = async () => { const r = await fetch('/api/vitrine/orcamentos'); if (r.ok) setOrcamentos(await r.json()); };
   const fetchPedidosLoja = async () => { const r = await fetch('/api/vitrine/pedidos?admin=1'); if (r.ok) { const d = await r.json(); setPedidosLoja(d.pedidos || []); } };
+  const fetchBanners = async () => { const r = await fetch('/api/vitrine/banners'); if (r.ok) setBanners(await r.json()); };
 
-  useEffect(() => { fetchPecas(); fetchCats(); fetchOrcamentos(); fetchPedidosLoja(); }, [fetchPecas]);
+  useEffect(() => { fetchPecas(); fetchCats(); fetchOrcamentos(); fetchPedidosLoja(); fetchBanners(); }, [fetchPecas]);
 
   async function toggle(pecaId: string, field: string, val: any) {
     await fetch('/api/vitrine', { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ pecaId, [field]:val }) }); fetchPecas();
@@ -71,6 +83,69 @@ export default function VitrineManagePage() {
 
   function copiarLink() { navigator.clipboard.writeText(`${window.location.origin}/vitrine`); setCopiado(true); setTimeout(()=>setCopiado(false),2000); }
 
+  // ---- Banner por imagem (item 3) ----
+  function previewFile(file: File | null, setter: (s: string) => void) {
+    if (!file) { setter(''); return; }
+    const reader = new FileReader();
+    reader.onload = () => setter(String(reader.result));
+    reader.readAsDataURL(file);
+  }
+  function onDesktopFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0] || null; setBannerDesktop(f); previewFile(f, setBannerDesktopPrev);
+  }
+  function onMobileFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const f = e.target.files?.[0] || null; setBannerMobile(f); previewFile(f, setBannerMobilePrev);
+  }
+  async function criarBanner() {
+    if (!bannerDesktop && !bannerMobile) { setBannerMsg('Envie ao menos uma imagem (Desktop ou Mobile).'); return; }
+    setBannerSalvando(true); setBannerMsg('');
+    try {
+      const fd = new FormData();
+      fd.append('titulo', novoBanner.titulo);
+      fd.append('subtitulo', novoBanner.subtitulo);
+      fd.append('ctaTexto', novoBanner.ctaTexto);
+      fd.append('ctaLink', novoBanner.ctaLink);
+      fd.append('ordem', String(novoBanner.ordem));
+      if (bannerDesktop) fd.append('imagemDesktop', bannerDesktop);
+      if (bannerMobile) fd.append('imagemMobile', bannerMobile);
+      const r = await fetch('/api/vitrine/banners', { method: 'POST', body: fd });
+      if (r.ok) {
+        setBannerMsg('Banner salvo com sucesso!');
+        setNovoBanner({ titulo: '', subtitulo: '', ctaTexto: '', ctaLink: '', ordem: 0, ativo: true });
+        setBannerDesktop(null); setBannerMobile(null); setBannerDesktopPrev(''); setBannerMobilePrev('');
+        fetchBanners();
+      } else { const e = await r.json(); setBannerMsg(e.error || 'Erro ao salvar banner.'); }
+    } catch { setBannerMsg('Erro de conexão ao salvar banner.'); }
+    setBannerSalvando(false);
+    setTimeout(() => setBannerMsg(''), 3000);
+  }
+  async function alternarBanner(id: string, ativo: boolean) {
+    await fetch(`/api/vitrine/banners/${id}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ativo }) });
+    fetchBanners();
+  }
+  async function excluirBanner(id: string) {
+    if (!confirm('Excluir este banner?')) return;
+    await fetch(`/api/vitrine/banners/${id}`, { method: 'DELETE' });
+    fetchBanners();
+  }
+
+  // Item 5 — SALVAR ALTERAÇÕES: re-sincroniza produtos, banners, orçamentos e pedidos,
+  // e mostra feedback visual. Bloqueia duplo clique enquanto salva.
+  async function salvarTodasAlteracoes() {
+    if (salvandoTudo) return;
+    setSalvandoTudo(true);
+    setSalvoMsg('');
+    try {
+      await Promise.all([fetchPecas(), fetchCats(), fetchOrcamentos(), fetchPedidosLoja(), fetchBanners()]);
+      setSalvoMsg('Alterações salvas com sucesso!');
+    } catch {
+      setSalvoMsg('Erro ao salvar. Tente novamente.');
+    } finally {
+      setSalvandoTudo(false);
+      setTimeout(() => setSalvoMsg(''), 3000);
+    }
+  }
+
   const fm = (v:number) => v.toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
   const pecasFiltradas = pecas.filter(visivel);
   const destaques = pecasFiltradas.filter(p => p.destaque).slice(0, 8);
@@ -90,13 +165,19 @@ export default function VitrineManagePage() {
     <div className="min-h-screen bg-[#F3F6FB]">
       {/* ===== BARRA DE TOPO ===== */}
       <div className="bg-[#0D1117] text-white sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 flex items-center justify-between h-10 text-[11px]">
+        <div className="max-w-7xl mx-auto px-4 flex flex-wrap items-center justify-between gap-y-1 gap-x-2 py-1 min-h-10 text-[11px]">
           <div className="flex items-center gap-2">
             <span className="font-extrabold">Editando Vitrine</span>
             <span className="text-slate-500">·</span>
             <span className="text-slate-400">{pecasFiltradas.length} de {pecas.length} produtos visiveis</span>
           </div>
           <div className="flex items-center gap-1.5">
+            {/* Item 5 — botão principal SALVAR ALTERAÇÕES */}
+            <button onClick={salvarTodasAlteracoes} disabled={salvandoTudo}
+              className="px-4 py-1.5 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-600 rounded text-[11px] font-extrabold text-white shadow-lg shadow-emerald-900/30 transition-colors">
+              {salvandoTudo ? 'Salvando...' : '💾 Salvar Alterações'}
+            </button>
+            {salvoMsg && <span className="px-2 py-1 bg-emerald-900/60 text-emerald-300 rounded text-[10px] font-bold">{salvoMsg}</span>}
             <button onClick={() => setEditandoBanner(!editandoBanner)} className="px-2.5 py-1 bg-white/10 hover:bg-white/15 rounded text-[10px] transition-colors">{editandoBanner ? 'Fechar banner' : 'Editar banner'}</button>
             <button onClick={() => setTab(tab==='vitrine'?'orcamentos':tab==='orcamentos'?'pedidos_loja':tab==='pedidos_loja'?'admin_premium':'vitrine')} className="px-2.5 py-1 bg-white/10 hover:bg-white/15 rounded text-[10px] transition-colors">
               {tab==='vitrine'?'Orçamentos':tab==='orcamentos'?'Pedidos Loja':tab==='pedidos_loja'?'Admin Premium':'Vitrine'}
@@ -230,20 +311,102 @@ export default function VitrineManagePage() {
       {tab === 'vitrine' && (
         <>
           {editandoBanner ? (
-            <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white">
-              <div className="max-w-7xl mx-auto px-4 py-8 space-y-3">
-                <div className="flex items-center gap-3">
-                  <label className="flex items-center gap-2 cursor-pointer text-sm">
-                    <input type="checkbox" checked={bannerAtivo} onChange={e=>setBannerAtivo(e.target.checked)} className="rounded" /> Banner ativo
-                  </label>
+            <div className="bg-[#0F172A] text-white">
+              <div className="max-w-7xl mx-auto px-4 py-8 space-y-5">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-base font-extrabold">Editar Banner da Vitrine</h2>
+                  <button onClick={()=>setEditandoBanner(false)} className="px-3 py-1.5 bg-white/10 hover:bg-white/20 rounded-md text-xs font-bold">← Fechar</button>
                 </div>
-                <div>
-                  <label className="text-xs font-semibold text-slate-400 uppercase mb-1 block">Titulo do banner</label>
-                  <input value={bannerTexto} onChange={e=>setBannerTexto(e.target.value)} className="w-full bg-white/10 border border-white/15 rounded-md py-2.5 px-4 text-white placeholder:text-slate-400 outline-none" placeholder="Ex: Tudo para sua moto com precos de atacado" />
+
+                {/* Tamanhos recomendados (item 4) */}
+                <div className="bg-white/5 border border-white/10 rounded-xl px-4 py-3 flex flex-wrap gap-x-6 gap-y-2 text-[11px] text-slate-300">
+                  <span>📐 <strong className="text-white">Desktop recomendado:</strong> 1600×400px (PNG/JPG/WEBP)</span>
+                  <span>📱 <strong className="text-white">Mobile recomendado:</strong> 600×300px (PNG/JPG/WEBP)</span>
+                  <span className="text-slate-500">· máx. 8MB</span>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  <button onClick={() => { fetch('/api/vitrine/config', { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({bannerTexto,bannerAtivo}) }); setEditandoBanner(false); }} className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-md text-sm font-bold">Salvar banner</button>
-                  <button onClick={()=>setEditandoBanner(false)} className="px-4 py-2 bg-white/10 hover:bg-white/15 text-white rounded-md text-sm">Cancelar</button>
+
+                {/* Form novo banner */}
+                <div className="bg-white/5 border border-white/10 rounded-xl p-4 space-y-3">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-[10px] text-slate-400 uppercase font-bold mb-1 block">Título (badge)</label>
+                      <input value={novoBanner.titulo} onChange={e=>setNovoBanner({...novoBanner,titulo:e.target.value})} className="w-full bg-white/10 border border-white/15 rounded-md py-2 px-3 text-sm text-white placeholder:text-slate-400 outline-none" placeholder="Ex: Ofertas da Semana" />
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-slate-400 uppercase font-bold mb-1 block">Subtítulo (frase principal)</label>
+                      <input value={novoBanner.subtitulo} onChange={e=>setNovoBanner({...novoBanner,subtitulo:e.target.value})} className="w-full bg-white/10 border border-white/15 rounded-md py-2 px-3 text-sm text-white placeholder:text-slate-400 outline-none" placeholder="Ex: Descontos imperdíveis em peças" />
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-slate-400 uppercase font-bold mb-1 block">Texto do botão</label>
+                      <input value={novoBanner.ctaTexto} onChange={e=>setNovoBanner({...novoBanner,ctaTexto:e.target.value})} className="w-full bg-white/10 border border-white/15 rounded-md py-2 px-3 text-sm text-white placeholder:text-slate-400 outline-none" placeholder="Ex: Ver Produtos" />
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-slate-400 uppercase font-bold mb-1 block">Link do botão</label>
+                      <input value={novoBanner.ctaLink} onChange={e=>setNovoBanner({...novoBanner,ctaLink:e.target.value})} className="w-full bg-white/10 border border-white/15 rounded-md py-2 px-3 text-sm text-white placeholder:text-slate-400 outline-none" placeholder="Ex: /vitrine/catalogo" />
+                    </div>
+                  </div>
+
+                  {/* Uploads com preview */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                    <div>
+                      <label className="text-[10px] text-slate-400 uppercase font-bold mb-1 block">🖥️ Imagem Desktop</label>
+                      <input type="file" accept="image/png,image/jpeg,image/webp" onChange={onDesktopFile} className="text-xs text-slate-300" />
+                      <div className="mt-2 aspect-[4/1] rounded-lg border border-white/10 overflow-hidden bg-black/40 flex items-center justify-center text-[10px] text-slate-500">
+                        {bannerDesktopPrev ? <img src={bannerDesktopPrev} alt="preview desktop" className="w-full h-full object-cover" /> : 'Pré-visualização Desktop (1600×400)'}
+                      </div>
+                    </div>
+                    <div>
+                      <label className="text-[10px] text-slate-400 uppercase font-bold mb-1 block">📱 Imagem Mobile</label>
+                      <input type="file" accept="image/png,image/jpeg,image/webp" onChange={onMobileFile} className="text-xs text-slate-300" />
+                      <div className="mt-2 aspect-[2/1] rounded-lg border border-white/10 overflow-hidden bg-black/40 flex items-center justify-center text-[10px] text-slate-500">
+                        {bannerMobilePrev ? <img src={bannerMobilePrev} alt="preview mobile" className="w-full h-full object-cover" /> : 'Pré-visualização Mobile (600×300)'}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3 pt-1">
+                    <label className="flex items-center gap-2 cursor-pointer text-xs">
+                      <input type="checkbox" checked={novoBanner.ativo} onChange={e=>setNovoBanner({...novoBanner,ativo:e.target.checked})} className="rounded" /> Ativo
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-slate-400">
+                      Ordem <input type="number" value={novoBanner.ordem} onChange={e=>setNovoBanner({...novoBanner,ordem:Number(e.target.value)})} className="w-16 bg-white/10 border border-white/15 rounded-md py-1 px-2 text-xs text-white" />
+                    </label>
+                  </div>
+                  {bannerMsg && <p className="text-xs font-medium text-emerald-400">{bannerMsg}</p>}
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    <button onClick={criarBanner} disabled={bannerSalvando}
+                      className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-600 text-white rounded-md text-sm font-bold transition-colors">
+                      {bannerSalvando ? 'Salvando...' : 'Salvar Banner'}
+                    </button>
+                    <button onClick={()=>setEditandoBanner(false)} className="px-4 py-2 bg-white/10 hover:bg-white/15 text-white rounded-md text-sm">Cancelar</button>
+                  </div>
+                </div>
+
+                {/* Lista de banners com ativar/desativar/excluir */}
+                <div className="space-y-2">
+                  <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider">Banners cadastrados ({banners.length})</h3>
+                  {banners.length === 0 ? (
+                    <p className="text-xs text-slate-500 bg-white/5 border border-white/10 rounded-xl p-6 text-center">Nenhum banner ainda. Crie o primeiro acima.</p>
+                  ) : banners.map(b => (
+                    <div key={b.id} className="flex items-center justify-between gap-3 bg-white/5 border border-white/10 rounded-xl p-3">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <div className="w-28 h-12 rounded-md overflow-hidden bg-black/40 flex-shrink-0">
+                          {b.imagemDesktop ? <img src={b.imagemDesktop} alt="" className="w-full h-full object-cover" /> : <span className="w-full h-full flex items-center justify-center text-[9px] text-slate-500">s/ img</span>}
+                        </div>
+                        <div className="min-w-0">
+                          <p className="text-sm font-bold text-white truncate">{b.titulo || 'Sem título'}</p>
+                          <p className="text-[10px] text-slate-400 truncate">{b.subtitulo}{b.ordem ? ` · ordem ${b.ordem}` : ''}</p>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        <button onClick={()=>alternarBanner(b.id, !b.ativo)}
+                          className={`px-2.5 py-1 rounded text-[10px] font-bold ${b.ativo ? 'bg-emerald-500/20 text-emerald-300' : 'bg-white/10 text-slate-400'}`}>
+                          {b.ativo ? 'Ativo' : 'Inativo'}
+                        </button>
+                        <button onClick={()=>excluirBanner(b.id)} className="px-2.5 py-1 rounded text-[10px] font-bold bg-red-500/20 text-red-300 hover:bg-red-500/30">Excluir</button>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>

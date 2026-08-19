@@ -4,6 +4,14 @@ import { useState, useEffect } from 'react';
 
 const fm = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
+// Preço público oficial (item 6): precoVitrine > precoOferta > precoVenda.
+function precoPublico(p: any): number {
+  const pv = p?.precoVitrine != null ? Number(p.precoVitrine) : NaN;
+  if (Number.isFinite(pv) && pv > 0) return pv;
+  if (p?.precoOferta && Number(p.precoOferta) < Number(p.precoVenda)) return Number(p.precoOferta);
+  return Number(p?.precoVenda) || 0;
+}
+
 export default function PromocoesVitrine() {
   const [promocoes, setPromocoes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -52,7 +60,7 @@ export default function PromocoesVitrine() {
                     </div>
                     <p className="text-[11px] font-semibold text-slate-700 line-clamp-1">{pp.peca.nome}</p>
                     <div className="flex items-baseline gap-1.5 mt-0.5">
-                      <span className="text-xs font-extrabold text-slate-800">{fm(Number(pp.peca.precoOferta || pp.peca.precoVenda))}</span>
+                      <span className="text-xs font-extrabold text-slate-800">{fm(precoPublico(pp.peca))}</span>
                     </div>
                   </a>
                 ))}

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 const fm = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
@@ -16,15 +16,20 @@ export default function AvaliacoesVitrine({ pecaId }: { pecaId: string }) {
   const [dist, setDist] = useState<Record<number, number>>({ 1:0,2:0,3:0,4:0,5:0 });
   const [loading, setLoading] = useState(true);
 
-  useState(() => {
+  useEffect(() => {
+    let ativo = true;
+    setLoading(true);
     fetch(`/api/vitrine/avaliacoes?pecaId=${pecaId}`)
       .then(r => r.json()).then(d => {
+        if (!ativo) return;
         setAvaliacoes(d.avaliacoes || []);
         setMedia(d.media || 0);
         setTotal(d.total || 0);
         setDist(d.distribuicao || { 1:0,2:0,3:0,4:0,5:0 });
-      }).finally(() => setLoading(false));
-  });
+      }).catch(() => { /* silencioso */ })
+      .finally(() => { if (ativo) setLoading(false); });
+    return () => { ativo = false; };
+  }, [pecaId]);
 
   if (loading) return <div className="py-4"><div className="w-5 h-5 border-2 border-brand-600 border-t-transparent rounded-full animate-spin mx-auto" /></div>;
 

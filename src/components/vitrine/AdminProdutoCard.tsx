@@ -1,7 +1,9 @@
 'use client';
 
+import { useState } from 'react';
+
 interface PecaVitrine {
-  id: string; nome: string; codigo: string; precoVenda: number; precoOferta?: number;
+  id: string; nome: string; codigo: string; precoVenda: number; precoOferta?: number; precoVitrine?: number;
   quantidade: number; estoqueMinimo: number; destaque: boolean; oferta: boolean; vitrine: boolean;
   quantidadeLoja?: number; ativo?: boolean;
   marca?: string; compatibilidade?: string; imagemUrl?: string; descricaoCurta?: string;
@@ -14,11 +16,35 @@ export default function AdminProdutoCard({ p, onToggle, onUpload, uploading }: {
   onUpload: (e: React.ChangeEvent<HTMLInputElement>, id: string) => void;
   uploading: string;
 }) {
+  const [editPreco, setEditPreco] = useState(false);
+  const [precoInput, setPrecoInput] = useState('');
+  const [salvandoPreco, setSalvandoPreco] = useState(false);
+
   const preco = Number(p.precoVenda);
-  const temOferta = p.oferta && p.precoOferta;
-  const precoOferta = temOferta ? Number(p.precoOferta) : preco;
+  // Item 6: preço exclusivo da Vitrine. `precoVitrine` é override SOMENTE da Vitrine
+  // (nunca altera precoVenda/precoOferta → PDV, OS, Caixa, Notas intactos).
+  const temOverride = p.precoVitrine != null && Number(p.precoVitrine) > 0;
+  const temOferta = !temOverride && p.oferta && p.precoOferta;
+  const precoOferta = temOverride ? Number(p.precoVitrine) : (temOferta ? Number(p.precoOferta) : preco);
   const desconto = temOferta ? Math.round(((preco - precoOferta) / preco) * 100) : 0;
   const precoPix = Math.round(precoOferta * 0.9 * 100) / 100;
+
+  function iniciarEdicao() {
+    setPrecoInput((temOverride ? Number(p.precoVitrine) : preco).toFixed(2));
+    setEditPreco(true);
+  }
+
+  async function salvarPreco() {
+    const n = Number(String(precoInput).replace(',', '.'));
+    if (!Number.isFinite(n) || n <= 0) return;
+    setSalvandoPreco(true);
+    try { await onToggle(p.id, 'precoVitrine', Math.round(n * 100) / 100); } finally { setSalvandoPreco(false); setEditPreco(false); }
+  }
+
+  function usarPrecoEstoque() {
+    onToggle(p.id, 'precoVitrine', null); // remove override → volta a precoVenda/precoOferta
+    setEditPreco(false);
+  }
 
   // Correção 1 (DONA): o campo manual `vitrine` NÃO controla mais a exposição pública.
   // A disponibilidade real na Vitrine é: ativo && quantidadeLoja > 0 && precoVenda > 0.
@@ -72,12 +98,40 @@ export default function AdminProdutoCard({ p, onToggle, onUpload, uploading }: {
           <span className="text-slate-400 font-mono">{p.codigo}</span>
           <span className={p.quantidade>0?'text-brand-600 font-medium':'text-red-500'}>{p.quantidade>0?'Disp.':'Esgotado'}</span>
         </div>
-        <div className="mt-auto pt-2 border-t border-slate-100">
-          <div className="flex items-baseline gap-1.5 mb-0.5">
-            <span className="text-sm font-extrabold text-slate-800">{precoOferta.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</span>
-            {temOferta && <span className="text-[10px] text-slate-400 line-through">{preco.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</span>}
+        <div className="mt-auto pt-2 border-t border-slate-100 space-y-1">
+          {/* Item 7 — EDIÇÃO DE PREÇO NA ÁREA DA DONA */}
+          <div className="flex items-center justify-between gap-1 text-[9px]">
+            <span className="text-slate-400">Preço estoque:</span>
+            <span className="font-mono text-slate-500">{preco.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}</span>
           </div>
-          <p className="text-[10px] text-brand-700 font-bold">{precoPix.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})} no Pix</p>
+          <div className="flex items-center justify-between gap-1">
+            <span className="text-[9px] text-slate-400">Preço na Vitrine:</span>
+            {editPreco ? (
+              <span className="flex items-center gap-1">
+                <input value={precoInput} onChange={e => setPrecoInput(e.target.value)}
+                  inputMode="decimal" autoFocus
+                  className="w-20 px-1.5 py-0.5 border border-brand-400 rounded text-[11px] font-bold text-slate-800 outline-none focus:border-brand-500 text-right"
+                  onKeyDown={e => e.key === 'Enter' && salvarPreco()} />
+                <button onClick={salvarPreco} disabled={salvandoPreco} className="px-1.5 py-0.5 bg-brand-600 hover:bg-brand-700 disabled:bg-slate-300 text-white rounded text-[9px] font-bold">
+                  {salvandoPreco ? '…' : 'OK'}
+                </button>
+              </span>
+            ) : (
+              <button onClick={iniciarEdicao} className="font-mono text-[11px] font-extrabold text-brand-700 hover:text-brand-800 hover:underline">
+                {precoOferta.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})}
+              </button>
+            )}
+          </div>
+          {editPreco ? (
+            <div className="flex items-center gap-2 pt-0.5">
+              {temOverride && (
+                <button onClick={usarPrecoEstoque} className="text-[9px] text-emerald-700 font-bold hover:underline">Usar preço do estoque</button>
+              )}
+              <button onClick={() => setEditPreco(false)} className="text-[9px] text-slate-400 hover:text-slate-600">Cancelar</button>
+            </div>
+          ) : (
+            <p className="text-[10px] text-brand-700 font-bold">{precoPix.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})} no Pix</p>
+          )}
         </div>
       </div>
     </div>

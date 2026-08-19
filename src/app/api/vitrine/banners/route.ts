@@ -3,13 +3,43 @@ import prisma from '@/lib/prisma';
 import { getSession } from '@/lib/auth';
 import { put } from '@vercel/blob';
 
-// GET — listar banners
+// Tamanho máximo de imagem: 8MB (blob/vercel tem limite de 4.5MB para requests,
+// mas mantemos 8MB para não quebrar uploads de imagens maiores no editor local).
+const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+const MIME_VALIDOS = ['image/png', 'image/jpeg', 'image/webp'];
+
+// Detecta o tipo real via "magic bytes" (não confia no nome/Content-Type do cliente).
+function detectarTipo(bytes: Uint8Array): 'png' | 'jpeg' | 'webp' | null {
+  if (bytes.length >= 8 &&
+      bytes[0] === 0x89 && bytes[1] === 0x50 && bytes[2] === 0x4e && bytes[3] === 0x47) return 'png';
+  if (bytes.length >= 3 && bytes[0] === 0xff && bytes[1] === 0xd8 && bytes[2] === 0xff) return 'jpeg';
+  if (bytes.length >= 12 &&
+      bytes[0] === 0x52 && bytes[1] === 0x49 && bytes[2] === 0x46 && bytes[3] === 0x46 &&
+      bytes[8] === 0x57 && bytes[9] === 0x45 && bytes[10] === 0x42 && bytes[11] === 0x50) return 'webp';
+  return null;
+}
+
+const CONTENT_TYPE: Record<string, string> = {
+  png: 'image/png', jpeg: 'image/jpeg', webp: 'image/webp',
+};
+
+// GET — listar banners.
+// Admin (DONO/BALCAO/ESTOQUE): lista TODOS (inclusive inativos) para edição.
+// Público: SÓ banners ativos dentro do período (dataInicio/dataFim).
 export async function GET(req: NextRequest) {
   try {
-    const tipo = req.nextUrl.searchParams.get('tipo');
+    const session = await getSession();
+    const isAdmin = session && ['DONO', 'BALCAO', 'ESTOQUE'].includes(session.role);
     const where: any = {};
-    if (tipo) where.tipo = tipo;
-
+    if (!isAdmin) {
+      where.ativo = true;
+      where.OR = [
+        { dataInicio: null, dataFim: null },
+        { dataInicio: { lte: new Date() }, dataFim: { gte: new Date() } },
+        { dataInicio: { lte: new Date() }, dataFim: null },
+        { dataInicio: null, dataFim: { gte: new Date() } },
+      ];
+    }
     const banners = await prisma.bannerCarrossel.findMany({ where, orderBy: { ordem: 'asc' } });
     return NextResponse.json(banners);
   } catch (e: any) {
@@ -40,30 +70,28 @@ export async function POST(req: NextRequest) {
     const desktopFile = formData.get('imagemDesktop') as File | null;
     const mobileFile = formData.get('imagemMobile') as File | null;
 
-    if (desktopFile) {
-      const bytes = await desktopFile.arrayBuffer();
-      const ext = desktopFile.name.split('.').pop() || 'png';
-      const filename = `banner_desktop_${Date.now()}.${ext}`;
-      // Migração Vercel Blob (2026-08-18): upload para Blob em vez de filesystem efêmero.
+    // Item 3/4 — VALIDAÇÃO de imagem: MIME whitelist + magic bytes + limite de tamanho.
+    async function validarEUpcar(file: File, prefixo: string): Promise<string> {
+      const bytes = new Uint8Array(await file.arrayBuffer());
+      if (bytes.byteLength === 0) throw new Error('Arquivo vazio');
+      if (bytes.byteLength > MAX_IMAGE_BYTES) throw new Error('Imagem muito grande (máx. 8MB)');
+      if (!MIME_VALIDOS.includes(file.type)) throw new Error('Formato não permitido. Use PNG, JPG ou WEBP');
+      const tipo = detectarTipo(bytes);
+      if (!tipo) throw new Error('Arquivo não é uma imagem válida (PNG/JPG/WEBP)');
+      const filename = `${prefixo}_${Date.now()}.${tipo}`;
       const blob = await put(`banners/${filename}`, Buffer.from(bytes), {
         access: 'public',
         addRandomSuffix: true,
-        contentType: `image/${ext === 'jpg' ? 'jpeg' : ext}`,
+        contentType: CONTENT_TYPE[tipo],
       });
-      imagemDesktop = blob.url;
+      return blob.url;
     }
 
-    if (mobileFile) {
-      const bytes = await mobileFile.arrayBuffer();
-      const ext = mobileFile.name.split('.').pop() || 'png';
-      const filename = `banner_mobile_${Date.now()}.${ext}`;
-      // Migração Vercel Blob (2026-08-18): upload para Blob em vez de filesystem efêmero.
-      const blob = await put(`banners/${filename}`, Buffer.from(bytes), {
-        access: 'public',
-        addRandomSuffix: true,
-        contentType: `image/${ext === 'jpg' ? 'jpeg' : ext}`,
-      });
-      imagemMobile = blob.url;
+    if (desktopFile && desktopFile.size > 0) {
+      imagemDesktop = await validarEUpcar(desktopFile, 'banner_desktop');
+    }
+    if (mobileFile && mobileFile.size > 0) {
+      imagemMobile = await validarEUpcar(mobileFile, 'banner_mobile');
     }
 
     const banner = await prisma.bannerCarrossel.create({

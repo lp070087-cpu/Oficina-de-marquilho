@@ -6,7 +6,15 @@ import { useRouter } from 'next/navigation';
 const STORAGE_KEY = 'marquinho-busca-historico';
 const fm = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
-interface SugestaoProduto { id: string; nome: string; codigo: string; imagemUrl?: string; precoVenda: number; marca?: string; }
+interface SugestaoProduto { id: string; nome: string; codigo: string; imagemUrl?: string; precoVenda: number; precoOferta?: number; precoVitrine?: number; oferta?: boolean; marca?: string; }
+
+// Preço público oficial (item 6): precoVitrine > precoOferta > precoVenda.
+function precoPublico(p: SugestaoProduto): number {
+  const pv = p.precoVitrine != null ? Number(p.precoVitrine) : NaN;
+  if (Number.isFinite(pv) && pv > 0) return pv;
+  if (p.oferta && p.precoOferta && Number(p.precoOferta) < Number(p.precoVenda)) return Number(p.precoOferta);
+  return Number(p.precoVenda) || 0;
+}
 interface SugestaoCategoria { slug: string; nome: string; }
 interface SugestaoMarca { nome: string; }
 
@@ -122,7 +130,7 @@ export default function BuscaPremium({ className = '' }: { className?: string })
                   <button key={p.id} onClick={() => irProduto(p.id)}
                     className="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-slate-50 text-left transition-colors">
                     <span className="text-[11px] text-slate-600 truncate">{p.nome}</span>
-                    <span className="text-[10px] text-slate-400 ml-auto">{fm(Number(p.precoVenda))}</span>
+                    <span className="text-[10px] text-slate-400 ml-auto">{fm(precoPublico(p))}</span>
                   </button>
                 ))}
               </div>
@@ -167,7 +175,7 @@ export default function BuscaPremium({ className = '' }: { className?: string })
                         <p className="text-xs font-semibold text-slate-700 truncate">{s.nome}</p>
                         <p className="text-[10px] text-slate-400">{s.codigo}{s.marca ? ` · ${s.marca}` : ''}</p>
                       </div>
-                      <span className="text-xs font-bold text-slate-800 shrink-0">{fm(Number(s.precoVenda))}</span>
+                      <span className="text-xs font-bold text-slate-800 shrink-0">{fm(precoPublico(s))}</span>
                     </button>
                   ))}
                 </div>

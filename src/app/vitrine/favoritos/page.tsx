@@ -13,7 +13,7 @@ export default function FavoritosPage() {
 
   useEffect(() => {
     const d = getClienteVitrine();
-    if (!d) { router.push('/vitrine/login'); return; }
+    if (!d) { router.push('/vitrine/login?redirect=/vitrine/favoritos'); return; }
     setCliente(d);
 
     fetch('/api/vitrine/favoritos', { headers: { Authorization: `Bearer ${d.token}` } })

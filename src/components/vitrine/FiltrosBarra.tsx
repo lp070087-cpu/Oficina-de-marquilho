@@ -1,12 +1,8 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
-
-const fm = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-
 interface Filtros {
   marca: string; categoria: string; precoMin: string; precoMax: string;
-  promocao: boolean; disponivel: boolean; compatibilidade: string; subcategoria: string;
+  promocao: boolean; compatibilidade: string; subcategoria: string;
 }
 
 export default function FiltrosBarra({
@@ -70,11 +66,6 @@ export default function FiltrosBarra({
             <span className="text-[11px] text-red-500 font-semibold">🔥 Promoção</span>
           </label>
 
-          {/* Disponível */}
-          <label className="flex items-center gap-1.5 cursor-pointer">
-            <input type="checkbox" checked={filtros.disponivel} onChange={e => onChange({ ...filtros, disponivel: e.target.checked })} className="rounded w-3.5 h-3.5" />
-            <span className="text-[11px] text-emerald-600 font-semibold">✅ Disponível</span>
-          </label>
         </div>
 
         {/* Modo Grade/Lista */}

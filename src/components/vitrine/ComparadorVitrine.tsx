@@ -5,10 +5,18 @@ import { useState, useEffect } from 'react';
 const fm = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
 interface Produto {
-  id: string; nome: string; precoVenda: number; precoOferta?: number;
+  id: string; nome: string; precoVenda: number; precoOferta?: number; precoVitrine?: number;
   marca?: string; compatibilidade?: string; imagemUrl?: string;
   garantia?: string; descricaoCurta?: string;
   categoria: { nome: string; slug: string };
+}
+
+// Preço público oficial (item 6): precoVitrine > precoOferta > precoVenda.
+function precoPublico(p: Produto): number {
+  const pv = p.precoVitrine != null ? Number(p.precoVitrine) : NaN;
+  if (Number.isFinite(pv) && pv > 0) return pv;
+  if (p.precoOferta && Number(p.precoOferta) < Number(p.precoVenda)) return Number(p.precoOferta);
+  return Number(p.precoVenda) || 0;
 }
 
 export default function ComparadorVitrine({ produtos: initial, onClose }: { produtos: Produto[]; onClose: () => void }) {
@@ -44,7 +52,7 @@ export default function ComparadorVitrine({ produtos: initial, onClose }: { prod
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  <LinhaComparacao label="Preço" valores={produtos.map(p => fm(Number(p.precoOferta || p.precoVenda)))} />
+                  <LinhaComparacao label="Preço" valores={produtos.map(p => fm(precoPublico(p)))} />
                   <LinhaComparacao label="Marca" valores={produtos.map(p => p.marca || '-')} />
                   <LinhaComparacao label="Categoria" valores={produtos.map(p => p.categoria.nome)} />
                   <LinhaComparacao label="Compatibilidade" valores={produtos.map(p => p.compatibilidade || '-')} />

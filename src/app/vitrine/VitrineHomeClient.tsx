@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import CardProdutoPremium from '@/components/vitrine/CardProdutoPremium';
 import BuscaPremium from '@/components/vitrine/BuscaPremium';
-import CarrosselVitrine from '@/components/vitrine/CarrosselVitrine';
+import BannerCarrossel from '@/components/vitrine/BannerCarrossel';
 import MarcasVitrine from '@/components/vitrine/MarcasVitrine';
 import RodapePremium from '@/components/vitrine/RodapePremium';
 import NewsletterVitrine from '@/components/vitrine/NewsletterVitrine';
@@ -13,7 +13,7 @@ import { getClienteVitrine } from '@/lib/vitrine-session';
 
 const fm = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
-export default function VitrineHomeClient({ destaques, ofertas, lancamentos, pecas, categorias }: any) {
+export default function VitrineHomeClient({ destaques, ofertas, lancamentos, pecas, categorias, categoriasVitrine }: any) {
   const [favoritos, setFavoritos] = useState<Set<string>>(new Set());
   const [cliente, setCliente] = useState<any>(null);
 
@@ -62,7 +62,13 @@ export default function VitrineHomeClient({ destaques, ofertas, lancamentos, pec
     });
   }
 
-  const categoriasVitrine = categorias.filter((c: any) => pecas.some((p: any) => p.categoria.slug === c.slug));
+  // Item 1: menu/categorias 100% data-driven. `categoriasVitrine` vem do endpoint
+  // /api/vitrine/categorias, que já filtra SÓ categorias com produtos visíveis
+  // (ativo && quantidadeLoja>0 && precoVenda>0) e ordena CAPACETES→CAPAS→ACESSÓRIOS→A-Z.
+  // Fallback (defensivo): deriva do payload de peças caso a prop venha vazia.
+  const catsMenu = (categoriasVitrine && categoriasVitrine.length > 0)
+    ? categoriasVitrine
+    : categorias.filter((c: any) => pecas.some((p: any) => p.categoria.slug === c.slug));
 
   return (
     <div className="min-h-screen bg-[#F3F6FB]">
@@ -105,7 +111,7 @@ export default function VitrineHomeClient({ destaques, ofertas, lancamentos, pec
         <div className="bg-brand-600">
           <div className="max-w-7xl mx-auto px-4">
             <div className="flex items-center h-9 overflow-x-auto gap-0.5">
-              {categoriasVitrine.slice(0, 10).map((c: any) => (
+              {catsMenu.slice(0, 10).map((c: any) => (
                 <a key={c.slug} href={`/vitrine/catalogo?categoria=${c.slug}`}
                   className="px-3 py-1.5 text-[11px] font-semibold text-white/90 hover:text-white hover:bg-brand-700 rounded-md transition-colors whitespace-nowrap">
                   {c.nome}
@@ -122,8 +128,8 @@ export default function VitrineHomeClient({ destaques, ofertas, lancamentos, pec
         </div>
       </header>
 
-      {/* BANNER CARROSSEL */}
-      <CarrosselVitrine />
+      {/* BANNER CARROSSEL — data-driven (BannerCarrossel busca os banners ativos do /api/vitrine/banners) */}
+      <BannerCarrossel />
 
       {/* ===== CONTEÚDO PRINCIPAL ===== */}
       <div className="max-w-7xl mx-auto px-4 py-10 space-y-14">
@@ -247,12 +253,13 @@ export default function VitrineHomeClient({ destaques, ofertas, lancamentos, pec
         )}
 
         {/* Categorias em Grid */}
-        {categoriasVitrine.length > 0 && (
+        {catsMenu.length > 0 && (
           <section>
             <h2 className="text-xl font-extrabold text-slate-800 mb-5">📂 Categorias</h2>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
-              {categoriasVitrine.slice(0, 12).map((c: any) => {
-                const count = pecas.filter((p: any) => p.categoria.slug === c.slug).length;
+              {catsMenu.slice(0, 12).map((c: any) => {
+                // Contagem real via endpoint de categorias (independe do take:200 de /api/vitrine).
+                const count = c.totalProdutos ?? pecas.filter((p: any) => p.categoria.slug === c.slug).length;
                 return (
                   <a key={c.slug} href={`/vitrine/catalogo?categoria=${c.slug}`}
                     className="bg-white rounded-xl border border-slate-200 p-4 text-center hover:border-brand-300 hover:shadow-sm transition-all group">

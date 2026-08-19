@@ -24,7 +24,7 @@ export async function PUT(req: NextRequest) {
   }
   try {
     const body = await req.json();
-    const { pecaId, vitrine, destaque, oferta, precoOferta, descricaoCurta } = body;
+    const { pecaId, vitrine, destaque, oferta, precoOferta, descricaoCurta, precoVitrine } = body;
     if (!pecaId) return NextResponse.json({ error: 'pecaId é obrigatório' }, { status: 400 });
     const data: any = {};
     if (typeof vitrine === 'boolean') data.vitrine = vitrine;
@@ -32,6 +32,20 @@ export async function PUT(req: NextRequest) {
     if (typeof oferta === 'boolean') data.oferta = oferta;
     if (precoOferta !== undefined) data.precoOferta = precoOferta;
     if (descricaoCurta !== undefined) data.descricaoCurta = descricaoCurta;
+    // PREÇO EXCLUSIVO DA VITRINE (item 6): aceita um número (override) ou null (volta a usar
+    // o preço do estoque). SÓ a DONA pode gravar (sessão validada acima). NUNCA altera
+    // precoVenda/precoOferta → PDV/OS/Caixa/Notas intactos.
+    if (precoVitrine !== undefined) {
+      if (precoVitrine === null || precoVitrine === '') {
+        data.precoVitrine = null;
+      } else {
+        const n = Number(String(precoVitrine).replace(',', '.'));
+        if (!Number.isFinite(n) || n < 0) {
+          return NextResponse.json({ error: 'Preço da vitrine inválido' }, { status: 400 });
+        }
+        data.precoVitrine = n;
+      }
+    }
     if (Object.keys(data).length === 0) {
       return NextResponse.json({ error: 'Nenhum campo para atualizar' }, { status: 400 });
     }

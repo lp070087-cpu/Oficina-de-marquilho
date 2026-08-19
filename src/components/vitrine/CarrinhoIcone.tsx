@@ -20,7 +20,9 @@ export default function CarrinhoVitrine() {
 
   function atualizarQtd(i: number, q: number) {
     const n = [...cart];
+    const limite = Number(n[i]?.peca?.quantidadeLoja ?? 0);
     if (q <= 0) n.splice(i, 1);
+    else if (limite > 0 && q > limite) return; // respeita o estoque da LOJA
     else n[i] = { ...n[i], quantidade: q };
     setCart(n);
     sessionStorage.setItem('marquinho-cart', JSON.stringify(n));
@@ -28,7 +30,14 @@ export default function CarrinhoVitrine() {
 
   function remover(i: number) { atualizarQtd(i, 0); }
 
-  const total = cart.reduce((s, i) => s + Number(i.peca.precoVenda || i.peca.precoOferta || 0) * i.quantidade, 0);
+  // Preço público oficial (item 6): precoVitrine > precoOferta > precoVenda.
+  const precoItem = (peca: any) => {
+    const pv = peca.precoVitrine != null ? Number(peca.precoVitrine) : NaN;
+    if (Number.isFinite(pv) && pv > 0) return pv;
+    if (peca.oferta && peca.precoOferta && Number(peca.precoOferta) < Number(peca.precoVenda)) return Number(peca.precoOferta);
+    return Number(peca.precoVenda) || 0;
+  };
+  const total = cart.reduce((s, i) => s + precoItem(i.peca) * i.quantidade, 0);
   const qtdItens = cart.reduce((s, i) => s + i.quantidade, 0);
 
   return (
@@ -54,11 +63,17 @@ export function useCarrinhoVitrine() {
     const s = sessionStorage.getItem('marquinho-cart');
     let cart: CartItem[] = s ? JSON.parse(s) : [];
     const idx = cart.findIndex((i: CartItem) => i.peca.id === peca.id);
+    // Respeita o estoque da LOJA (quantidadeLoja) — nunca deixar o carrinho
+    // ultrapassar o que existe na loja (o servidor também valida no fechamento).
+    const limite = Number(peca?.quantidadeLoja ?? 0);
+    const jaNoCarrinho = idx >= 0 ? cart[idx].quantidade : 0;
+    if (limite > 0 && jaNoCarrinho >= limite) return;
     if (idx >= 0) cart[idx].quantidade += 1;
     else cart.push({
       peca: {
         id: peca.id, nome: peca.nome, codigo: peca.codigo,
         precoVenda: peca.precoVenda, precoOferta: peca.precoOferta, oferta: peca.oferta,
+        precoVitrine: peca.precoVitrine != null ? peca.precoVitrine : undefined,
         imagemUrl: peca.imagemUrl, marca: peca.marca, quantidadeLoja: peca.quantidadeLoja,
       },
       quantidade: 1,

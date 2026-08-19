@@ -1,6 +1,6 @@
 import { Metadata } from 'next';
 import prisma from '@/lib/prisma';
-import { VITRINE_VISIBILITY, publicarPeca, WHATSAPP_LOJA } from '@/lib/vitrine-utils';
+import { VITRINE_VISIBILITY, publicarPeca, WHATSAPP_LOJA, precoPublico } from '@/lib/vitrine-utils';
 import CardProdutoPremium from '@/components/vitrine/CardProdutoPremium';
 import GaleriaPremium from '@/components/vitrine/GaleriaPremium';
 import AdicionarAoCarrinho from '@/components/vitrine/AdicionarAoCarrinho';
@@ -9,6 +9,7 @@ import PerguntasProduto from '@/components/vitrine/PerguntasProduto';
 import FormasPagamento from '@/components/vitrine/FormasPagamento';
 import FretePrazo from '@/components/vitrine/FretePrazo';
 import CompartilharProduto from '@/components/vitrine/CompartilharProduto';
+import RegistrarVisualizacao from '@/components/vitrine/RegistrarVisualizacao';
 
 const fm = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
@@ -63,10 +64,15 @@ export default async function ProdutoPage({ params }: { params: Promise<{ id: st
     take: 4,
   }) : [];
 
-  const oferta = peca.oferta && peca.precoOferta;
-  const economia = oferta ? Number(peca.precoVenda) - Number(peca.precoOferta) : 0;
-  const desconto = oferta ? Math.round((economia / Number(peca.precoVenda)) * 100) : 0;
-  const precoAtual = oferta ? Number(peca.precoOferta) : Number(peca.precoVenda);
+  const precoBase = Number(peca.precoVenda);
+  // PREÇO PÚBLICO OFICIAL (item 6): precoVitrine (override DONA) > precoOferta > precoVenda.
+  const precoAtual = precoPublico(peca);
+  // Desconto exibido SEMPRE que o preço público for menor que o preço do estoque —
+  // cobre tanto a oferta normal quanto o override da DONA via precoVitrine.
+  const temDesconto = precoAtual > 0 && precoAtual < precoBase;
+  const economia = temDesconto ? precoBase - precoAtual : 0;
+  const desconto = temDesconto ? Math.round((economia / precoBase) * 100) : 0;
+  const temPrecoVitrineDiferente = peca.precoVitrine != null && Number(peca.precoVitrine) !== precoBase;
   const disponivel = peca.quantidadeLoja > 0;
   const storeDomain = process.env.NEXT_PUBLIC_STORE_DOMAIN || 'vitrine.marquinhomotopeças.com';
   const baseUrl = `https://${storeDomain}`;
@@ -78,6 +84,8 @@ export default async function ProdutoPage({ params }: { params: Promise<{ id: st
 
   return (
     <div className="min-h-screen bg-[#F3F6FB]">
+      {/* Registra visualização/histórico (componente invisível) */}
+      <RegistrarVisualizacao pecaId={peca.id} />
       {/* Header */}
       <header className="bg-[#0D1117] text-white">
         <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
@@ -125,14 +133,15 @@ export default async function ProdutoPage({ params }: { params: Promise<{ id: st
             {/* Preço */}
             <div className="flex items-baseline gap-3 mb-2">
               <span className="text-3xl font-extrabold text-slate-800">{fm(precoAtual)}</span>
-              {oferta && (
-                <>
-                  <span className="text-lg text-slate-400 line-through">{fm(Number(peca.precoVenda))}</span>
-                  <span className="px-2.5 py-1 bg-red-100 text-red-700 rounded-full text-xs font-extrabold">-{desconto}%</span>
-                </>
+              {(temDesconto || temPrecoVitrineDiferente) && (
+                <span className="text-lg text-slate-400 line-through">{fm(precoBase)}</span>
               )}
+              {temDesconto && <span className="px-2.5 py-1 bg-red-100 text-red-700 rounded-full text-xs font-extrabold">-{desconto}%</span>}
             </div>
-            {oferta && <p className="text-sm text-emerald-600 font-semibold mb-1">Economize {fm(economia)}</p>}
+            {temDesconto && <p className="text-sm text-emerald-600 font-semibold mb-1">Economize {fm(economia)}</p>}
+            {temPrecoVitrineDiferente && !temDesconto && (
+              <p className="text-xs text-brand-700 font-semibold mb-1">Preço especial da Vitrine (preço na loja: {fm(precoBase)})</p>
+            )}
             <p className="text-xs text-emerald-600 font-semibold mb-4">PIX {fm(precoAtual * 0.95)} (5% de desconto)</p>
 
             {/* Disponibilidade (sem expor estoque central) */}
