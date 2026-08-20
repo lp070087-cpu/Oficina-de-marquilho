@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import LogoOficina from '@/components/LogoOficina';
 
 const PERFIS = [
   { id: 'DONO', label: 'Dono / Administrador', icon: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z' },
@@ -50,9 +51,7 @@ export default function LoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-[#F3F6FB] p-4">
       <div className="w-full max-w-[400px]">
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-14 h-14 bg-brand-600 rounded-2xl mb-5 shadow-lg shadow-brand-600/25">
-            <span className="text-white font-bold text-lg">MP</span>
-          </div>
+          <LogoOficina className="inline-flex items-center justify-center w-14 h-14 bg-brand-600 rounded-2xl mb-5 shadow-lg shadow-brand-600/25 overflow-hidden" textClassName="text-white font-bold text-lg" />
           <h1 className="text-xl font-bold text-slate-800">Marquinho Moto Pecas</h1>
           <p className="text-xs text-slate-500 mt-1">Painel Administrativo</p>
         </div>

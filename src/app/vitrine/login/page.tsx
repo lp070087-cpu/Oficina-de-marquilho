@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import LogoOficina from '@/components/LogoOficina';
 import { setClienteVitrine } from '@/lib/vitrine-session';
 
 export default function VitrineLogin() {
@@ -62,7 +63,7 @@ export default function VitrineLogin() {
       <div className="w-full max-w-sm">
         <button onClick={() => router.push('/vitrine')} className="text-xs text-slate-400 hover:text-slate-600 mb-4 inline-block">← Voltar</button>
         <div className="text-center mb-6">
-          <div className="w-14 h-14 rounded-xl bg-brand-600 flex items-center justify-center mx-auto mb-3 shadow-lg shadow-brand-600/25"><span className="text-white font-extrabold text-lg">MP</span></div>
+          <LogoOficina className="w-14 h-14 rounded-xl bg-brand-600 flex items-center justify-center mx-auto mb-3 shadow-lg shadow-brand-600/25 overflow-hidden" textClassName="text-white font-extrabold text-lg" />
           <h1 className="text-lg font-extrabold text-slate-800">Marquinho Moto Peças</h1>
           <p className="text-xs text-slate-500 mt-0.5">{isCadastro ? 'Crie sua conta' : 'Acesse sua conta'}</p>
         </div>

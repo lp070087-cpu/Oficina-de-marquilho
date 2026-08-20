@@ -95,7 +95,7 @@ export default function BuscaPremium({ className = '' }: { className?: string })
         <input value={q} onChange={e => onChange(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && search()}
           onFocus={() => setShow(true)}
-          placeholder="Buscar peças, marcas, códigos..."
+          placeholder="Buscar peças, marcas..."
           className="w-full bg-white/10 border border-white/10 rounded-xl py-3 px-5 pl-12 text-sm text-white placeholder:text-slate-400 outline-none focus:bg-white/15 focus:border-white/20 transition-all" />
         <svg className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -173,7 +173,7 @@ export default function BuscaPremium({ className = '' }: { className?: string })
                       </div>
                       <div className="flex-1 min-w-0">
                         <p className="text-xs font-semibold text-slate-700 truncate">{s.nome}</p>
-                        <p className="text-[10px] text-slate-400">{s.codigo}{s.marca ? ` · ${s.marca}` : ''}</p>
+                        <p className="text-[10px] text-slate-400">{s.marca || ''}</p>
                       </div>
                       <span className="text-xs font-bold text-slate-800 shrink-0">{fm(precoPublico(s))}</span>
                     </button>

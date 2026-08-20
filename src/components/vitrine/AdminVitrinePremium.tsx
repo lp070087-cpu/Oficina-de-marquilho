@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { invalidarCacheLogo } from '@/components/LogoOficina';
 
 const fm = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
@@ -38,6 +39,11 @@ export default function AdminVitrine() {
   // SEO
   const [seo, setSeo] = useState({ titulo: '', descricao: '', keywords: '', ogImage: '' });
 
+  // Logo da oficina
+  const [logoOficina, setLogoOficina] = useState('');
+  const [logoArquivo, setLogoArquivo] = useState<File | null>(null);
+  const [logoEnviando, setLogoEnviando] = useState(false);
+
   const fetchStats = useCallback(async () => {
     try { const r = await fetch('/api/vitrine/admin'); if (r.ok) setStats(await r.json()); } catch {}
     setLoading(false);
@@ -50,8 +56,9 @@ export default function AdminVitrine() {
   const fetchCupons = useCallback(async () => { const r = await fetch('/api/vitrine/cupons?admin=1'); if (r.ok) setCupons(await r.json()); }, []);
   const fetchNewsletter = useCallback(async () => { const r = await fetch('/api/vitrine/newsletter-admin'); if (r.ok) setNewsletter(await r.json()); }, []);
   const fetchSeo = useCallback(async () => { const r = await fetch('/api/vitrine/config-seo'); if (r.ok) setSeo(await r.json()); }, []);
+  const fetchLogo = useCallback(async () => { const r = await fetch('/api/vitrine/logo'); if (r.ok) { const d = await r.json(); setLogoOficina(d?.logoUrl || ''); } }, []);
 
-  useEffect(() => { fetchStats(); fetchMarcas(); fetchDepoimentos(); fetchBanners(); fetchPromocoes(); fetchCupons(); fetchNewsletter(); fetchSeo(); }, [fetchStats, fetchMarcas, fetchDepoimentos, fetchBanners, fetchPromocoes, fetchCupons, fetchNewsletter, fetchSeo]);
+  useEffect(() => { fetchStats(); fetchMarcas(); fetchDepoimentos(); fetchBanners(); fetchPromocoes(); fetchCupons(); fetchNewsletter(); fetchSeo(); fetchLogo(); }, [fetchStats, fetchMarcas, fetchDepoimentos, fetchBanners, fetchPromocoes, fetchCupons, fetchNewsletter, fetchSeo, fetchLogo]);
 
   // Marcas
   async function criarMarca() {
@@ -102,6 +109,27 @@ export default function AdminVitrine() {
   async function salvarSeo() {
     await fetch('/api/vitrine/config-seo', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(seo) });
     setSaveMsg('SEO salvo!'); setTimeout(() => setSaveMsg(''), 2000);
+  }
+
+  // Logo da oficina
+  async function salvarLogoUrl() {
+    const r = await fetch('/api/vitrine/logo', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ logoUrl: logoOficina }) });
+    if (r.ok) { setSaveMsg('Logo salvo!'); setTimeout(() => setSaveMsg(''), 2000); invalidarCacheLogo(); }
+    else { const e = await r.json(); setSaveMsg(e?.error || 'Erro ao salvar logo.'); setTimeout(() => setSaveMsg(''), 3000); }
+  }
+  async function enviarLogoArquivo() {
+    if (!logoArquivo) return;
+    setLogoEnviando(true);
+    const fd = new FormData();
+    fd.append('imagem', logoArquivo);
+    const r = await fetch('/api/upload/logo', { method: 'POST', body: fd });
+    if (r.ok) { const d = await r.json(); setLogoOficina(d.url); setLogoArquivo(null); setSaveMsg('Logo enviado!'); setTimeout(() => setSaveMsg(''), 2000); invalidarCacheLogo(); }
+    else { const e = await r.json(); setSaveMsg(e?.error || 'Erro ao enviar logo.'); setTimeout(() => setSaveMsg(''), 3000); }
+    setLogoEnviando(false);
+  }
+  async function removerLogo() {
+    const r = await fetch('/api/vitrine/logo', { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ logoUrl: '' }) });
+    if (r.ok) { setLogoOficina(''); setLogoArquivo(null); setSaveMsg('Logo removido.'); setTimeout(() => setSaveMsg(''), 2000); invalidarCacheLogo(); }
   }
 
   // Toggle Newsletter
@@ -182,7 +210,7 @@ export default function AdminVitrine() {
                   <p className="text-sm font-bold text-slate-700">{b.titulo || 'Sem título'}</p>
                   <p className="text-[10px] text-slate-400">{b.subtitulo} | Ordem: {b.ordem} | {b.ativo ? 'Ativo' : 'Inativo'}</p>
                 </div>
-                {b.imagemDesktop && <img src={b.imagemDesktop} alt="" className="w-20 h-12 object-cover rounded" />}
+                {b.imagemDesktop && <img src={b.imagemDesktop} alt="" className="w-40 aspect-[4/1] object-contain bg-slate-100 rounded" />}
               </div>
             ))}
           </div>
@@ -340,6 +368,35 @@ export default function AdminVitrine() {
 
       {/* SEO */}
       {tab === 'seo' && (
+        <div className="space-y-4">
+        <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-bold text-slate-700">Logo da Oficina</h3>
+            <span className="w-12 h-12 rounded-xl bg-brand-600 flex items-center justify-center overflow-hidden">
+              {logoOficina
+                ? <img src={logoOficina} alt="Logo da oficina" className="w-full h-full object-contain" onError={e => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                : <span className="text-white font-bold text-sm">MP</span>}
+            </span>
+          </div>
+          <p className="text-[11px] text-slate-500">A logo substitui o monograma "MP" no login, no painel e em toda a Vitrine. Sem logo cadastrada, o "MP" continua como padrão.</p>
+          <div>
+            <label className="text-[10px] text-slate-400 uppercase block mb-1">Enviar imagem (JPG, PNG ou WebP — máx. 5MB)</label>
+            <div className="flex items-center gap-2">
+              <input type="file" accept=".jpg,.jpeg,.png,.webp" onChange={e => setLogoArquivo(e.target.files?.[0] || null)} className="text-xs flex-1" />
+              <button onClick={enviarLogoArquivo} disabled={!logoArquivo || logoEnviando} className="btn-primary text-xs px-4 py-2 disabled:opacity-50">{logoEnviando ? 'Enviando...' : 'Enviar'}</button>
+            </div>
+          </div>
+          <div>
+            <label className="text-[10px] text-slate-400 uppercase block mb-1">Ou cole a URL da logo</label>
+            <div className="flex items-center gap-2">
+              <input value={logoOficina} onChange={e => setLogoOficina(e.target.value)} placeholder="https://..." className="input-field text-xs flex-1" />
+              <button onClick={salvarLogoUrl} className="btn-primary text-xs px-4 py-2">Salvar</button>
+            </div>
+          </div>
+          {logoOficina && (
+            <button onClick={removerLogo} className="text-[11px] font-bold text-red-600 hover:text-red-700">Remover logo (volta ao "MP")</button>
+          )}
+        </div>
         <div className="bg-white border border-slate-200 rounded-xl p-5 space-y-3">
           <h3 className="text-sm font-bold text-slate-700">Configuração SEO</h3>
           <div className="space-y-3">
@@ -349,6 +406,7 @@ export default function AdminVitrine() {
             <div><label className="text-[10px] text-slate-400 uppercase block mb-1">Open Graph Image URL</label><input value={seo.ogImage} onChange={e => setSeo({ ...seo, ogImage: e.target.value })} placeholder="https://..." className="input-field text-xs" /></div>
           </div>
           <button onClick={salvarSeo} className="btn-primary text-xs px-5 py-2">Salvar SEO</button>
+        </div>
         </div>
       )}
 

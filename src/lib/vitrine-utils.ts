@@ -22,6 +22,9 @@ export const CAMPOS_BUSCA_VITRINE = [
   'descricao',
   'descricaoCurta',
   'compatibilidade',
+  'subcategoria',
+  'tamanho',
+  'genero',
 ] as const;
 
 /**
@@ -113,6 +116,24 @@ export function publicarPeca(p: any) {
   if (!p) return p;
   const { precoCusto, custoMedio, estoqueMinimo, quantidade, localizacao, ...publico } = p;
   return publico;
+}
+
+/**
+ * Helper para exibir o atributo de tamanho/gênero de um acessório na Vitrine.
+ * Capacete → "Tamanho: 58" · Capa de chuva → "Masculino • G".
+ * Retorna null quando não aplicável (nenhum tamanho/gênero cadastrado).
+ */
+export function rotuloAtributosAcessorio(p: any): string | null {
+  if (!p) return null;
+  const genero = p.genero ? String(p.genero) : null;
+  const tamanho = p.tamanho ? String(p.tamanho) : null;
+  if (!genero && !tamanho) return null;
+  if (genero && tamanho) return `${genero} • ${tamanho}`;
+  if (genero) return genero;
+  // Só tamanho → Capacete ("Tamanho: 58"). Caso defensivo: se não for capacete, "Tamanho X".
+  const sub = normalizarNome(p.subcategoria || '');
+  if (sub === 'capacete') return `Tamanho: ${tamanho}`;
+  return `Tamanho ${tamanho}`;
 }
 
 /** Gera slug a partir de um nome (marca, etc). */

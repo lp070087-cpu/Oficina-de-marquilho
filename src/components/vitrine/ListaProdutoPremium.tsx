@@ -1,29 +1,64 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useCarrinhoVitrine } from './CarrinhoIcone';
+import { rotuloAtributosAcessorio } from '@/lib/vitrine-utils';
 
 const fm = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
 interface Produto {
   id: string; nome: string; codigo: string; precoVenda: number; precoOferta?: number; precoVitrine?: number;
   quantidade?: number; quantidadeLoja?: number; marca?: string; compatibilidade?: string; imagemUrl?: string;
-  descricaoCurta?: string; categoria: { nome: string; slug: string };
+  descricaoCurta?: string; subcategoria?: string; tamanho?: string | null; genero?: string | null;
+  categoria: { nome: string; slug: string };
 }
 
 export default function ListaProdutoPremium({ p, onComparar, comparado }: {
   p: Produto; onComparar?: (id: string) => void; comparado?: boolean;
 }) {
+  const router = useRouter();
+  const { adicionar } = useCarrinhoVitrine();
   const [imgError, setImgError] = useState(false);
+  const [adicionado, setAdicionado] = useState(false);
+  const [erro, setErro] = useState('');
   // Preço público oficial (item 6): precoVitrine > precoOferta > precoVenda.
   const precoBase = Number(p.precoVenda);
   const temOverride = p.precoVitrine != null && Number(p.precoVitrine) > 0;
   const oferta = !temOverride && p.precoOferta && Number(p.precoOferta) > 0 && Number(p.precoOferta) < precoBase;
   const desconto = oferta ? Math.round(((precoBase - Number(p.precoOferta)) / precoBase) * 100) : 0;
   const precoAtual = temOverride ? Number(p.precoVitrine) : (oferta ? Number(p.precoOferta) : precoBase);
-  const descontoPix = precoAtual * 0.95;
-  const parcelas = [2, 3, 4].find(x => precoAtual / x >= 20);
   // Disponibilidade pelo estoque da LOJA. Nunca expor o estoque central (quantidade).
   const disponivel = (p.quantidadeLoja ?? 0) > 0;
+
+  // AJUSTE 7: adicionar respeitando estoque da LOJA; COMPRAR adiciona e vai ao carrinho.
+  function adicionarAoCarrinho() {
+    const limite = p.quantidadeLoja ?? 0;
+    const jaNoCarrinho = JSON.parse(sessionStorage.getItem('marquinho-cart') || '[]')
+      .find((i: any) => i.peca.id === p.id)?.quantidade || 0;
+    if (limite > 0 && jaNoCarrinho >= limite) {
+      setErro('Quantidade máxima em estoque (loja) atingida.');
+      setTimeout(() => setErro(''), 2500);
+      return;
+    }
+    adicionar(p);
+    setAdicionado(true);
+    setErro('');
+    setTimeout(() => setAdicionado(false), 1800);
+  }
+
+  function comprar() {
+    const limite = p.quantidadeLoja ?? 0;
+    const jaNoCarrinho = JSON.parse(sessionStorage.getItem('marquinho-cart') || '[]')
+      .find((i: any) => i.peca.id === p.id)?.quantidade || 0;
+    if (limite > 0 && jaNoCarrinho >= limite) {
+      setErro('Quantidade máxima em estoque (loja) atingida.');
+      setTimeout(() => setErro(''), 2500);
+      return;
+    }
+    adicionar(p);
+    router.push('/vitrine/carrinho');
+  }
 
   return (
     <div className="bg-white rounded-xl border border-slate-200 hover:border-brand-300 hover:shadow-md transition-all duration-200 p-4 flex gap-4 group">
@@ -45,7 +80,7 @@ export default function ListaProdutoPremium({ p, onComparar, comparado }: {
           </div>
           <a href={`/vitrine/produto/${p.id}`} className="text-sm font-semibold text-slate-700 line-clamp-2 hover:text-brand-600 transition-colors">{p.nome}</a>
           {p.descricaoCurta && <p className="text-[10px] text-slate-400 mt-1 line-clamp-2">{p.descricaoCurta}</p>}
-          <p className="text-[10px] text-slate-400 mt-1">{p.categoria.nome} · {p.codigo}</p>
+          <p className="text-[10px] text-slate-400 mt-1">{p.categoria.nome}{rotuloAtributosAcessorio(p) ? ` · ${rotuloAtributosAcessorio(p)}` : ''}</p>
         </div>
 
         <div className="flex items-center justify-between mt-2">
@@ -54,10 +89,8 @@ export default function ListaProdutoPremium({ p, onComparar, comparado }: {
               <span className="text-lg font-extrabold text-slate-800">{fm(precoAtual)}</span>
               {(oferta || temOverride) && <span className="text-xs text-slate-400 line-through">{fm(precoBase)}</span>}
             </div>
-            <div className="flex items-center gap-2 text-[10px] mt-0.5">
-              {disponivel && <span className="text-emerald-600 font-semibold">PIX {fm(descontoPix)}</span>}
-              {disponivel && parcelas && <span className="text-slate-400">ou {parcelas}x de {fm(precoAtual / parcelas)}</span>}
-            </div>
+            {disponivel && <span className="text-[10px] text-emerald-600 font-medium">Em estoque</span>}
+            {erro && <span className="text-[10px] text-red-600 font-medium ml-2">{erro}</span>}
           </div>
 
           <div className="flex items-center gap-2">
@@ -66,10 +99,18 @@ export default function ListaProdutoPremium({ p, onComparar, comparado }: {
                 ⚖️
               </button>
             )}
-            <a href={`/vitrine/produto/${p.id}`}
+            {disponivel && (
+              <button onClick={adicionarAoCarrinho}
+                className={`px-3 py-2 rounded-lg text-[10px] font-extrabold uppercase tracking-wide transition-colors border ${
+                  adicionado ? 'bg-emerald-600 border-emerald-600 text-white' : 'bg-white border-brand-600 text-brand-700 hover:bg-brand-50'
+                }`}>
+                {adicionado ? '✓ Adicionado!' : 'Carrinho'}
+              </button>
+            )}
+            <button onClick={comprar}
               className="px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white rounded-lg text-xs font-bold transition-colors">
-              Ver Produto
-            </a>
+              Comprar
+            </button>
           </div>
         </div>
       </div>

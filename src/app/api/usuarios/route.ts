@@ -34,16 +34,28 @@ export async function POST(req: Request) {
     if (!body.email) return NextResponse.json({ error: 'Email obrigatorio' }, { status: 400 });
     if (!body.password) return NextResponse.json({ error: 'Senha obrigatoria' }, { status: 400 });
 
-    // Check duplicate email
-    const exists = await prisma.user.findUnique({ where: { email: body.email } });
-    if (exists) return NextResponse.json({ error: 'Este email ja esta cadastrado.' }, { status: 400 });
+    // Ajuste 6 — normaliza email (trim + lowercase) e username (trim) na criação
+    const email = String(body.email).trim().toLowerCase();
+    const username = typeof body.username === 'string' && body.username.trim() ? body.username.trim() : null;
+    const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!EMAIL_REGEX.test(email)) return NextResponse.json({ error: 'Email invalido.' }, { status: 400 });
+
+    // Check duplicate email (normalizado)
+    const exists = await prisma.user.findUnique({ where: { email } });
+    if (exists) return NextResponse.json({ error: 'Este e-mail já está sendo utilizado por outro acesso.' }, { status: 400 });
+
+    // Check duplicate username
+    if (username) {
+      const dupUser = await prisma.user.findUnique({ where: { username } });
+      if (dupUser) return NextResponse.json({ error: 'Este usuario de login ja esta sendo utilizado por outro acesso.' }, { status: 400 });
+    }
 
     const hash = await bcrypt.hash(body.password, 10);
     const user = await prisma.user.create({
       data: {
         name: body.name,
-        email: body.email,
-        username: body.username || null,
+        email,
+        username,
         password: hash,
         role: body.role || 'BALCAO',
         tipoBalcao: body.tipoBalcao || null,

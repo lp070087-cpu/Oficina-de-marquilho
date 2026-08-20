@@ -21,8 +21,16 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Usuario, senha ou perfil invalido.' }, { status: 401 });
     }
 
+    // Ajuste 6/9 — normaliza o identificador de login:
+    // email -> trim + lowercase; username -> trim (aceita email OU usuario).
+    const identificador = String(email).trim();
+    const emailNorm = identificador.toLowerCase();
+
     const user = await prisma.user.findFirst({
-      where: { OR: [{ email }], active: true },
+      where: {
+        OR: [{ email: emailNorm }, { username: identificador }, { username: emailNorm }],
+        active: true,
+      },
     });
 
     if (!user) {

@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import AdminProdutoCard from '@/components/vitrine/AdminProdutoCard';
 import AdminVitrine from '@/components/vitrine/AdminVitrinePremium';
+import LogoOficina from '@/components/LogoOficina';
 
 interface Categoria { id: string; nome: string; slug: string; }
 interface Peca {
@@ -414,7 +415,7 @@ export default function VitrineManagePage() {
             <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 text-white">
               <div className="max-w-7xl mx-auto px-4 py-6 flex items-center gap-6">
                 <div className="flex-1"><h1 className="text-xl font-extrabold mb-1">Tudo para sua moto com precos de atacado</h1><p className="text-xs text-white/50">Monte seu orcamento online e retire na loja.</p></div>
-                <div className="hidden lg:block w-24 h-24 rounded-full bg-brand-600/20 flex items-center justify-center"><span className="text-2xl font-extrabold text-brand-500/40">MP</span></div>
+                <LogoOficina className="hidden lg:flex w-24 h-24 rounded-full bg-brand-600/20 items-center justify-center overflow-hidden" textClassName="text-2xl font-extrabold text-brand-500/40" />
               </div>
             </div>
           )}

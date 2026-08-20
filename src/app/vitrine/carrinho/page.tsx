@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import LogoOficina from '@/components/LogoOficina';
 import { getClienteVitrine } from '@/lib/vitrine-session';
 
 const fm = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -92,7 +93,7 @@ export default function CarrinhoPage() {
         <div className="max-w-5xl mx-auto px-4 h-16 flex items-center gap-4">
           <button onClick={() => router.push('/vitrine')} className="text-slate-400 hover:text-white text-sm">← Voltar</button>
           <a href="/vitrine" className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-lg bg-brand-600 flex items-center justify-center shadow-lg shadow-brand-600/25"><span className="font-extrabold text-white text-xs">MP</span></div>
+            <LogoOficina className="w-9 h-9 rounded-lg bg-brand-600 flex items-center justify-center shadow-lg shadow-brand-600/25 overflow-hidden" textClassName="font-extrabold text-white text-xs" />
             <span className="hidden sm:inline font-extrabold text-sm">Marquinho</span>
           </a>
           <span className="flex-1 text-right font-bold text-sm">Carrinho</span>
@@ -127,7 +128,6 @@ export default function CarrinhoPage() {
                     </a>
                     <div className="flex-1 min-w-0">
                       <a href={`/vitrine/produto/${item.peca.id}`} className="text-sm font-semibold text-slate-700 hover:text-brand-600 line-clamp-2">{item.peca.nome}</a>
-                      <p className="text-xs text-slate-400 font-mono mt-0.5">{item.peca.codigo}</p>
                       {item.peca.marca && <p className="text-[10px] text-brand-500 font-bold uppercase mt-0.5">{item.peca.marca}</p>}
                       <div className="flex items-center justify-between mt-2">
                         <div className="inline-flex items-center gap-1.5 bg-slate-50 rounded-lg border border-slate-100">
@@ -154,7 +154,7 @@ export default function CarrinhoPage() {
                 <div className="space-y-2 text-xs mb-4">
                   <div className="flex justify-between"><span className="text-slate-500">Subtotal</span><span className="font-medium">{fm(subtotal)}</span></div>
                   <div className="flex justify-between"><span className="text-slate-500">Desconto</span><span className="font-medium text-emerald-600">- {fm(desconto)}</span></div>
-                  <div className="flex justify-between"><span className="text-slate-500">Frete</span><span className="font-medium text-slate-400">Calculado no checkout</span></div>
+                  <div className="flex justify-between"><span className="text-slate-500">Retirada na Loja</span><span className="font-medium text-emerald-600">Grátis</span></div>
                   <div className="flex justify-between pt-3 border-t border-slate-100"><span className="font-bold text-slate-700">Total</span><span className="text-lg font-extrabold text-slate-800">{fm(total)}</span></div>
                 </div>
 

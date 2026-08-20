@@ -9,6 +9,7 @@ import MarcasVitrine from '@/components/vitrine/MarcasVitrine';
 import RodapePremium from '@/components/vitrine/RodapePremium';
 import NewsletterVitrine from '@/components/vitrine/NewsletterVitrine';
 import PromocoesVitrine from '@/components/vitrine/PromocoesVitrine';
+import LogoOficina from '@/components/LogoOficina';
 import { getClienteVitrine } from '@/lib/vitrine-session';
 
 const fm = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -77,9 +78,7 @@ export default function VitrineHomeClient({ destaques, ofertas, lancamentos, pec
         <div className="max-w-7xl mx-auto px-4">
           <div className="flex items-center justify-between h-16 gap-4">
             <a href="/vitrine" className="flex items-center gap-2.5 flex-shrink-0">
-              <div className="w-10 h-10 rounded-lg bg-brand-600 flex items-center justify-center shadow-lg shadow-brand-600/25">
-                <span className="font-extrabold text-white text-sm">MP</span>
-              </div>
+              <LogoOficina className="w-10 h-10 rounded-lg bg-brand-600 flex items-center justify-center shadow-lg shadow-brand-600/25 overflow-hidden" textClassName="font-extrabold text-white text-sm" />
               <div className="hidden sm:block">
                 <p className="font-extrabold text-sm leading-tight">Marquinho</p>
                 <p className="text-[10px] text-slate-400 leading-tight">Moto Peças</p>

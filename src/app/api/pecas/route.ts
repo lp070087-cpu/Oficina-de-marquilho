@@ -83,6 +83,8 @@ export async function POST(req: NextRequest) {
       subcategoria: normalizarSubcategoria(body.subcategoria),
       marca: body.marca || null,
       compatibilidade: body.compatibilidade || null,
+      tamanho: body.tamanho || null,
+      genero: body.genero || null,
       codigoBarras: body.codigoBarras || null,
       custoMedio: body.custoMedio || 0,
       localizacao: body.localizacao || null,

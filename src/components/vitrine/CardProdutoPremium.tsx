@@ -1,6 +1,9 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { rotuloAtributosAcessorio } from '@/lib/vitrine-utils';
+import { useCarrinhoVitrine } from './CarrinhoIcone';
 
 const fm = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
@@ -8,6 +11,7 @@ interface Produto {
   id: string; nome: string; codigo: string; precoVenda: number; precoOferta?: number; precoVitrine?: number;
   quantidade?: number; quantidadeLoja?: number; estoqueMinimo?: number; vitrine?: boolean; destaque?: boolean; oferta?: boolean;
   marca?: string; compatibilidade?: string; imagemUrl?: string; descricaoCurta?: string;
+  subcategoria?: string; tamanho?: string | null; genero?: string | null;
   categoria: { nome: string; slug: string }; createdAt?: string;
 }
 
@@ -25,8 +29,12 @@ export default function CardProdutoPremium({
   p: Produto; onFavorito?: (id: string) => void; favorited?: boolean; onCarrinho?: (p: Produto) => void; compact?: boolean;
   onComparar?: (id: string) => void; comparado?: boolean;
 }) {
+  const router = useRouter();
+  const { adicionar } = useCarrinhoVitrine();
   const [imgError, setImgError] = useState(false);
   const [hoverImg, setHoverImg] = useState(false);
+  const [adicionado, setAdicionado] = useState(false);
+  const [erro, setErro] = useState('');
   const precoBase = Number(p.precoVenda);
   const temOverride = p.precoVitrine != null && Number(p.precoVitrine) > 0;
   const oferta = p.oferta && p.precoOferta && Number(p.precoOferta) < precoBase && !temOverride;
@@ -38,8 +46,39 @@ export default function CardProdutoPremium({
   const ultimasUnidades = qtdLoja > 0 && qtdLoja <= 5;
   const novo = p.createdAt ? (new Date().getTime() - new Date(p.createdAt).getTime()) < 7 * 24 * 60 * 60 * 1000 : false;
   const precoAtual = precoExibicao(p);
-  const descontoPix = precoAtual * 0.95;
-  const parcelas = [2, 3, 4].find(x => precoAtual / x >= 20);
+
+  // AJUSTE 7: adicionar ao carrinho respeitando o estoque da LOJA; COMPRAR adiciona e vai ao carrinho.
+  function adicionarAoCarrinho(e?: React.MouseEvent) {
+    e?.preventDefault();
+    const limite = p.quantidadeLoja ?? 0;
+    const jaNoCarrinho = JSON.parse(sessionStorage.getItem('marquinho-cart') || '[]')
+      .find((i: any) => i.peca.id === p.id)?.quantidade || 0;
+    if (limite > 0 && jaNoCarrinho >= limite) {
+      setErro('Quantidade máxima em estoque (loja) atingida.');
+      setTimeout(() => setErro(''), 2500);
+      return;
+    }
+    if (onCarrinho) { onCarrinho(p); }
+    else adicionar(p);
+    setAdicionado(true);
+    setErro('');
+    setTimeout(() => setAdicionado(false), 1800);
+  }
+
+  function comprar(e: React.MouseEvent) {
+    e.preventDefault();
+    const limite = p.quantidadeLoja ?? 0;
+    const jaNoCarrinho = JSON.parse(sessionStorage.getItem('marquinho-cart') || '[]')
+      .find((i: any) => i.peca.id === p.id)?.quantidade || 0;
+    if (limite > 0 && jaNoCarrinho >= limite) {
+      setErro('Quantidade máxima em estoque (loja) atingida.');
+      setTimeout(() => setErro(''), 2500);
+      return;
+    }
+    if (onCarrinho) { onCarrinho(p); }
+    else adicionar(p);
+    router.push('/vitrine/carrinho');
+  }
 
   return (
     <div className={`bg-white rounded-xl border border-slate-200 hover:border-brand-300 hover:shadow-xl transition-all duration-200 group flex flex-col ${compact ? '' : ''}`}>
@@ -84,7 +123,7 @@ export default function CardProdutoPremium({
       <div className={`p-3 flex-1 flex flex-col ${compact ? 'gap-1' : 'gap-1.5'}`}>
         {p.marca && <p className="text-[9px] text-brand-600 font-bold uppercase tracking-wider">{p.marca}</p>}
         <a href={`/vitrine/produto/${p.id}`} className="text-xs font-semibold text-slate-700 line-clamp-2 leading-snug hover:text-brand-600 transition-colors">{p.nome}</a>
-        {!compact && <p className="text-[9px] text-slate-400 truncate">{p.categoria.nome}{p.compatibilidade ? ` · ${p.compatibilidade}` : ''}</p>}
+        {!compact && <p className="text-[9px] text-slate-400 truncate">{p.categoria.nome}{rotuloAtributosAcessorio(p) ? ` · ${rotuloAtributosAcessorio(p)}` : ''}{p.compatibilidade ? ` · ${p.compatibilidade}` : ''}</p>}
 
         {/* Disponibilidade (sem expor número do estoque central) */}
         {!compact && disponivel && <p className="text-[9px] text-emerald-600 font-medium flex items-center gap-1"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500"/>{ultimasUnidades ? 'Últimas unidades' : 'Em estoque'}</p>}
@@ -94,20 +133,27 @@ export default function CardProdutoPremium({
             <span className="text-sm font-extrabold text-slate-800">{fm(precoAtual)}</span>
             {(oferta || temOverride) && <span className="text-[10px] text-slate-400 line-through">{fm(precoBase)}</span>}
           </div>
-
-          {/* PIX */}
-          {disponivel && <p className="text-[9px] text-emerald-600 font-semibold mt-0.5">PIX {fm(descontoPix)}</p>}
-
-          {/* Parcelamento */}
-          {disponivel && parcelas && <p className="text-[9px] text-slate-400 mt-0.5">ou {parcelas}x de {fm(precoAtual / parcelas)} sem juros</p>}
         </div>
 
-        {/* Botão carrinho */}
-        {onCarrinho && disponivel && (
-          <button onClick={() => onCarrinho(p)}
-            className="mt-2 w-full py-2 bg-brand-600 hover:bg-brand-700 text-white rounded-lg text-[11px] font-extrabold uppercase tracking-wider transition-colors opacity-0 group-hover:opacity-100 shadow-md shadow-brand-600/20">
-            Adicionar ao Carrinho
-          </button>
+        {erro && <p className="text-[10px] text-red-600 font-medium mt-1">{erro}</p>}
+
+        {/* AJUSTE 7: botões [ADICIONAR AO CARRINHO] e [COMPRAR] */}
+        {disponivel && (
+          <div className="flex gap-1.5 mt-2">
+            <button onClick={adicionarAoCarrinho}
+              className={`flex-1 py-2 rounded-lg text-[10px] font-extrabold uppercase tracking-wide transition-all border ${
+                adicionado ? 'bg-emerald-600 border-emerald-600 text-white' : 'bg-white border-brand-600 text-brand-700 hover:bg-brand-50'
+              }`}>
+              {adicionado ? '✓ Adicionado!' : 'Adicionar ao Carrinho'}
+            </button>
+            <button onClick={comprar}
+              className="flex-1 py-2 bg-brand-600 hover:bg-brand-700 text-white rounded-lg text-[10px] font-extrabold uppercase tracking-wide transition-colors shadow-md shadow-brand-600/20">
+              Comprar
+            </button>
+          </div>
+        )}
+        {!disponivel && (
+          <p className="mt-2 text-[10px] text-slate-400 text-center py-2">Indisponível no momento</p>
         )}
       </div>
     </div>

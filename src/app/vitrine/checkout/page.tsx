@@ -140,7 +140,7 @@ export default function CheckoutPage() {
             <div key={i} className="flex items-center justify-between py-2 border-b border-slate-50 last:border-0 text-xs">
               <div className="flex-1 min-w-0">
                 <p className="font-medium text-slate-700 truncate">{item.peca.nome}</p>
-                <p className="text-slate-400">{item.peca.codigo} x{item.quantidade}</p>
+                <p className="text-slate-400">Qtd: {item.quantidade}</p>
               </div>
               <span className="font-bold ml-2">{fm(precoItem(item.peca) * item.quantidade)}</span>
             </div>
@@ -158,7 +158,7 @@ export default function CheckoutPage() {
         <div className="bg-white rounded-xl border border-slate-200 p-5 mb-4">
           <h2 className="text-sm font-bold text-slate-700 mb-3">Forma de Entrega</h2>
 
-          {/* Retirada na Loja — ÚNICA OPÇÃO ATIVA */}
+          {/* Retirada na Loja — ÚNICA OPÇÃO */}
           <div className="flex items-center gap-3 p-4 rounded-xl border-2 border-brand-600 bg-brand-50/30">
             <div className="w-10 h-10 rounded-full bg-brand-600 flex items-center justify-center flex-shrink-0">
               <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 8h14M5 8a2 2 0 110-4h14a2 2 0 110 4M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8m-9 4h4"/></svg>
@@ -168,18 +168,6 @@ export default function CheckoutPage() {
               <p className="text-xs text-slate-500">{DADOS_OFICINA.endereco} — {DADOS_OFICINA.cidade}</p>
               <p className="text-xs text-slate-400 mt-0.5">{DADOS_OFICINA.horario}</p>
             </div>
-          </div>
-
-          {/* Entrega desabilitada */}
-          <div className="flex items-center gap-3 p-4 rounded-xl border-2 border-slate-100 bg-slate-50 mt-2 opacity-60">
-            <div className="w-10 h-10 rounded-full bg-slate-200 flex items-center justify-center flex-shrink-0">
-              <svg className="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h8a1 1 0 001-1zm-5-3V7m0 6V7m0 6h.01M20 16h1a1 1 0 001-1v-4a1 1 0 00-1-1h-3l-3-3m0 0v10"/></svg>
-            </div>
-            <div className="flex-1">
-              <p className="text-sm font-bold text-slate-400">🚚 Entrega</p>
-              <p className="text-xs text-slate-400">Disponível em breve</p>
-            </div>
-            <span className="px-2.5 py-1 bg-slate-200 text-slate-500 rounded-full text-[10px] font-bold">EM BREVE</span>
           </div>
         </div>
 
@@ -221,9 +209,9 @@ export default function CheckoutPage() {
           <h2 className="text-sm font-bold text-slate-700 mb-3">Forma de Pagamento</h2>
           <div className="flex flex-wrap gap-2">
             {[
-              { key: 'PIX', label: '⚡ PIX', desc: '5% de desconto' },
-              { key: 'CARTAO_CREDITO', label: '💳 Crédito', desc: 'Até 6x' },
-              { key: 'CARTAO_DEBITO', label: '💳 Débito', desc: 'À vista' },
+              { key: 'PIX', label: '⚡ PIX', desc: 'Pagamento instantâneo' },
+              { key: 'CARTAO_CREDITO', label: '💳 Crédito', desc: 'Na retirada' },
+              { key: 'CARTAO_DEBITO', label: '💳 Débito', desc: 'Na retirada' },
               { key: 'DINHEIRO', label: '💰 Dinheiro', desc: 'Na retirada' },
             ].map(f => (
               <button key={f.key} onClick={() => setFormaPagamento(f.key)}

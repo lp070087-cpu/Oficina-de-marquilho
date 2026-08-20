@@ -4,11 +4,12 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import React from 'react';
 import { mascaraMoeda } from '@/lib/moeda-utils';
 import { pecaMatchBusca } from '@/lib/peca-utils';
+import { TIPOS_ACESSORIOS, TAMANHOS_CAPACETE, TAMANHOS_CAPA_CHUVA, GENEROS_CAPA_CHUVA, ehCategoriaAcessorios, tipoExigeTamanho, tipoExigeGenero, tipoEhCapacete, tipoEhCapaChuva } from '@/lib/peca-acessorios';
 
 interface Categoria { id: string; nome: string; slug: string; _count?: { pecas: number }; }
 interface Peca {
   id: string; nome: string; codigo: string; codigoBarras?: string; subcategoria?: string;
-  marca?: string; compatibilidade?: string;
+  marca?: string; compatibilidade?: string; tamanho?: string | null; genero?: string | null;
   precoVenda: number; precoCusto: number; quantidade: number; estoqueMinimo: number;
   descricao?: string; categoriaId: string; categoria: { nome: string };
 }
@@ -51,6 +52,11 @@ export default function EstoquePage() {
 
   const [modal, setModal] = useState<{ open: boolean; peca?: Peca }>({ open: false });
   const [form, setForm] = useState({ nome: '', codigo: '', descricao: '', subcategoria: '', marca: '', compatibilidade: '', precoVenda: '', precoCusto: '', quantidade: '', estoqueMinimo: '5', categoriaId: '' });
+  // Tamanho do acessório (CAPACETE 54-64 ou CAPA DE CHUVA P/M/G/GG).
+  // Seleção ÚNICA — apenas 1 tamanho por cadastro. Estado SEPARADO de form.
+  const [tamanho, setTamanho] = useState('');
+  // Gênero da CAPA DE CHUVA (ACESSÓRIOS→CAPA DE CHUVA). Estado SEPARADO de form.
+  const [generoCapaChuva, setGeneroCapaChuva] = useState('');
   const [msg, setMsg] = useState('');
 
   // BLOCO 10 — edição inline de preço (DONA/ESTOQUE têm permissão)
@@ -137,15 +143,24 @@ export default function EstoquePage() {
     setEditandoPreco(null);
   }
   function abrirForm(peca?:Peca){
+    setTamanho(peca?.tamanho || '');
+    setGeneroCapaChuva(peca?.genero || '');
     if(peca){setForm({nome:peca.nome,codigo:peca.codigo,descricao:peca.descricao||'',subcategoria:peca.subcategoria&&peca.subcategoria!==NO_SUBCAT_DONO?peca.subcategoria:'',marca:peca.marca||'',compatibilidade:peca.compatibilidade||'',precoVenda:fmtMoeda(Number(peca.precoVenda)),precoCusto:fmtMoeda(Number(peca.precoCusto)),quantidade:String(peca.quantidade),estoqueMinimo:String(peca.estoqueMinimo),categoriaId:peca.categoriaId});setModal({open:true,peca});}
     else{setForm({nome:'',codigo:'',descricao:'',subcategoria:subcategoriaSelecionada&&subcategoriaSelecionada!==NO_SUBCAT_DONO?subcategoriaSelecionada:'',marca:'',compatibilidade:'',precoVenda:'',precoCusto:'',quantidade:'',estoqueMinimo:'5',categoriaId:categoriaSelecionada?.id||''});setModal({open:true});}
   }
-  async function salvar(){if(!form.nome||!form.codigo||!form.categoriaId){setMsg('Preencha nome, codigo e categoria.');return;}const subcategoria=form.subcategoria.trim();const body={...form,subcategoria,precoVenda:parseMoeda(form.precoVenda),precoCusto:parseMoeda(form.precoCusto),quantidade:Number(form.quantidade)||0,estoqueMinimo:Number(form.estoqueMinimo)||5};const url=modal.peca?`/api/pecas/${modal.peca.id}`:'/api/pecas';const method=modal.peca?'PUT':'POST';const res=await fetch(url,{method,headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});if(res.ok){setModal({open:false});fetchPecas();setMsg('');}else{const e=await res.json();setMsg(e.error||'Erro ao salvar.');}}
+  async function salvar(){if(!form.nome||!form.codigo||!form.categoriaId){setMsg('Preencha nome, codigo e categoria.');return;}const subcategoria=form.subcategoria.trim();const body={...form,subcategoria,precoVenda:parseMoeda(form.precoVenda),precoCusto:parseMoeda(form.precoCusto),quantidade:Number(form.quantidade)||0,estoqueMinimo:Number(form.estoqueMinimo)||5,tamanho:tipoExigeTamanho(form.subcategoria)?tamanho:null,genero:tipoExigeGenero(form.subcategoria)?generoCapaChuva:null};const url=modal.peca?`/api/pecas/${modal.peca.id}`:'/api/pecas';const method=modal.peca?'PUT':'POST';const res=await fetch(url,{method,headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});if(res.ok){setModal({open:false});fetchPecas();setMsg('');}else{const e=await res.json();setMsg(e.error||'Erro ao salvar.');}}
   async function remover(id:string){if(!confirm('Remover esta peca?'))return;await fetch(`/api/pecas/${id}`,{method:'DELETE'});fetchPecas();}
 
   function exportarCSV(){const data=view==='pecas'?pecasNivel:pecasFiltradas;const headers=['SKU','Peca','Marca','Compatibilidade','Categoria','Preco','Estoque','Status'];const grupos=new Map<string,Peca[]>();for(const p of data){const c=p.categoria.nome||'Sem categoria';if(!grupos.has(c))grupos.set(c,[]);grupos.get(c)!.push(p);}const cats=[...grupos.keys()].sort((a,b)=>a.localeCompare(b,'pt-BR'));const rows:any[]=[];for(const c of cats){rows.push([`=== ${c.toUpperCase()} ===`]);const itens=grupos.get(c)!.slice().sort((a,b)=>{const n=a.nome.localeCompare(b.nome,'pt-BR');return n!==0?n:a.codigo.localeCompare(b.codigo,'pt-BR');});for(const p of itens){rows.push([p.codigo,p.nome,p.marca||'-',p.compatibilidade||'-',p.categoria.nome,p.precoVenda.toLocaleString('pt-BR',{style:'currency',currency:'BRL'}),String(p.quantidade),p.quantidade<=p.estoqueMinimo?'BAIXO':'OK']);}}const csv=[headers,...rows].map(r=>r.map((c:any)=>`"${c}"`).join(',')).join('\n');const blob=new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='estoque-marquinho.csv';a.click();URL.revokeObjectURL(url);}
 
   const formatMoney=(v:number)=>v.toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+
+  // ACESSÓRIOS — categoria atual no formulário e se o tipo exige TAMANHO/GÊNERO
+  const catFormDona = categorias.find(c => c.id === form.categoriaId) || null;
+  const ehAcessorioDona = ehCategoriaAcessorios(catFormDona);
+  const mostrarTamanhoDona = ehAcessorioDona && tipoExigeTamanho(form.subcategoria);
+  const ehCapaceteDona = ehAcessorioDona && tipoEhCapacete(form.subcategoria);
+  const ehCapaChuvaDona = ehAcessorioDona && tipoEhCapaChuva(form.subcategoria);
 
   return (
     <div className="p-6 flex flex-col h-full">
@@ -291,7 +306,20 @@ export default function EstoquePage() {
             <div className="grid grid-cols-2 gap-4">
               <div className="col-span-2"><label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Nome</label><input value={form.nome} onChange={e=>setForm({...form,nome:e.target.value})} className="input-field mt-1.5"/></div>
               <div><label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">SKU / Codigo</label><input value={form.codigo} onChange={e=>setForm({...form,codigo:e.target.value})} className="input-field mt-1.5"/></div>
-              <div><label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Subcategoria</label><select value={form.subcategoria} onChange={e=>setForm({...form,subcategoria:e.target.value})} className="input-field mt-1.5"><option value="">Selecionar...</option>{subcategorias.map(s=>(<option key={s} value={s}>{s}</option>))}</select></div>
+              {ehAcessorioDona ? (
+                <div><label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Tipo de Acessorio</label><select value={form.subcategoria} onChange={e=>setForm({...form,subcategoria:e.target.value})} className="input-field mt-1.5"><option value="">Selecionar tipo...</option>{TIPOS_ACESSORIOS.map(t => <option key={t} value={t}>{t}</option>)}{form.subcategoria && !(TIPOS_ACESSORIOS as readonly string[]).includes(form.subcategoria) && <option value={form.subcategoria}>{form.subcategoria}</option>}</select></div>
+              ) : (
+                <div><label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Subcategoria</label><select value={form.subcategoria} onChange={e=>setForm({...form,subcategoria:e.target.value})} className="input-field mt-1.5"><option value="">Selecionar...</option>{subcategorias.map(s=>(<option key={s} value={s}>{s}</option>))}</select></div>
+              )}
+              {mostrarTamanhoDona && ehCapaceteDona && (
+                <div className="col-span-2"><label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Tamanho do Capacete</label><div className="flex flex-wrap gap-2 mt-1.5">{TAMANHOS_CAPACETE.map(t => <button key={t} type="button" onClick={()=>setTamanho(t)} className={`w-12 h-10 rounded-lg border-2 text-sm font-bold transition-all ${tamanho===t?'border-brand-600 bg-brand-600 text-white shadow-md shadow-brand-600/25':'border-slate-300 bg-white text-slate-700 hover:border-brand-400 hover:bg-brand-50'}`}>{t}</button>)}</div></div>
+              )}
+              {mostrarTamanhoDona && ehCapaChuvaDona && (
+                <div className="col-span-2 space-y-3">
+                  <div><label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Genero</label><div className="flex flex-wrap gap-2 mt-1.5">{GENEROS_CAPA_CHUVA.map(g => <button key={g} type="button" onClick={()=>setGeneroCapaChuva(g)} className={`px-4 h-10 rounded-lg border-2 text-xs font-bold tracking-wide transition-all ${generoCapaChuva===g?'border-brand-600 bg-brand-600 text-white shadow-md shadow-brand-600/25':'border-slate-300 bg-white text-slate-700 hover:border-brand-400 hover:bg-brand-50'}`}>{g}</button>)}</div></div>
+                  <div><label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Tamanho</label><div className="flex flex-wrap gap-2 mt-1.5">{TAMANHOS_CAPA_CHUVA.map(t => <button key={t} type="button" onClick={()=>setTamanho(t)} className={`w-12 h-10 rounded-lg border-2 text-sm font-bold transition-all ${tamanho===t?'border-brand-600 bg-brand-600 text-white shadow-md shadow-brand-600/25':'border-slate-300 bg-white text-slate-700 hover:border-brand-400 hover:bg-brand-50'}`}>{t}</button>)}</div></div>
+                </div>
+              )}
               <div><label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Marca</label><input value={form.marca} onChange={e=>setForm({...form,marca:e.target.value})} className="input-field mt-1.5" placeholder="ProTork, NGK..."/></div>
               <div><label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Compatibilidade</label><input value={form.compatibilidade} onChange={e=>setForm({...form,compatibilidade:e.target.value})} className="input-field mt-1.5" placeholder="Ex: CG 125 2000-2008"/></div>
               <div><label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Categoria</label><select value={form.categoriaId} onChange={e=>setForm({...form,categoriaId:e.target.value})} className="input-field mt-1.5"><option value="">Selecionar</option>{categorias.map(c=>(<option key={c.id} value={c.id}>{c.nome}</option>))}</select></div>

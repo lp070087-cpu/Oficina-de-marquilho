@@ -6,6 +6,7 @@ import CardProdutoPremium from '@/components/vitrine/CardProdutoPremium';
 import ListaProdutoPremium from '@/components/vitrine/ListaProdutoPremium';
 import FiltrosBarra from '@/components/vitrine/FiltrosBarra';
 import ComparadorVitrine from '@/components/vitrine/ComparadorVitrine';
+import LogoOficina from '@/components/LogoOficina';
 import { getClienteVitrine } from '@/lib/vitrine-session';
 
 const fm = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -88,7 +89,7 @@ export default function CatalogoContent() {
       <header className="bg-[#0D1117] text-white">
         <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
           <a href="/vitrine" className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-lg bg-brand-600 flex items-center justify-center"><span className="font-extrabold text-white text-xs">MP</span></div>
+            <LogoOficina className="w-9 h-9 rounded-lg bg-brand-600 flex items-center justify-center overflow-hidden" textClassName="font-extrabold text-white text-xs" />
             <span className="font-extrabold text-sm">Catálogo</span>
           </a>
           <div className="flex items-center gap-3 text-xs">

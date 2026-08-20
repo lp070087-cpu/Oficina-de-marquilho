@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
+import LogoOficina from '@/components/LogoOficina';
 
 const menuIcon = (d: string) => (
   <svg className="w-4 h-4 flex-shrink-0 opacity-80" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -68,9 +69,7 @@ export default function ClienteLayout({ children }: { children: React.ReactNode 
 
         <div className="px-5 py-5 border-b border-white/5">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-full bg-brand-600 flex items-center justify-center flex-shrink-0 shadow-lg shadow-brand-600/25">
-              <span className="text-white font-bold text-sm">MP</span>
-            </div>
+            <LogoOficina className="w-10 h-10 rounded-full bg-brand-600 flex items-center justify-center flex-shrink-0 shadow-lg shadow-brand-600/25 overflow-hidden" textClassName="text-white font-bold text-sm" />
             <div className="min-w-0">
               <p className="font-semibold text-sm leading-tight truncate">{cliente?.nome || 'Cliente'}</p>
               <p className="text-[10px] text-slate-400">Portal do Cliente</p>

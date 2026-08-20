@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { DADOS_OFICINA } from '@/lib/empresa';
+import LogoOficina from '@/components/LogoOficina';
 
 export default function RodapePremium() {
   const ano = new Date().getFullYear();
@@ -47,7 +48,7 @@ export default function RodapePremium() {
         <div className="grid grid-cols-2 md:grid-cols-5 gap-8">
           <div>
             <div className="flex items-center gap-2 mb-3">
-              <div className="w-9 h-9 rounded-lg bg-brand-600 flex items-center justify-center"><span className="font-extrabold text-white text-xs">MP</span></div>
+              <LogoOficina className="w-9 h-9 rounded-lg bg-brand-600 flex items-center justify-center overflow-hidden" textClassName="font-extrabold text-white text-xs" />
               <span className="font-extrabold text-white text-sm">Marquinho<br/><span className="text-xs text-slate-400 font-normal">Moto Peças</span></span>
             </div>
             <p className="text-xs">{DADOS_OFICINA.institucional}</p>

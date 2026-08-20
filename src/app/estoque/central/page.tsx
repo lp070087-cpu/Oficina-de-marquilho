@@ -6,6 +6,7 @@ import EstoqueCategorias from '@/components/estoque/EstoqueCategorias';
 import { useEstoqueRefresh } from '@/lib/estoque-events';
 import { mascaraMoeda, parseMoeda, fmtMoeda } from '@/lib/moeda-utils';
 import { DADOS_EMPRESA } from '@/lib/imprimirNotaServico';
+import { TIPOS_ACESSORIOS, TAMANHOS_CAPACETE, TAMANHOS_CAPA_CHUVA, GENEROS_CAPA_CHUVA, ehCategoriaAcessorios, tipoExigeTamanho, tipoExigeGenero, tipoEhCapacete, tipoEhCapaChuva } from '@/lib/peca-acessorios';
 
 type CardFiltro = 'todos' | 'baixo' | 'zerado' | 'naLoja' | 'unidades';
 
@@ -14,7 +15,7 @@ interface Peca {
   id: string; nome: string; codigo: string; codigoBarras?: string;
   precoVenda: number; precoCusto: number; quantidade: number; quantidadeLoja: number;
   estoqueMinimo: number; marca?: string; compatibilidade?: string; localizacao?: string;
-  subcategoria?: string; categoria: { nome: string; id: string; slug: string };
+  subcategoria?: string; tamanho?: string | null; genero?: string | null; categoria: { nome: string; id: string; slug: string };
 }
 
 type SortField = 'nome' | 'codigo' | 'quantidade' | 'quantidadeLoja' | 'precoVenda';
@@ -58,6 +59,11 @@ export default function EstoqueCentralPage() {
     estoqueMinimo: '5', marca: '', compatibilidade: '', localizacao: '',
     subcategoria: '', categoriaId: '', descricao: '', fornecedor: '',
   });
+  // Tamanho do acessório (CAPACETE 54-64 ou CAPA DE CHUVA P/M/G/GG).
+  // Seleção ÚNICA — apenas 1 tamanho por cadastro. Estado SEPARADO de form.
+  const [tamanho, setTamanho] = useState('');
+  // Gênero da CAPA DE CHUVA (ACESSÓRIOS→CAPA DE CHUVA). Estado SEPARADO de form.
+  const [generoCapaChuva, setGeneroCapaChuva] = useState('');
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
   // Export modal
@@ -220,6 +226,8 @@ export default function EstoqueCentralPage() {
 
   function abrirForm(peca?: Peca) {
     setFormErrors({});
+    setTamanho(peca?.tamanho || '');
+    setGeneroCapaChuva(peca?.genero || '');
     if (peca) {
       setForm({
         nome: peca.nome, codigo: peca.codigo, codigoBarras: peca.codigoBarras || '',
@@ -268,6 +276,8 @@ export default function EstoqueCentralPage() {
       quantidade: Number(form.quantidade) || 0,
       quantidadeLoja: Number(form.quantidadeLoja) || 0,
       estoqueMinimo: Number(form.estoqueMinimo) || 5,
+      tamanho: tipoExigeTamanho(form.subcategoria) ? tamanho : null,
+      genero: tipoExigeGenero(form.subcategoria) ? generoCapaChuva : null,
     };
 
     const url = modal.peca ? `/api/pecas/${modal.peca.id}` : '/api/pecas';
@@ -386,7 +396,14 @@ export default function EstoqueCentralPage() {
   }
 
   const fm = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
-  
+
+  // ACESSÓRIOS — categoria atual no formulário e se o tipo exige TAMANHO/GÊNERO
+  const catForm = categorias.find(c => c.id === form.categoriaId) || null;
+  const ehAcessorio = ehCategoriaAcessorios(catForm);
+  const mostrarTamanho = ehAcessorio && tipoExigeTamanho(form.subcategoria);
+  const ehCapacete = ehAcessorio && tipoEhCapacete(form.subcategoria);
+  const ehCapaChuva = ehAcessorio && tipoEhCapaChuva(form.subcategoria);
+
   function sortIcon(field: SortField) {
     const asc = sortField === field && sortDir === 'asc';
     const desc = sortField === field && sortDir === 'desc';
@@ -778,10 +795,92 @@ export default function EstoqueCentralPage() {
                 {formErrors.categoriaId && <p className="text-[10px] text-red-500 mt-1">{formErrors.categoriaId}</p>}
               </div>
 
-              <div>
-                <label className="text-xs font-semibold text-slate-600 uppercase">Subcategoria</label>
-                <input value={form.subcategoria} onChange={e => setForm({ ...form, subcategoria: e.target.value })} className="input-field mt-1.5 text-xs" placeholder="Ex: Pastilhas"/>
-              </div>
+              {ehAcessorio ? (
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 uppercase">Tipo de Acessorio</label>
+                  <select
+                    value={form.subcategoria}
+                    onChange={e => setForm({ ...form, subcategoria: e.target.value })}
+                    className="input-field mt-1.5 text-xs"
+                  >
+                    <option value="">Selecionar tipo...</option>
+                    {TIPOS_ACESSORIOS.map(t => <option key={t} value={t}>{t}</option>)}
+                    {form.subcategoria && !(TIPOS_ACESSORIOS as readonly string[]).includes(form.subcategoria) && <option value={form.subcategoria}>{form.subcategoria}</option>}
+                  </select>
+                </div>
+              ) : (
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 uppercase">Subcategoria</label>
+                  <input value={form.subcategoria} onChange={e => setForm({ ...form, subcategoria: e.target.value })} className="input-field mt-1.5 text-xs" placeholder="Ex: Pastilhas"/>
+                </div>
+              )}
+
+              {/* CAPACETE — TAMANHO 54/56/58/60/62/64 (quadrados selecionáveis) */}
+              {mostrarTamanho && ehCapacete && (
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 uppercase">Tamanho do Capacete</label>
+                  <div className="flex flex-wrap gap-2 mt-1.5">
+                    {TAMANHOS_CAPACETE.map(t => (
+                      <button
+                        type="button"
+                        key={t}
+                        onClick={() => setTamanho(t)}
+                        className={`w-12 h-10 rounded-lg border-2 text-sm font-bold transition-all ${
+                          tamanho === t
+                            ? 'border-brand-600 bg-brand-600 text-white shadow-md shadow-brand-600/25'
+                            : 'border-slate-300 bg-white text-slate-700 hover:border-brand-400 hover:bg-brand-50'
+                        }`}
+                      >
+                        {t}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* CAPA DE CHUVA — GÊNERO + TAMANHO (P/M/G/GG) */}
+              {mostrarTamanho && ehCapaChuva && (
+                <div className="space-y-3">
+                  <div>
+                    <label className="text-xs font-semibold text-slate-600 uppercase">Genero</label>
+                    <div className="flex flex-wrap gap-2 mt-1.5">
+                      {GENEROS_CAPA_CHUVA.map(g => (
+                        <button
+                          type="button"
+                          key={g}
+                          onClick={() => setGeneroCapaChuva(g)}
+                          className={`px-4 h-10 rounded-lg border-2 text-xs font-bold tracking-wide transition-all ${
+                            generoCapaChuva === g
+                              ? 'border-brand-600 bg-brand-600 text-white shadow-md shadow-brand-600/25'
+                              : 'border-slate-300 bg-white text-slate-700 hover:border-brand-400 hover:bg-brand-50'
+                          }`}
+                        >
+                          {g}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs font-semibold text-slate-600 uppercase">Tamanho</label>
+                    <div className="flex flex-wrap gap-2 mt-1.5">
+                      {TAMANHOS_CAPA_CHUVA.map(t => (
+                        <button
+                          type="button"
+                          key={t}
+                          onClick={() => setTamanho(t)}
+                          className={`w-12 h-10 rounded-lg border-2 text-sm font-bold transition-all ${
+                            tamanho === t
+                              ? 'border-brand-600 bg-brand-600 text-white shadow-md shadow-brand-600/25'
+                              : 'border-slate-300 bg-white text-slate-700 hover:border-brand-400 hover:bg-brand-50'
+                          }`}
+                        >
+                          {t}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <div>
                 <label className="text-xs font-semibold text-slate-600 uppercase">Marca</label>

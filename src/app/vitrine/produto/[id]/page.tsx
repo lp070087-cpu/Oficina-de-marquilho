@@ -1,6 +1,6 @@
 import { Metadata } from 'next';
 import prisma from '@/lib/prisma';
-import { VITRINE_VISIBILITY, publicarPeca, WHATSAPP_LOJA, precoPublico } from '@/lib/vitrine-utils';
+import { VITRINE_VISIBILITY, publicarPeca, WHATSAPP_LOJA, precoPublico, rotuloAtributosAcessorio } from '@/lib/vitrine-utils';
 import CardProdutoPremium from '@/components/vitrine/CardProdutoPremium';
 import GaleriaPremium from '@/components/vitrine/GaleriaPremium';
 import AdicionarAoCarrinho from '@/components/vitrine/AdicionarAoCarrinho';
@@ -10,6 +10,7 @@ import FormasPagamento from '@/components/vitrine/FormasPagamento';
 import FretePrazo from '@/components/vitrine/FretePrazo';
 import CompartilharProduto from '@/components/vitrine/CompartilharProduto';
 import RegistrarVisualizacao from '@/components/vitrine/RegistrarVisualizacao';
+import LogoOficina from '@/components/LogoOficina';
 
 const fm = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
@@ -77,7 +78,7 @@ export default async function ProdutoPage({ params }: { params: Promise<{ id: st
   const storeDomain = process.env.NEXT_PUBLIC_STORE_DOMAIN || 'vitrine.marquinhomotopeças.com';
   const baseUrl = `https://${storeDomain}`;
   const url = `${baseUrl}/vitrine/produto/${peca.id}`;
-  const duvidasWhatsApp = `https://wa.me/${WHATSAPP_LOJA}?text=${encodeURIComponent(`Olá! Tenho uma dúvida sobre o produto ${peca.nome} (${peca.codigo}).`)}`;
+  const duvidasWhatsApp = `https://wa.me/${WHATSAPP_LOJA}?text=${encodeURIComponent(`Olá! Tenho uma dúvida sobre o produto ${peca.nome}.`)}`;
 
   // Garantia padrão
   const garantia = '3 meses de garantia contra defeitos de fabricação';
@@ -90,7 +91,7 @@ export default async function ProdutoPage({ params }: { params: Promise<{ id: st
       <header className="bg-[#0D1117] text-white">
         <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
           <a href="/vitrine" className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-lg bg-brand-600 flex items-center justify-center"><span className="font-extrabold text-white text-xs">MP</span></div>
+            <LogoOficina className="w-9 h-9 rounded-lg bg-brand-600 flex items-center justify-center overflow-hidden" textClassName="font-extrabold text-white text-xs" />
             <span className="hidden sm:inline font-extrabold text-sm">Marquinho</span>
           </a>
           <div className="flex items-center gap-3 text-xs">
@@ -126,8 +127,6 @@ export default async function ProdutoPage({ params }: { params: Promise<{ id: st
             <h1 className="text-2xl font-extrabold text-slate-800 mb-2">{peca.nome}</h1>
             <div className="flex items-center gap-2 mb-4">
               <CompartilharProduto nome={peca.nome} url={url} />
-              <span className="text-slate-300 text-xs">·</span>
-              <span className="text-[10px] text-slate-400 font-mono">{peca.codigo}</span>
             </div>
 
             {/* Preço */}
@@ -142,8 +141,6 @@ export default async function ProdutoPage({ params }: { params: Promise<{ id: st
             {temPrecoVitrineDiferente && !temDesconto && (
               <p className="text-xs text-brand-700 font-semibold mb-1">Preço especial da Vitrine (preço na loja: {fm(precoBase)})</p>
             )}
-            <p className="text-xs text-emerald-600 font-semibold mb-4">PIX {fm(precoAtual * 0.95)} (5% de desconto)</p>
-
             {/* Disponibilidade (sem expor estoque central) */}
             <div className="flex items-center gap-2 mb-4">
               {disponivel ? (
@@ -158,8 +155,6 @@ export default async function ProdutoPage({ params }: { params: Promise<{ id: st
                 </>
               )}
             </div>
-
-            {peca.codigoBarras && <p className="text-[10px] text-slate-400 mb-4">Código de Barras: {peca.codigoBarras}</p>}
 
             {/* Botão Comprar */}
             <div className="mb-4">
@@ -202,13 +197,15 @@ export default async function ProdutoPage({ params }: { params: Promise<{ id: st
         {/* ===== TABS DE INFORMAÇÕES ===== */}
         <div className="space-y-4 mb-12">
 
-          {/* Descrição */}
-          {peca.descricao && (
-            <div className="bg-white rounded-xl border border-slate-200 p-6">
-              <h2 className="text-lg font-extrabold text-slate-800 mb-3">📋 Descrição</h2>
+          {/* Descrição — AJUSTE 8: se vazia, texto neutro sem inventar specs */}
+          <div className="bg-white rounded-xl border border-slate-200 p-6">
+            <h2 className="text-lg font-extrabold text-slate-800 mb-3">📋 Descrição</h2>
+            {peca.descricao ? (
               <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-line">{peca.descricao}</p>
-            </div>
-          )}
+            ) : (
+              <p className="text-sm text-slate-500 leading-relaxed">Consulte compatibilidade e disponibilidade para sua moto.</p>
+            )}
+          </div>
 
           {/* Especificações Técnicas */}
           <div className="bg-white rounded-xl border border-slate-200 p-6">
@@ -222,14 +219,10 @@ export default async function ProdutoPage({ params }: { params: Promise<{ id: st
                 <span className="text-slate-400">Categoria</span>
                 <span className="font-medium text-slate-700">{peca.categoria.nome}</span>
               </div>
-              <div className="flex justify-between py-1.5 border-b border-slate-50">
-                <span className="text-slate-400">Código</span>
-                <span className="font-mono font-medium text-slate-700">{peca.codigo}</span>
-              </div>
-              {peca.codigoBarras && (
+              {rotuloAtributosAcessorio(peca) && (
                 <div className="flex justify-between py-1.5 border-b border-slate-50">
-                  <span className="text-slate-400">Código de Barras</span>
-                  <span className="font-mono font-medium text-slate-700">{peca.codigoBarras}</span>
+                  <span className="text-slate-400">{peca.genero ? 'Gênero / Tamanho' : 'Tamanho'}</span>
+                  <span className="font-medium text-slate-700">{rotuloAtributosAcessorio(peca)}</span>
                 </div>
               )}
               <div className="flex justify-between py-1.5 border-b border-slate-50">

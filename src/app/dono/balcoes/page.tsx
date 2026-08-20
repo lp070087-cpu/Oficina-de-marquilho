@@ -40,7 +40,9 @@ export default function BalcoesPage() {
   async function salvar() {
     if (!form.name||!form.email) { setMsg('Preencha nome e email.'); return; }
     if (editando) {
-      const body:any = { name:form.name, username:form.username||null, tipoBalcao:form.tipoBalcao||null };
+      // Ajuste 3/5/6 — email alterado de verdade: normaliza, envia no body,
+      // e o PUT valida duplicidade no servidor.
+      const body:any = { name:form.name, email:form.email.trim().toLowerCase(), username:form.username||null, tipoBalcao:form.tipoBalcao||null };
       if (form.password) body.password = form.password;
       const res = await fetch(`/api/usuarios/${editando.id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
       if (res.ok) { setModal(false); fetchUsers(); }
@@ -142,7 +144,7 @@ export default function BalcoesPage() {
             {msg&&<div className="bg-red-50 border border-red-200 text-red-700 px-4 py-2.5 rounded-xl text-xs mb-4">{msg}</div>}
             <div className="space-y-4">
               <div><label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Nome *</label><input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} className="input-field mt-1.5" placeholder="Ex: Joao Silva" autoFocus/></div>
-              <div><label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Email de login *</label><input value={form.email} onChange={e=>setForm({...form,email:e.target.value})} className="input-field mt-1.5" placeholder="email@exemplo.com" disabled={!!editando}/></div>
+              <div><label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Email de login *</label><input value={form.email} onChange={e=>setForm({...form,email:e.target.value})} className="input-field mt-1.5" placeholder="email@exemplo.com" autoComplete="off"/></div>
               <div><label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Usuario (opcional)</label><input value={form.username} onChange={e=>setForm({...form,username:e.target.value})} className="input-field mt-1.5" placeholder="Nome de usuario"/></div>
               <div>
                 <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Perfil *</label>

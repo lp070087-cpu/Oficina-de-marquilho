@@ -56,6 +56,9 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       marca: has(body.marca) ? body.marca : existing.marca,
       compatibilidade: has(body.compatibilidade) ? body.compatibilidade : existing.compatibilidade,
       categoriaId: has(body.categoriaId) ? body.categoriaId : existing.categoriaId,
+      // Tamanho/Gênero do acessório: se enviado, grava (ou limpa com ''); se ausente, preserva.
+      tamanho: has(body.tamanho) ? (body.tamanho || null) : existing.tamanho,
+      genero: has(body.genero) ? (body.genero || null) : existing.genero,
     };
 
     // Preços: somente DONO/ESTOQUE podem alterar. BALCAO/MECANICO não.

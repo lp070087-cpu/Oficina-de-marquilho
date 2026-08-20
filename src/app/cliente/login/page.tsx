@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import LogoOficina from '@/components/LogoOficina';
 
 const fm = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
@@ -67,9 +68,7 @@ export default function ClienteLoginPage() {
       <div className="w-full max-w-md">
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="w-14 h-14 rounded-xl bg-brand-600 flex items-center justify-center mx-auto mb-3 shadow-lg shadow-brand-600/20">
-            <span className="text-white font-extrabold text-lg">MP</span>
-          </div>
+          <LogoOficina className="w-14 h-14 rounded-xl bg-brand-600 flex items-center justify-center mx-auto mb-3 shadow-lg shadow-brand-600/20 overflow-hidden" textClassName="text-white font-extrabold text-lg" />
           <h1 className="text-xl font-extrabold text-slate-800">{modo === 'login' ? 'Entrar' : 'Criar Conta'}</h1>
           <p className="text-xs text-slate-400 mt-1">Portal do Cliente — Marquinho Moto Peças</p>
         </div>

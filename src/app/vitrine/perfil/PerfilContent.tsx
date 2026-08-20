@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { getClienteVitrine, clearClienteVitrine } from '@/lib/vitrine-session';
+import LogoOficina from '@/components/LogoOficina';
 import { DADOS_OFICINA } from '@/lib/empresa';
 
 const fm = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
@@ -83,7 +84,7 @@ export default function PerfilContent() {
       <header className="bg-[#0D1117] text-white">
         <div className="max-w-5xl mx-auto px-4 h-16 flex items-center justify-between">
           <a href="/vitrine" className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-lg bg-brand-600 flex items-center justify-center"><span className="font-extrabold text-white text-xs">MP</span></div>
+            <LogoOficina className="w-9 h-9 rounded-lg bg-brand-600 flex items-center justify-center overflow-hidden" textClassName="font-extrabold text-white text-xs" />
             <span className="font-extrabold text-sm">Meu Perfil</span>
           </a>
           <span className="text-xs text-slate-400">{cliente.nome}</span>
@@ -170,7 +171,7 @@ export default function PerfilContent() {
                             <div key={i} className="flex items-center justify-between text-xs py-1.5 border-b border-slate-50 last:border-0">
                               <div>
                                 <p className="font-medium text-slate-700">{item.peca.nome}</p>
-                                <p className="text-[10px] text-slate-400">{item.peca.codigo} · {item.quantidade}x {fm(Number(item.precoVendido))}</p>
+                                <p className="text-[10px] text-slate-400">{item.quantidade}x {fm(Number(item.precoVendido))}</p>
                               </div>
                               <span className="font-bold text-slate-700">{fm(Number(item.subtotal))}</span>
                             </div>
@@ -265,7 +266,7 @@ export default function PerfilContent() {
                   <div className="space-y-1 mb-3">
                     {(o.itens || []).map((item: any, i: number) => (
                       <div key={i} className="flex items-center justify-between text-xs">
-                        <span className="text-slate-700">{item.peca.nome} <span className="text-slate-400">({item.peca.codigo})</span></span>
+                        <span className="text-slate-700">{item.peca.nome}</span>
                         <span className="text-slate-500">{item.quantidade}x {fm(Number(item.precoUnitario))}</span>
                       </div>
                     ))}
