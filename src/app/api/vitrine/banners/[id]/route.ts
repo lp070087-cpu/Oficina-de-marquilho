@@ -16,12 +16,13 @@ const CAMPOS_PERMITIDOS = [
 ] as const;
 
 // DELETE — remover banner (admin)
-export async function DELETE(req: NextRequest) {
+// Rota dinâmica: o id vem do SEGMENTO da URL (/api/vitrine/banners/:id), não da query string.
+export async function DELETE(_req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const session = await getSession();
   if (!session || session.role !== 'DONO') return NextResponse.json({ error: 'Acesso negado' }, { status: 403 });
 
   try {
-    const id = req.nextUrl.searchParams.get('id');
+    const { id } = await ctx.params;
     if (!id) return NextResponse.json({ error: 'id obrigatório' }, { status: 400 });
     const banner = await prisma.bannerCarrossel.findUnique({ where: { id } });
     // Migração Vercel Blob (2026-08-18): se a URL pertencer ao Blob, remover o arquivo remoto.
@@ -42,13 +43,15 @@ export async function DELETE(req: NextRequest) {
 }
 
 // PUT — atualizar banner (admin)
-export async function PUT(req: NextRequest) {
+// Rota dinâmica: o id vem do SEGMENTO da URL (/api/vitrine/banners/:id).
+export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string }> }) {
   const session = await getSession();
   if (!session || session.role !== 'DONO') return NextResponse.json({ error: 'Acesso negado' }, { status: 403 });
 
   try {
+    const { id } = await ctx.params;
     const data = await req.json();
-    const { id, ...rest } = data;
+    const { id: _bodyId, ...rest } = data;
     if (!id) return NextResponse.json({ error: 'id obrigatório' }, { status: 400 });
 
     // Só atualiza campos da whitelist — nunca mass-assignment.

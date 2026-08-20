@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
-import { VITRINE_VISIBILITY, compararCategoriasVitrine } from '@/lib/vitrine-utils';
+import { VITRINE_VISIBILITY, compararCategoriasVitrine, slugDeNome, normalizarNome } from '@/lib/vitrine-utils';
 
 /**
  * GET — categorias da Vitrine PÚBLICA (menu + grid de categorias).
@@ -41,13 +41,64 @@ export async function GET() {
         where: { ...VITRINE_VISIBILITY, categoriaId: { in: idsSubs } },
       });
       if (count === 0) continue;
+
+      // AJUSTE 4: SÓ inclui subcategorias que tenham PELO MENOS 1 produto VISÍVEL.
+      // Subcategoria sem produto (ou com produto invisível) é escondida dos filtros.
+      // `id` é incluído para permitir filtro exato por subcategoria (DONA + catálogo).
+      //
+      // DUAS FONTES de subcategoria (AJUSTE 1/4):
+      //   1. Hierarquia real — `Categoria.parentId` (categoria filha cadastrada no painel);
+      //   2. Valor da string `Peca.subcategoria` (ex.: "Capacetes", "Luvas") dos produtos
+      //      que apontam DIRETO para esta categoria top-level (como o seed grava acessórios).
+      //      Esses são agrupados em chips "Tipo" com slug derivado (prefixo `tipo:`),
+      //      para NUNCA colidir com slugs de categorias reais.
+      const subsVisiveis: any[] = [];
+      for (const s of c.subcategorias) {
+        const nSub = await prisma.peca.count({
+          where: { ...VITRINE_VISIBILITY, categoriaId: s.id },
+        });
+        if (nSub > 0) subsVisiveis.push({ id: s.id, nome: s.nome, slug: s.slug, totalProdutos: nSub });
+      }
+
+      // Tipos derivados de Peca.subcategoria (visíveis) dentro desta categoria.
+      const tipos = await prisma.peca.groupBy({
+        by: ['subcategoria'],
+        where: {
+          ...VITRINE_VISIBILITY,
+          subcategoria: { not: null },
+          categoriaId: { in: [c.id, ...c.subcategorias.map((s: any) => s.id)] },
+        },
+        _count: { _all: true },
+      });
+      for (const t of tipos) {
+        const nome = (t.subcategoria || '').trim();
+        if (!nome) continue;
+        // Evita duplicar quando a subcategoria real tem o MESMO nome do tipo (ex.: nome
+        // idêntico) — nesse caso o chip da subcategoria real já cobre.
+        if (subsVisiveis.some(s => normalizarNome(s.nome) === normalizarNome(nome))) continue;
+        subsVisiveis.push({
+          id: `tipo:${slugDeNome(nome)}`,           // id sintético (não é categoria)
+          nome,
+          slug: `tipo:${slugDeNome(nome)}`,         // slug sintético com prefixo seguro
+          totalProdutos: t._count._all,
+          tipo: true,                               // flag: é tipo de acessório, não categoria
+        });
+      }
+
+      // Ordena subcategorias: primeiro as hierárquicas (ordem real), depois os tipos (A-Z).
+      subsVisiveis.sort((a: any, b: any) => {
+        const ta = a.tipo ? 1 : 0, tb = b.tipo ? 1 : 0;
+        if (ta !== tb) return ta - tb;
+        return normalizarNome(a.nome).localeCompare(normalizarNome(b.nome), 'pt-BR');
+      });
+
       resultado.push({
         id: c.id,
         nome: c.nome,
         slug: c.slug,
         icone: c.icone || null,
         totalProdutos: count,
-        subcategorias: c.subcategorias.map((s: any) => ({ nome: s.nome, slug: s.slug })),
+        subcategorias: subsVisiveis,
       });
     }
 

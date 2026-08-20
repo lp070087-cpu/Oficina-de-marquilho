@@ -24,7 +24,18 @@ export async function GET(req: NextRequest) {
     if (q) {
       andConditions.push(...buildBuscaPorPalavras(q, ['nome', 'codigo', 'codigoBarras', 'marca', 'descricao', 'subcategoria', 'compatibilidade', 'descricaoCurta', 'localizacao']));
     }
-    if (cat) where.categoriaId = cat;
+    // EXPANSÃO DE SUBCATEGORIAS (AJUSTE 2): quando `categoria` é uma categoria top-level,
+    // inclui também as subcategorias filhas — as peças apontam para a categoria folha.
+    // Se `categoria` for uma subcategoria (folha), a lista de subs é vazia → filtro exato preservado.
+    if (cat) {
+      const catData = await prisma.categoria.findUnique({
+        where: { id: cat },
+        select: { id: true, subcategorias: { select: { id: true } } },
+      });
+      where.categoriaId = catData
+        ? { in: [catData.id, ...catData.subcategorias.map((s: any) => s.id)] }
+        : cat;
+    }
     if (barcode) where.codigoBarras = barcode;
     if (baixo) {
       const baixas = await prisma.$queryRaw<[{ id: string }]>`SELECT id FROM "Peca" WHERE ativo = true AND "estoqueMinimo" > 0 AND quantidade < "estoqueMinimo"`;
@@ -52,6 +63,9 @@ export async function GET(req: NextRequest) {
       orderBy: { nome: 'asc' },
       take: 5000,
     });
+    // AJUSTE 1: garante `subcategoria` sempre presente no payload (os clientes da DONA
+    // usam o valor para derivar os chips de tipo quando a categoria não tem filhos).
+    for (const p of pecas) (p as any).subcategoria = p.subcategoria || null;
     return NextResponse.json(pecas);
   } catch (e: any) { return NextResponse.json({ error: e.message }, { status: 500 }); }
 }

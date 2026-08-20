@@ -9,6 +9,7 @@ export async function GET(req: NextRequest) {
     const categoria = searchParams.get('categoria');
     const marca = searchParams.get('marca');
     const compatibilidade = searchParams.get('compatibilidade');
+    const subcategoriaParam = searchParams.get('subcategoria');
     const precoMin = searchParams.get('precoMin');
     const precoMax = searchParams.get('precoMax');
     const promocao = searchParams.get('promocao') === '1' || searchParams.get('promocao') === 'true';
@@ -25,7 +26,35 @@ export async function GET(req: NextRequest) {
     if (q) {
       where.AND = buildBuscaVitrine(q);
     }
-    if (categoria) where.categoria = { slug: categoria };
+    // EXPANSÃO DE SUBCATEGORIAS (AJUSTE 2/3): quando `categoria` é uma categoria top-level,
+    // inclui também as subcategorias filhas — produtos que apontam para a categoria folha
+    // aparecem ao navegar a categoria pai. Se for uma subcategoria (folha), o filtro é exato.
+    if (categoria) {
+      const catSel = await prisma.categoria.findUnique({
+        where: { slug: categoria },
+        select: { id: true, subcategorias: { select: { id: true } } },
+      });
+      if (catSel && catSel.subcategorias.length > 0) {
+        where.categoria = { id: { in: [catSel.id, ...catSel.subcategorias.map((s: any) => s.id)] } };
+      } else {
+        where.categoria = { slug: categoria };
+      }
+    }
+    // Filtro de SUBCATEGORIA (AJUSTE 1/4). Duas fontes:
+    //   - slug com prefixo `tipo:` → valor da string Peca.subcategoria (ex.: "Capacetes");
+    //   - slug normal → subcategoria real (categoria folha) → filtro por categoriaId exato.
+    if (subcategoriaParam) {
+      if (subcategoriaParam.startsWith('tipo:')) {
+        const nome = decodeURIComponent(subcategoriaParam.replace(/^tipo:/, ''));
+        where.subcategoria = { equals: nome, mode: 'insensitive' };
+      } else {
+        const subCat = await prisma.categoria.findUnique({
+          where: { slug: subcategoriaParam },
+          select: { id: true },
+        });
+        if (subCat) where.categoria = { id: subCat.id };
+      }
+    }
     if (marca) where.marca = { equals: marca, mode: 'insensitive' };
     if (compatibilidade) {
       where.AND = where.AND || [];

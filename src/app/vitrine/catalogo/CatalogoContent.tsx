@@ -37,9 +37,9 @@ export default function CatalogoContent() {
       const params = new URLSearchParams();
       const q = searchParams.get('q');
       if (q) params.set('q', q);
-      // Subcategoria selecionada → usa o slug da subcategoria (que é a categoria folha
-      // onde a peça realmente aponta). Se não, usa a categoria principal.
-      if (filtros.subcategoria) params.set('categoria', filtros.subcategoria);
+      // Subcategoria selecionada → parâmetro próprio `subcategoria` (a API distingue
+      // categoria real de tipo de acessório via prefixo `tipo:`). Se não, usa a categoria.
+      if (filtros.subcategoria) params.set('subcategoria', filtros.subcategoria);
       else if (filtros.categoria) params.set('categoria', filtros.categoria);
       if (filtros.marca) params.set('marca', filtros.marca);
       if (filtros.compatibilidade) params.set('compatibilidade', filtros.compatibilidade);

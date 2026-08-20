@@ -5,11 +5,13 @@ import { VITRINE_VISIBILITY, publicarPeca } from '@/lib/vitrine-utils';
 
 export async function GET() {
   try {
+    // AJUSTE 3: SEM `take` cortando produtos — todos os produtos elegíveis (regra
+    // oficial ativo && quantidadeLoja>0 && precoVenda>0) são retornados, para que as
+    // seções da home (destaques/ofertas/recém-adicionados) não percam itens.
     const pecas = await prisma.peca.findMany({
       where: { ...VITRINE_VISIBILITY },
       include: { categoria: { select: { nome: true, slug: true } } },
       orderBy: { nome: 'asc' },
-      take: 200,
     });
     return NextResponse.json(pecas.map(publicarPeca));
   } catch (e: any) {

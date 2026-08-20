@@ -335,8 +335,8 @@ export default function EstoqueCentralPage() {
     }
     const nomesCat = [...grupos.keys()].sort((a, b) => a.localeCompare(b, 'pt-BR'));
 
-    const colunasBaixo = ['Categoria','Cod.Int.','Cod.Barras','Nome','Marca','Qtd','Min','PREÇO VENDA','PREÇO CUSTO','PREÇO CUSTO A','PREÇO CUSTO B','PREÇO CUSTO C','PREÇO CUSTO D','OBS'];
-    const colunasTodos = ['Categoria','Cod.Int.','Cod.Barras','Nome','Marca','Qtd','Min','PREÇO DE VENDA','PREÇO DE CUSTO','OBS'];
+    const colunasBaixo = ['Categoria','Cod.Int.','Cod.Barras','Nome','Marca','Compatibilidade','Tamanho','Genero','Qtd','Min','PREÇO VENDA','PREÇO CUSTO','PREÇO CUSTO A','PREÇO CUSTO B','PREÇO CUSTO C','PREÇO CUSTO D','OBS'];
+    const colunasTodos = ['Categoria','Cod.Int.','Cod.Barras','Nome','Marca','Compatibilidade','Tamanho','Genero','Qtd','Min','PREÇO DE VENDA','PREÇO DE CUSTO','OBS'];
     const colunas = tipo === 'baixo' ? colunasBaixo : colunasTodos;
     const colspan = colunas.length;
 
@@ -354,6 +354,9 @@ export default function EstoqueCentralPage() {
           <td>${p.codigoBarras || ''}</td>
           <td>${p.nome}</td>
           <td>${p.marca || ''}</td>
+          <td>${p.compatibilidade || ''}</td>
+          <td>${p.tamanho || ''}</td>
+          <td>${p.genero || ''}</td>
           <td style="text-align:center">${p.quantidade}</td>
           <td style="text-align:center">${p.estoqueMinimo}</td>`;
         const precoVenda = fm(Number(p.precoVenda) || 0);

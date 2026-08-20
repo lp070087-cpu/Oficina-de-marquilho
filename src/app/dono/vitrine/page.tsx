@@ -5,12 +5,13 @@ import AdminProdutoCard from '@/components/vitrine/AdminProdutoCard';
 import AdminVitrine from '@/components/vitrine/AdminVitrinePremium';
 import LogoOficina from '@/components/LogoOficina';
 
-interface Categoria { id: string; nome: string; slug: string; }
+interface Categoria { id: string; nome: string; slug: string; subcategorias?: { id: string; nome: string; slug: string }[]; }
 interface Peca {
   id: string; nome: string; codigo: string; precoVenda: number; precoOferta?: number; precoVitrine?: number;
   quantidade: number; estoqueMinimo: number; vitrine: boolean; destaque: boolean; oferta: boolean;
   quantidadeLoja?: number; ativo?: boolean;
   marca?: string; compatibilidade?: string; imagemUrl?: string; descricaoCurta?: string;
+  subcategoria?: string | null;
   categoria: { nome: string; slug: string; id: string };
 }
 // Correção 1: regra oficial de visibilidade (ativo && quantidadeLoja>0 && precoVenda>0).
@@ -19,14 +20,10 @@ interface Orcamento { id: string; numero: number; status: string; total: number;
 
 interface PedidoLoja { id: string; numero: number; status: string; total: number; formaPagamento?: string; clienteNome?: string; cliente?: { nome: string; telefone: string }; retiradaNome?: string; retiradaTelefone?: string; qrCode?: string; createdAt: string; retiradaEm?: string; itens: { quantidade: number; precoVendido: number; peca: { nome: string; codigo: string } }[]; }
 
-const menuCategorias = [
-  { label: 'Acessorios', slug: 'acessorios' }, { label: 'Pecas para Motos', slug: 'motor' },
-  { label: 'Pneus', slug: 'rodas-e-pneus' }, { label: 'Oleos', slug: 'oleos-e-fluidos' },
-  { label: 'Eletrica', slug: 'eletrica' }, { label: 'Freios', slug: 'freios' },
-  { label: 'Suspensao', slug: 'suspensao' }, { label: 'Transmissao', slug: 'transmissao' },
-  { label: 'Carroceria', slug: 'carroceria' }, { label: 'Escapamento', slug: 'escapamento' },
-  { label: 'Filtros', slug: 'filtros' }, { label: 'Cabos', slug: 'cabos-e-comandos' },
-];
+// AJUSTE 1/3: o menu da DONA é 100% data-driven (deriva de /api/categorias, que inclui
+// as subcategorias reais). Nada hardcoded — categorias novas aparecem automaticamente.
+// NOTA: /api/categorias é o catálogo ADMIN completo (não filtra por produtos visíveis);
+// o filtro "só categoria com produto" vale para a VITRINE PÚBLICA (/api/vitrine/categorias).
 
 export default function VitrineManagePage() {
   const [pecas, setPecas] = useState<Peca[]>([]);
@@ -37,6 +34,8 @@ export default function VitrineManagePage() {
   const [tab, setTab] = useState<'vitrine'|'orcamentos'|'pedidos_loja'|'admin_premium'>('vitrine');
   const [copiado, setCopiado] = useState(false);
   const [catAtiva, setCatAtiva] = useState('');
+  // AJUSTE 1: subcategoria selecionada (filtro rápido na DONA).
+  const [subcatAtiva, setSubcatAtiva] = useState('');
   const [uploading, setUploading] = useState('');
   const [editandoBanner, setEditandoBanner] = useState(false);
   // Item 3/4 — editor de banner POR IMAGEM (Vercel Blob). Desktop ~1600x400 · Mobile ~600x300.
@@ -54,6 +53,8 @@ export default function VitrineManagePage() {
   const [salvoMsg, setSalvoMsg] = useState('');
 
   const fetchPecas = useCallback(async () => {
+    // AJUSTE 2/9: busca SEMPRE a categoria top-level (a API expande para subcategorias).
+    // O filtro por subcategoria é client-side (mantém o lote completo p/ os botões).
     const p = new URLSearchParams(); if (catAtiva) p.set('categoria', catAtiva);
     const res = await fetch(`/api/pecas?${p}`); setPecas(await res.json()); setLoading(false);
   }, [catAtiva]);
@@ -126,7 +127,14 @@ export default function VitrineManagePage() {
   }
   async function excluirBanner(id: string) {
     if (!confirm('Excluir este banner?')) return;
-    await fetch(`/api/vitrine/banners/${id}`, { method: 'DELETE' });
+    // AJUSTE 5: remove da lista IMEDIATAMENTE (não deixa a UI presa se o Blob falhar),
+    // chama o DELETE (rota dinâmica, id no path) e re-sincroniza em seguida.
+    setBanners(prev => prev.filter(b => b.id !== id));
+    try {
+      await fetch(`/api/vitrine/banners/${id}`, { method: 'DELETE' });
+    } catch {
+      // Falha de rede: não deixa a UI presa — o fetchBanners abaixo re-sincroniza.
+    }
     fetchBanners();
   }
 
@@ -148,19 +156,66 @@ export default function VitrineManagePage() {
   }
 
   const fm = (v:number) => v.toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+  const catSelecionada = categorias.find(c => c.id === catAtiva);
   const pecasFiltradas = pecas.filter(visivel);
+  // AJUSTE 1: quando uma subcategoria está ativa, exibe SÓ os produtos dela
+  // (a API já traz a categoria expandida com as subcategorias — filtro client-side aqui).
+  // Ids sintéticos `tipo:<slug>` filtram pelo valor da string Peca.subcategoria.
+  const pecasExibidas = subcatAtiva
+    ? subcatAtiva.startsWith('tipo:')
+      ? pecas.filter(p => {
+          const s = (p.subcategoria || '').trim().toLowerCase();
+          const alvo = decodeURIComponent(subcatAtiva.replace(/^tipo:/, '')).trim().toLowerCase();
+          return s === alvo;
+        })
+      : pecas.filter(p => p.categoria.id === subcatAtiva)
+    : pecas;
+  const visiveisExibidas = pecasExibidas.filter(visivel);
+  // Subcategorias com PELO MENOS 1 produto VISÍVEL no lote atual (categoria selecionada)
+  // — AJUSTE 1/4. DUAS fontes:
+  //   1. Hierárquicas (Categoria.parentId) — vêm do /api/categorias com id real.
+  //   2. Tipos derivados de Peca.subcategoria (ex.: "Capacetes") — id sintético `tipo:<slug>`.
+  const subsHierarquicas = (catSelecionada?.subcategorias || []).filter(s =>
+    pecas.some(p => p.categoria.id === s.id && visivel(p))
+  );
+  const subsTipo = Object.values(
+    pecas
+      .filter(p => {
+        const sub = (p.subcategoria || '').trim();
+        if (!sub || !visivel(p)) return false;
+        return p.categoria.id === catSelecionada?.id ||
+          (catSelecionada?.subcategorias || []).some(s => s.id === p.categoria.id);
+      })
+      .reduce<Record<string, { id: string; nome: string; slug: string; qtd: number }>>((acc, p) => {
+        const sub = (p.subcategoria || '').trim();
+        const slug = 'tipo:' + sub.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+        if (!acc[slug]) acc[slug] = { id: slug, nome: sub, slug, qtd: 0 };
+        acc[slug].qtd++;
+        return acc;
+      }, {}),
+  ) as { id: string; nome: string; slug: string; qtd: number }[];
+  // Evita duplicar um tipo que tenha o MESMO nome de uma subcategoria hierárquica.
+  const subsVisiveis = [
+    ...subsHierarquicas,
+    ...subsTipo.filter(t =>
+      !subsHierarquicas.some(h =>
+        h.nome.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '') === t.nome.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+      )
+    ),
+  ];
   const destaques = pecasFiltradas.filter(p => p.destaque).slice(0, 8);
   const ofertas = pecasFiltradas.filter(p => p.oferta && p.precoOferta).slice(0, 8);
 
-  const secoes = ['motor','freios','eletrica','suspensao','transmissao','carroceria','rodas-e-pneus','oleos-e-fluidos','escapamento','acessorios','filtros','cabos-e-comandos'];
-  const pecasPorSecao = secoes.map(s => {
-    const cat = categorias.find(c => c.slug === s);
-    if (!cat) return null;
-    const items = pecas.filter(p => p.categoria.slug === s);
-    return { nome: cat.nome, slug: s, pecas: items, catId: cat.id };
-  }).filter(Boolean) as { nome: string; slug: string; pecas: Peca[]; catId: string }[];
-
-  const catSelecionada = categorias.find(c => c.id === catAtiva);
+  // AJUSTE 1/2: seções 100% data-driven a partir das categorias reais.
+  // Produtos são atribuídos à seção da MESMA CATEGORIA da peça (categoria folha) —
+  // produtos em subcategorias caem na seção da sua subcategoria (puxada pelo slug).
+  const pecasPorSecao = categorias.map(cat => {
+    const subIds = new Set((cat.subcategorias || []).map(s => s.id));
+    const items = pecas.filter(p =>
+      p.categoria.id === cat.id || subIds.has(p.categoria.id)
+    );
+    return { nome: cat.nome, slug: cat.slug, pecas: items, catId: cat.id, subs: cat.subcategorias || [] };
+  }).filter(sec => sec.pecas.filter(visivel).length > 0);
 
   return (
     <div className="min-h-screen bg-[#F3F6FB]">
@@ -188,13 +243,14 @@ export default function VitrineManagePage() {
           </div>
         </div>
 
-        {/* Menu azul categorias */}
+        {/* Menu azul categorias — 100% data-driven (AJUSTE 1/3) */}
         <div className="bg-brand-600">
           <div className="max-w-7xl mx-auto px-4 flex items-center h-9 overflow-x-auto gap-0.5">
-            <button onClick={() => setCatAtiva('')} className={`px-3 py-1.5 text-[11px] font-semibold rounded-md transition-colors whitespace-nowrap ${!catAtiva?'bg-brand-700 text-white':'text-white/80 hover:text-white hover:bg-brand-700'}`}>Todos</button>
-            {menuCategorias.map(c => (
-              <button key={c.slug} onClick={() => setCatAtiva(categorias.find(x=>x.slug===c.slug)?.id||'')}
-                className={`px-3 py-1.5 text-[11px] font-semibold rounded-md transition-colors whitespace-nowrap ${catAtiva===categorias.find(x=>x.slug===c.slug)?.id?'bg-brand-700 text-white':'text-white/80 hover:text-white hover:bg-brand-700'}`}>{c.label}</button>
+            <button onClick={() => { setCatAtiva(''); setSubcatAtiva(''); }}
+              className={`px-3 py-1.5 text-[11px] font-semibold rounded-md transition-colors whitespace-nowrap ${!catAtiva?'bg-brand-700 text-white':'text-white/80 hover:text-white hover:bg-brand-700'}`}>Todos</button>
+            {categorias.map(c => (
+              <button key={c.id} onClick={() => { setCatAtiva(c.id); setSubcatAtiva(''); }}
+                className={`px-3 py-1.5 text-[11px] font-semibold rounded-md transition-colors whitespace-nowrap ${catAtiva===c.id?'bg-brand-700 text-white':'text-white/80 hover:text-white hover:bg-brand-700'}`}>{c.nome}</button>
             ))}
           </div>
         </div>
@@ -353,14 +409,14 @@ export default function VitrineManagePage() {
                       <label className="text-[10px] text-slate-400 uppercase font-bold mb-1 block">🖥️ Imagem Desktop</label>
                       <input type="file" accept="image/png,image/jpeg,image/webp" onChange={onDesktopFile} className="text-xs text-slate-300" />
                       <div className="mt-2 aspect-[4/1] rounded-lg border border-white/10 overflow-hidden bg-black/40 flex items-center justify-center text-[10px] text-slate-500">
-                        {bannerDesktopPrev ? <img src={bannerDesktopPrev} alt="preview desktop" className="w-full h-full object-cover" /> : 'Pré-visualização Desktop (1600×400)'}
+                        {bannerDesktopPrev ? <img src={bannerDesktopPrev} alt="preview desktop" className="w-full h-full object-contain" /> : 'Pré-visualização Desktop (1600×400)'}
                       </div>
                     </div>
                     <div>
                       <label className="text-[10px] text-slate-400 uppercase font-bold mb-1 block">📱 Imagem Mobile</label>
                       <input type="file" accept="image/png,image/jpeg,image/webp" onChange={onMobileFile} className="text-xs text-slate-300" />
                       <div className="mt-2 aspect-[2/1] rounded-lg border border-white/10 overflow-hidden bg-black/40 flex items-center justify-center text-[10px] text-slate-500">
-                        {bannerMobilePrev ? <img src={bannerMobilePrev} alt="preview mobile" className="w-full h-full object-cover" /> : 'Pré-visualização Mobile (600×300)'}
+                        {bannerMobilePrev ? <img src={bannerMobilePrev} alt="preview mobile" className="w-full h-full object-contain" /> : 'Pré-visualização Mobile (600×300)'}
                       </div>
                     </div>
                   </div>
@@ -392,7 +448,7 @@ export default function VitrineManagePage() {
                     <div key={b.id} className="flex items-center justify-between gap-3 bg-white/5 border border-white/10 rounded-xl p-3">
                       <div className="flex items-center gap-3 min-w-0">
                         <div className="w-28 h-12 rounded-md overflow-hidden bg-black/40 flex-shrink-0">
-                          {b.imagemDesktop ? <img src={b.imagemDesktop} alt="" className="w-full h-full object-cover" /> : <span className="w-full h-full flex items-center justify-center text-[9px] text-slate-500">s/ img</span>}
+                          {b.imagemDesktop ? <img src={b.imagemDesktop} alt="" className="w-full h-full object-contain" /> : <span className="w-full h-full flex items-center justify-center text-[9px] text-slate-500">s/ img</span>}
                         </div>
                         <div className="min-w-0">
                           <p className="text-sm font-bold text-white truncate">{b.titulo || 'Sem título'}</p>
@@ -426,11 +482,27 @@ export default function VitrineManagePage() {
             ) : catAtiva ? (
               <section>
                 <div className="flex items-center justify-between mb-3">
-                  <h2 className="text-base font-extrabold text-slate-800">{catSelecionada?.nome || 'Categoria'} <span className="text-slate-400 font-normal text-xs">({pecasFiltradas.length} visiveis)</span></h2>
-                  <button onClick={()=>setCatAtiva('')} className="text-xs text-brand-600 hover:text-brand-700 font-bold">← Ver todas categorias</button>
+                  <h2 className="text-base font-extrabold text-slate-800">{catSelecionada?.nome || 'Categoria'} <span className="text-slate-400 font-normal text-xs">({visiveisExibidas.length} visiveis)</span></h2>
+                  <button onClick={()=>{setCatAtiva('');setSubcatAtiva('');}} className="text-xs text-brand-600 hover:text-brand-700 font-bold">← Ver todas categorias</button>
                 </div>
+
+                {/* AJUSTE 1 — filtros rápidos de subcategoria (Todos + reais, dinâmicos p/ qualquer categoria) */}
+                {subsVisiveis.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-1.5 mb-4">
+                    <span className="text-[10px] text-slate-400 uppercase font-bold mr-1">Filtro:</span>
+                    <button onClick={()=>setSubcatAtiva('')}
+                      className={`px-2.5 py-1 rounded-full text-[11px] font-semibold transition-colors ${!subcatAtiva?'bg-brand-600 text-white':'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>Todos</button>
+                    {subsVisiveis.map(s => (
+                      <button key={s.id} onClick={()=>setSubcatAtiva(s.id)}
+                        className={`px-2.5 py-1 rounded-full text-[11px] font-semibold transition-colors ${subcatAtiva===s.id?'bg-brand-600 text-white':'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
+                        {s.nome}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  {pecas.map(p => <AdminProdutoCard key={p.id} p={p} onToggle={toggle} onUpload={handleUpload} uploading={uploading} />)}
+                  {pecasExibidas.map(p => <AdminProdutoCard key={p.id} p={p} onToggle={toggle} onUpload={handleUpload} uploading={uploading} />)}
                 </div>
               </section>
             ) : (
@@ -458,7 +530,7 @@ export default function VitrineManagePage() {
                   <section key={sec.slug}>
                     <div className="flex items-center justify-between mb-3">
                       <h2 className="text-base font-extrabold text-slate-800">{sec.nome} <span className="text-slate-400 font-normal text-xs">({sec.pecas.filter(visivel).length} visiveis)</span></h2>
-                      <button onClick={() => setCatAtiva(sec.catId)} className="text-xs text-brand-600 hover:text-brand-700 font-bold">Filtrar só {sec.nome}</button>
+                      <button onClick={() => { setCatAtiva(sec.catId); setSubcatAtiva(''); }} className="text-xs text-brand-600 hover:text-brand-700 font-bold">Filtrar só {sec.nome}</button>
                     </div>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">{sec.pecas.map(p => <AdminProdutoCard key={p.id} p={p} onToggle={toggle} onUpload={handleUpload} uploading={uploading} />)}</div>
                   </section>

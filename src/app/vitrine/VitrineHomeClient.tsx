@@ -106,11 +106,12 @@ export default function VitrineHomeClient({ destaques, ofertas, lancamentos, pec
           </div>
         </div>
 
-        {/* Menu Categorias */}
+        {/* Menu Categorias — AJUSTE 3: sem corte (slice) — TODAS as categorias com produto
+            visível aparecem (o container rola horizontalmente se necessário). */}
         <div className="bg-brand-600">
           <div className="max-w-7xl mx-auto px-4">
             <div className="flex items-center h-9 overflow-x-auto gap-0.5">
-              {catsMenu.slice(0, 10).map((c: any) => (
+              {catsMenu.map((c: any) => (
                 <a key={c.slug} href={`/vitrine/catalogo?categoria=${c.slug}`}
                   className="px-3 py-1.5 text-[11px] font-semibold text-white/90 hover:text-white hover:bg-brand-700 rounded-md transition-colors whitespace-nowrap">
                   {c.nome}
@@ -256,7 +257,7 @@ export default function VitrineHomeClient({ destaques, ofertas, lancamentos, pec
           <section>
             <h2 className="text-xl font-extrabold text-slate-800 mb-5">📂 Categorias</h2>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
-              {catsMenu.slice(0, 12).map((c: any) => {
+              {catsMenu.map((c: any) => {
                 // Contagem real via endpoint de categorias (independe do take:200 de /api/vitrine).
                 const count = c.totalProdutos ?? pecas.filter((p: any) => p.categoria.slug === c.slug).length;
                 return (

@@ -7,6 +7,8 @@ import LogoOficina from '@/components/LogoOficina';
 interface SidebarProps {
   user: { name: string; role: string; email: string; tipoBalcao?: string | null; emAlmoco?: boolean };
   collapsed?: boolean;
+  mobileOpen?: boolean;
+  isMobile?: boolean;
   onToggle?: () => void;
 }
 
@@ -62,7 +64,7 @@ const estoqueMenu = [
   { label: 'Relatorios', href: '/estoque/relatorios', d: 'M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' },
 ];
 
-export default function Sidebar({ user, collapsed, onToggle }: SidebarProps) {
+export default function Sidebar({ user, collapsed, mobileOpen, isMobile, onToggle }: SidebarProps) {
   const router = useRouter();
   const pathname = usePathname();
   const isDono = user.role === 'DONO';
@@ -107,7 +109,7 @@ export default function Sidebar({ user, collapsed, onToggle }: SidebarProps) {
 
   function navigate(href: string) {
     router.push(href);
-    if (onToggle && window.innerWidth < 1024) onToggle();
+    if (onToggle && isMobile) onToggle();
   }
 
   // FASE 5 — Fallback seguro: role desconhecida nao assume 'Administrador'
@@ -126,36 +128,58 @@ export default function Sidebar({ user, collapsed, onToggle }: SidebarProps) {
   // FASE 5 — Fallback seguro: role desconhecida redireciona para raiz (login)
   const base = isDono ? '/dono' : isBalcao ? '/balcao' : isEstoque ? '/estoque' : '/';
 
+  // AJUSTE 5 — No mobile, o drawer é controlado por mobileOpen (não pelo collapse).
+  // No desktop, collapsed=true mostra apenas ícones (barra fina).
+  const showOverlay = isMobile && mobileOpen;
+  const menuCollapsed = isMobile ? false : !!collapsed;
+  const width = menuCollapsed ? 'lg:w-[72px]' : 'lg:w-[260px]';
+
   return (
     <>
-      {!collapsed && onToggle && (
+      {showOverlay && (
         <div className="fixed inset-0 bg-black/50 z-30 lg:hidden" onClick={onToggle} />
       )}
-      <aside className={`fixed lg:relative z-40 h-screen flex-shrink-0 w-[260px] bg-[#0F1A2E] text-white flex flex-col transition-transform duration-300 ${collapsed === false ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
-        <button onClick={onToggle} className="absolute top-3 right-3 p-1 rounded-md hover:bg-white/10 lg:hidden">
-          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
-        </button>
+      <aside className={`fixed lg:relative z-40 h-screen flex-shrink-0 w-[260px] ${width} bg-[#0F1A2E] text-white flex flex-col transition-all duration-300 ${showOverlay ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
+        {/* Botão recolher/expandir (desktop) */}
+        {!isMobile && onToggle && (
+          <button onClick={onToggle} className="absolute top-3 right-2 p-1.5 rounded-md hover:bg-white/10 z-50 text-slate-400 hover:text-white" title={menuCollapsed ? 'Expandir menu' : 'Recolher menu'}>
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              {menuCollapsed
+                ? <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" />
+                : <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />}
+            </svg>
+          </button>
+        )}
+        {/* Botão fechar (mobile) */}
+        {isMobile && onToggle && (
+          <button onClick={onToggle} className="absolute top-3 right-3 p-1 rounded-md hover:bg-white/10">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
+          </button>
+        )}
 
-        <div className="px-5 py-5 border-b border-white/5">
-          <div className="flex items-center gap-3">
+        <div className="px-4 py-5 border-b border-white/5">
+          <div className={`flex items-center ${menuCollapsed ? 'justify-center' : 'gap-3'}`}>
             <LogoOficina className="w-10 h-10 rounded-full bg-brand-600 flex items-center justify-center flex-shrink-0 shadow-lg shadow-brand-600/25 overflow-hidden" textClassName="text-white font-bold text-sm" />
-            <div className="min-w-0">
-              <p className="font-semibold text-sm leading-tight">Marquinho</p>
-              <p className="font-semibold text-sm leading-tight">Moto Pecas</p>
-              <p className="text-[10px] text-slate-400 tracking-wider uppercase mt-0.5">Atacado &amp; Varejo</p>
-            </div>
+            {!menuCollapsed && (
+              <div className="min-w-0">
+                <p className="font-semibold text-sm leading-tight">Marquinho</p>
+                <p className="font-semibold text-sm leading-tight">Moto Pecas</p>
+                <p className="text-[10px] text-slate-400 tracking-wider uppercase mt-0.5">Atacado &amp; Varejo</p>
+              </div>
+            )}
           </div>
         </div>
 
-        <nav className="flex-1 py-3 px-3 overflow-y-auto space-y-0.5">
+        <nav className="flex-1 py-3 px-2 overflow-y-auto space-y-0.5">
           {menuItems.map((item: any) => {
             const active = item.href === base ? pathname === item.href : pathname.startsWith(item.href);
             return (
               <button key={item.href} onClick={() => navigate(item.href)}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] font-medium transition-all ${active ? 'bg-brand-600 text-white shadow-md shadow-brand-600/15' : 'text-slate-400 hover:text-white hover:bg-white/5'}`}>
+                title={menuCollapsed ? item.label : undefined}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] font-medium transition-all ${active ? 'bg-brand-600 text-white shadow-md shadow-brand-600/15' : 'text-slate-400 hover:text-white hover:bg-white/5'} ${menuCollapsed ? 'justify-center' : ''}`}>
                 {menuIcon(item.d)}
-                <span className="flex-1 text-left">{item.label}</span>
-                {item.badge && notifCount > 0 && (
+                {!menuCollapsed && <span className="flex-1 text-left">{item.label}</span>}
+                {!menuCollapsed && item.badge && notifCount > 0 && (
                   <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center">
                     {notifCount > 99 ? '99+' : notifCount}
                   </span>
@@ -165,16 +189,16 @@ export default function Sidebar({ user, collapsed, onToggle }: SidebarProps) {
           })}
         </nav>
 
-        <div className="px-4 py-3 border-t border-white/5">
-          <div className="flex items-center gap-3 mb-2">
+        <div className="px-3 py-3 border-t border-white/5">
+          <div className={`flex items-center mb-2 ${menuCollapsed ? 'justify-center' : 'gap-3'}`}>
             <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center flex-shrink-0">
               <span className="text-white text-xs font-medium">{user.name.charAt(0).toUpperCase()}</span>
             </div>
-            <div className="min-w-0"><p className="text-[12px] font-medium truncate">{user.name}</p><p className="text-[10px] text-slate-500">{roleLabel}</p></div>
+            {!menuCollapsed && <div className="min-w-0"><p className="text-[12px] font-medium truncate">{user.name}</p><p className="text-[10px] text-slate-500">{roleLabel}</p></div>}
           </div>
-          <button onClick={handleLogout} className="w-full flex items-center justify-center gap-2 py-2 rounded-lg text-[12px] text-slate-500 hover:text-white hover:bg-white/5 transition-colors">
+          <button onClick={handleLogout} title={menuCollapsed ? 'Sair' : undefined} className={`w-full flex items-center justify-center gap-2 py-2 rounded-lg text-[12px] text-slate-500 hover:text-white hover:bg-white/5 transition-colors ${menuCollapsed ? '' : 'gap-2'}`}>
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
-            Sair
+            {!menuCollapsed && 'Sair'}
           </button>
         </div>
       </aside>

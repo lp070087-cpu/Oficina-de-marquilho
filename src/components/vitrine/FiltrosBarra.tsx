@@ -15,7 +15,9 @@ export default function FiltrosBarra({
   mode?: 'grid' | 'list';
   onModeChange?: (m: 'grid' | 'list') => void;
 }) {
-  const catAtiva = categorias.find(c => c.slug === filtros.categoria);
+  // A categoria ativa NUNCA é um slug `tipo:` (esses são subcategorias derivadas).
+  // Se por acaso chegar um slug `tipo:` em filtros.categoria (defensivo), ignora.
+  const catAtiva = categorias.find(c => c.slug === filtros.categoria && !c.slug.startsWith('tipo:'));
 
   return (
     <div className="flex flex-col gap-2">
@@ -27,13 +29,20 @@ export default function FiltrosBarra({
           {categorias.map(c => <option key={c.slug} value={c.slug}>{c.nome}</option>)}
         </select>
 
-        {/* Subcategoria (se categoria tiver) */}
+        {/* Subcategoria (se categoria tiver) — AJUSTE 4: navegação rápida por botões,
+            SÓ subcategorias com produto visível (vêm filtradas da API /api/vitrine/categorias). */}
         {catAtiva?.subcategorias && catAtiva.subcategorias.length > 0 && (
-          <select value={filtros.subcategoria} onChange={e => onChange({ ...filtros, subcategoria: e.target.value })}
-            className="bg-white border border-slate-200 rounded-lg px-3 py-2 text-xs text-slate-500 outline-none focus:border-brand-400">
-            <option value="">Todas subcategorias</option>
-            {catAtiva.subcategorias.map(s => <option key={s.slug} value={s.slug}>{s.nome}</option>)}
-          </select>
+          <div className="flex flex-wrap items-center gap-1.5 w-full sm:w-auto">
+            <span className="text-[10px] text-slate-400 uppercase font-bold">Filtro:</span>
+            <button onClick={() => onChange({ ...filtros, subcategoria: '' })}
+              className={`px-2.5 py-1 rounded-full text-[11px] font-semibold transition-colors ${!filtros.subcategoria ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>Todos</button>
+            {catAtiva.subcategorias.map(s => (
+              <button key={s.slug} onClick={() => onChange({ ...filtros, subcategoria: filtros.subcategoria === s.slug ? '' : s.slug })}
+                className={`px-2.5 py-1 rounded-full text-[11px] font-semibold transition-colors ${filtros.subcategoria === s.slug ? 'bg-brand-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
+                {s.nome}
+              </button>
+            ))}
+          </div>
         )}
 
         {/* Marca */}
