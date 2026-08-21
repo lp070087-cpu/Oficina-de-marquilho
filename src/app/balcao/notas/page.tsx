@@ -17,14 +17,14 @@ interface Nota {
     valorMaoDeObra: number; desconto?: number; formaPagamento?: string | null;
     tipoServico?: string | null; status?: string; inicioServico?: string | null; fimServico?: string | null;
     mecanico?: { name: string } | null;
-    itens?: { peca: { codigo?: string | null; nome: string }; quantidade: number; precoUnitario: number }[];
+    itens?: { peca: { codigo?: string | null; nome: string; marca?: string | null }; quantidade: number; precoUnitario: number }[];
     servicos?: { nome: string; valor: number | string }[] | null;
     pagamentos?: { tipo: string; valor: number; troco?: number }[];
   } | null;
   venda?: {
     numero: number; clienteNome?: string | null; clienteTelefone?: string | null; clienteCpf?: string | null;
     subtotal: number; descontoTotal: number; total: number; createdAt: string;
-    itens: { peca: { nome: string; codigo?: string | null }; quantidade: number; precoVendido: number; subtotal: number }[];
+    itens: { peca: { nome: string; codigo?: string | null; marca?: string | null }; quantidade: number; precoVendido: number; subtotal: number }[];
     pagamentos: { tipo: string; valor: number; troco: number; bandeira?: string | null; parcelas?: number | null }[];
   } | null;
 }
@@ -102,7 +102,7 @@ export default function NotasBalcaoPage() {
       formaPagamento: n.ordemServico?.formaPagamento,
       mecanico: n.ordemServico?.mecanico || undefined,
       itens: (n.ordemServico?.itens || []).map(i => ({
-        peca: { codigo: i.peca?.codigo || '', nome: i.peca?.nome || '' },
+        peca: { codigo: i.peca?.codigo || '', nome: i.peca?.nome || '', marca: i.peca?.marca ?? null },
         quantidade: i.quantidade,
         precoUnitario: Number(i.precoUnitario) || 0,
       })),

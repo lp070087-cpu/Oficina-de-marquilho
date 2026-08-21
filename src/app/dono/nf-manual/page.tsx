@@ -4,9 +4,9 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { imprimirNfManual } from '@/lib/imprimirNotaServico';
 import { mascaraMoeda, parseMoeda, fmtMoeda } from '@/lib/moeda-utils';
 
-interface ItemNF { id: string; pecaId?: string; nome: string; codigo: string; codigoBarras?: string; quantidade: number; valorUnitario: number; }
+interface ItemNF { id: string; pecaId?: string; nome: string; codigo: string; codigoBarras?: string; marca?: string | null; quantidade: number; valorUnitario: number; }
 
-interface Sugestao { id: string; nome: string; codigo: string; codigoBarras?: string; precoVenda: number; quantidade: number; quantidadeLoja: number; estoqueMinimo: number; }
+interface Sugestao { id: string; nome: string; codigo: string; codigoBarras?: string; marca?: string | null; precoVenda: number; quantidade: number; quantidadeLoja: number; estoqueMinimo: number; }
 
 export default function NFManualPage() {
   const [cliente, setCliente] = useState('');
@@ -62,7 +62,7 @@ export default function NFManualPage() {
   }, []);
 
   function selecionarSugestao(s: Sugestao) {
-    setItens(prev => [...prev, { id: `${s.id}-${Date.now()}`, pecaId: s.id, nome: s.nome, codigo: s.codigo, codigoBarras: s.codigoBarras, quantidade: 1, valorUnitario: Number(s.precoVenda) || 0 }]);
+    setItens(prev => [...prev, { id: `${s.id}-${Date.now()}`, pecaId: s.id, nome: s.nome, codigo: s.codigo, codigoBarras: s.codigoBarras, marca: s.marca ?? null, quantidade: 1, valorUnitario: Number(s.precoVenda) || 0 }]);
     setBusca('');
     setSugestoes([]);
     setSugestoesOpen(false);
@@ -94,6 +94,7 @@ export default function NFManualPage() {
       itens: itens.map(i => ({
         nome: i.nome,
         codigo: i.codigo,
+        marca: i.marca ?? null,
         quantidade: i.quantidade,
         valorUnitario: i.valorUnitario,
       })),

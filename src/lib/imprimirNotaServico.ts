@@ -38,7 +38,7 @@ export const CSS_NOTA_CLIENTE = `
   .header{text-align:center;margin-bottom:22px;padding-bottom:16px;border-bottom:3px double #111}
   .fantasia{font-size:24px;font-weight:900;letter-spacing:-0.5px;color:#111}
   .razao{font-size:13px;font-weight:700;color:#333;margin-top:2px}
-  .empresa-linha{font-size:11px;color:#555;margin-top:2px}
+  .empresa-linha{font-size:12.5px;color:#333;font-weight:600;margin-top:2px;line-height:1.65}
   .doc-titulo{display:inline-block;margin-top:12px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;background:#f2f2f2;border:1px solid #ccc;border-radius:4px;padding:3px 14px;color:#333}
   .info{display:flex;justify-content:space-between;flex-wrap:wrap;margin-bottom:16px;padding:12px 16px;background:#f8f8f8;border-radius:8px;gap:6px 16px}
   .info div{font-size:12px}.info span{font-weight:700;color:#444}
@@ -50,11 +50,21 @@ export const CSS_NOTA_CLIENTE = `
   .totais{width:300px;margin-left:auto}.totais table td{padding:5px 8px;border:none}.totais tr.total td{font-size:15px;font-weight:700;border-top:2px solid #333;padding-top:8px}
   .footer{text-align:center;margin-top:30px;font-size:10px;color:#888;line-height:1.6}
   .obs{font-size:10px;color:#999;margin-top:6px}
-  @media print{body{padding:20px}}
+  @media print{body{padding:20px}.empresa-linha{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
 `;
 
 function esc(s: string | null | undefined): string {
   return (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+// Rótulo do produto na nota: "NOME — MARCA" somente quando a marca real está
+// cadastrada. Sem marca → apenas "NOME". Nunca "NOME —", "NOME — null",
+// "NOME — undefined" ou "NOME — Sem marca".
+function rotuloProduto(nome: string | null | undefined, marca: string | null | undefined): string {
+  const n = (nome || '').trim();
+  const m = (marca || '').trim();
+  if (!n) return '';
+  return m ? `${n} — ${m}` : n;
 }
 
 function fm(v: number | string | null | undefined): string {
@@ -125,7 +135,7 @@ function abrirJanela(titulo: string): Window | null {
 // ============================================================================
 export interface ItemNotaServico {
   id?: string;
-  peca?: { codigo?: string | null; nome?: string } | null;
+  peca?: { codigo?: string | null; nome?: string; marca?: string | null } | null;
   quantidade: number;
   precoUnitario: number;
   adaptado?: boolean;
@@ -203,7 +213,7 @@ export function imprimirNotaServico(os: OsParaImprimir): void {
   const total = Number(os.valorTotal) || 0;
 
   const linhasItens = (os.itens || []).map((i) =>
-    `<tr><td>${esc(i.peca?.codigo || '')}</td><td>${esc(i.peca?.nome || '')}</td><td class="center">${i.quantidade}</td><td class="right">${fm(i.precoUnitario)}</td><td class="right">${fm(Number(i.precoUnitario) * Number(i.quantidade || 0))}</td></tr>`
+    `<tr><td>${esc(i.peca?.codigo || '')}</td><td>${esc(rotuloProduto(i.peca?.nome, i.peca?.marca))}</td><td class="center">${i.quantidade}</td><td class="right">${fm(i.precoUnitario)}</td><td class="right">${fm(Number(i.precoUnitario) * Number(i.quantidade || 0))}</td></tr>`
   ).join('');
 
   const linhasServicos = servicosReg
@@ -266,6 +276,7 @@ export function imprimirNotaServico(os: OsParaImprimir): void {
 export interface ItemNotaVenda {
   nome: string;
   codigo: string;
+  marca?: string | null;
   quantidade: number;
   precoUnitario: number;
   subtotal: number;
@@ -317,6 +328,7 @@ export function normalizarVendaParaImpressao(venda: any, notaNumero?: string): V
     return {
       nome: i.nome || i.peca?.nome || '—',
       codigo: i.codigo || i.peca?.codigo || '',
+      marca: i.marca ?? i.peca?.marca ?? null,
       quantidade: Number(i.quantidade) || 0,
       precoUnitario: precoUnit,
       subtotal: Number(i.subtotal) || 0,
@@ -360,7 +372,7 @@ export function imprimirNotaVenda(venda: VendaParaImprimir): void {
   const impressoEm = new Date().toLocaleString('pt-BR');
 
   const linhasItens = venda.itens.map((i) =>
-    `<tr><td>${esc(i.codigo)}</td><td>${esc(i.nome)}</td><td class="center">${i.quantidade}</td><td class="right">${fm(i.precoUnitario)}</td><td class="right">${fm(i.subtotal)}</td></tr>`
+    `<tr><td>${esc(i.codigo)}</td><td>${esc(rotuloProduto(i.nome, i.marca))}</td><td class="center">${i.quantidade}</td><td class="right">${fm(i.precoUnitario)}</td><td class="right">${fm(i.subtotal)}</td></tr>`
   ).join('');
 
   const linhasPg = venda.pagamentos.map((p) => {
@@ -405,7 +417,7 @@ export interface NfManualParaImprimir {
   endereco?: string;
   observacoes?: string;
   formaPagamento?: string;
-  itens: { nome: string; codigo: string; quantidade: number; valorUnitario: number }[];
+  itens: { nome: string; codigo: string; marca?: string | null; quantidade: number; valorUnitario: number }[];
   total: number;
   /** BLOCO 7 — desconto fixo em R$ (opcional). Quando presente, a nota imprime
    *  SUBTOTAL / DESCONTO (−) / TOTAL em vez de apenas TOTAL. */
@@ -424,7 +436,7 @@ export function imprimirNfManual(opts: NfManualParaImprimir): void {
   const autoPrint = opts.autoPrint !== false;
 
   const linhasItens = opts.itens.map((i) =>
-    `<tr><td>${esc(i.codigo)}</td><td>${esc(i.nome)}</td><td class="center">${i.quantidade}</td><td class="right">${fm(i.valorUnitario)}</td><td class="right">${fm(i.valorUnitario * i.quantidade)}</td></tr>`
+    `<tr><td>${esc(i.codigo)}</td><td>${esc(rotuloProduto(i.nome, i.marca))}</td><td class="center">${i.quantidade}</td><td class="right">${fm(i.valorUnitario)}</td><td class="right">${fm(i.valorUnitario * i.quantidade)}</td></tr>`
   ).join('');
 
   w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>NF Manual ${esc(String(opts.numero))}</title><style>

@@ -100,7 +100,7 @@ export default function ComprovanteVenda({ venda, onFechar }: ComprovanteVendaPr
 
     return `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Venda #${venda.numero}</title><style>
       *{margin:0;padding:0;box-sizing:border-box}body{font-family:"DejaVu Sans Mono","Courier New",monospace;font-size:10px;color:#111;width:280px;margin:0 auto;padding:8px 6px;background:#fff;line-height:1.45}
-      .center{text-align:center}.logo{font-size:17px;font-weight:900;margin-bottom:2px;letter-spacing:-0.5px}.ofic{font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:#222}.emp{font-size:7px;color:#444;margin-top:1px;letter-spacing:0.3px}.doc-titulo-term{display:inline-block;margin-top:5px;font-size:9px;font-weight:900;letter-spacing:1.5px;color:#111;border:1.5px solid #000;border-radius:3px;padding:2px 8px;text-transform:uppercase}
+      .center{text-align:center}.logo{font-size:17px;font-weight:900;margin-bottom:2px;letter-spacing:-0.5px}.ofic{font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:#222}.emp{font-size:8.5px;color:#222;font-weight:700;margin-top:1px;letter-spacing:0.3px;line-height:1.5}.doc-titulo-term{display:inline-block;margin-top:5px;font-size:9px;font-weight:900;letter-spacing:1.5px;color:#111;border:1.5px solid #000;border-radius:3px;padding:2px 8px;text-transform:uppercase}
       .vn{font-size:21px;font-weight:900;margin:6px 0 3px;letter-spacing:-0.5px}.dt{font-size:8px;margin-bottom:6px;color:#444}
       .sep{border:none;border-top:1.5px solid #000;margin:6px 0}.sep-dot{border:none;border-top:1px dotted #000;margin:5px 0}
       .cliente{font-size:10px;margin:3px 0;color:#222}.cliente span{font-weight:700}

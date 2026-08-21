@@ -11,13 +11,13 @@ const includeNota = {
       desconto: true, formaPagamento: true, tipoServico: true, status: true,
       inicioServico: true, fimServico: true,
       mecanico: { select: { name: true } },
-      itens: { select: { peca: { select: { codigo: true, nome: true } }, quantidade: true, precoUnitario: true } },
+      itens: { select: { peca: { select: { codigo: true, nome: true, marca: true } }, quantidade: true, precoUnitario: true } },
       servicos: true,
     },
   },
   venda: {
     include: {
-      itens: { include: { peca: { select: { nome: true, codigo: true } } } },
+      itens: { include: { peca: { select: { nome: true, codigo: true, marca: true } } } },
       pagamentos: true,
     },
   },
