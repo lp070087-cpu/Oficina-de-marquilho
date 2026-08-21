@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import AdminProdutoCard from '@/components/vitrine/AdminProdutoCard';
 import AdminVitrine from '@/components/vitrine/AdminVitrinePremium';
 import LogoOficina from '@/components/LogoOficina';
+import UploadImagens, { ImagemInfo } from '@/components/estoque/UploadImagens';
 
 interface Categoria { id: string; nome: string; slug: string; subcategorias?: { id: string; nome: string; slug: string }[]; }
 interface Peca {
@@ -51,6 +52,9 @@ export default function VitrineManagePage() {
   // individualmente, o botão sincroniza tudo e confirma visualmente).
   const [salvandoTudo, setSalvandoTudo] = useState(false);
   const [salvoMsg, setSalvoMsg] = useState('');
+  // AJUSTE 3 — gerenciador de fotos (principal + galeria até 5) via /api/pecas/imagens.
+  const [fotosPeca, setFotosPeca] = useState<string | null>(null);
+  const [imagensAtuais, setImagensAtuais] = useState<ImagemInfo[]>([]);
 
   const fetchPecas = useCallback(async () => {
     // AJUSTE 2/9: busca SEMPRE a categoria top-level (a API expande para subcategorias).
@@ -77,6 +81,17 @@ export default function VitrineManagePage() {
     const r = await fetch('/api/upload', { method:'POST', body: fd });
     if (r.ok) { const d = await r.json(); setPecas(prev => prev.map(p => p.id===pecaId?{...p,imagemUrl:d.url}:p)); }
     setUploading('');
+  }
+
+  // AJUSTE 3 — abre o gerenciador de fotos do produto (carrega a galeria atual).
+  async function abrirFotos(pecaId: string) {
+    setImagensAtuais([]);
+    try {
+      const r = await fetch(`/api/pecas/imagens?pecaId=${pecaId}`);
+      const d = await r.json();
+      if (Array.isArray(d)) setImagensAtuais(d.map((img: any) => ({ id: img.id, url: img.url, tipo: img.tipo, ordem: img.ordem })));
+    } catch {}
+    setFotosPeca(pecaId);
   }
 
   async function atualizarOrcamento(id: string, status: string) {
@@ -502,7 +517,7 @@ export default function VitrineManagePage() {
                 )}
 
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  {pecasExibidas.map(p => <AdminProdutoCard key={p.id} p={p} onToggle={toggle} onUpload={handleUpload} uploading={uploading} />)}
+                  {pecasExibidas.map(p => <AdminProdutoCard key={p.id} p={p} onToggle={toggle} onUpload={handleUpload} onFotos={abrirFotos} uploading={uploading} />)}
                 </div>
               </section>
             ) : (
@@ -510,13 +525,13 @@ export default function VitrineManagePage() {
                 {destaques.length > 0 && (
                   <section>
                     <div className="flex items-center justify-between mb-3"><h2 className="text-base font-extrabold text-slate-800">⭐ Produtos em destaque</h2></div>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">{destaques.map(p=><AdminProdutoCard key={p.id} p={p} onToggle={toggle} onUpload={handleUpload} uploading={uploading}/>)}</div>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">{destaques.map(p=><AdminProdutoCard key={p.id} p={p} onToggle={toggle} onUpload={handleUpload} onFotos={abrirFotos} uploading={uploading}/>)}</div>
                   </section>
                 )}
                 {ofertas.length > 0 && (
                   <section>
                     <div className="flex items-center justify-between mb-3"><h2 className="text-base font-extrabold text-slate-800">🔥 Ofertas da semana</h2></div>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">{ofertas.map(p=><AdminProdutoCard key={p.id} p={p} onToggle={toggle} onUpload={handleUpload} uploading={uploading}/>)}</div>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">{ofertas.map(p=><AdminProdutoCard key={p.id} p={p} onToggle={toggle} onUpload={handleUpload} onFotos={abrirFotos} uploading={uploading}/>)}</div>
                   </section>
                 )}
                 <div className="bg-gradient-to-r from-slate-800 to-slate-700 rounded-xl p-6 text-white flex items-center gap-6">
@@ -532,7 +547,7 @@ export default function VitrineManagePage() {
                       <h2 className="text-base font-extrabold text-slate-800">{sec.nome} <span className="text-slate-400 font-normal text-xs">({sec.pecas.filter(visivel).length} visiveis)</span></h2>
                       <button onClick={() => { setCatAtiva(sec.catId); setSubcatAtiva(''); }} className="text-xs text-brand-600 hover:text-brand-700 font-bold">Filtrar só {sec.nome}</button>
                     </div>
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">{sec.pecas.map(p => <AdminProdutoCard key={p.id} p={p} onToggle={toggle} onUpload={handleUpload} uploading={uploading} />)}</div>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3">{sec.pecas.map(p => <AdminProdutoCard key={p.id} p={p} onToggle={toggle} onUpload={handleUpload} onFotos={abrirFotos} uploading={uploading} />)}</div>
                   </section>
                 ))}
                 <div className="bg-gradient-to-r from-brand-600 to-brand-700 rounded-xl p-6 text-center text-white">
@@ -543,6 +558,33 @@ export default function VitrineManagePage() {
             )}
           </div>
         </>
+      )}
+
+      {/* AJUSTE 3 — gerenciador de fotos do produto (principal + galeria até 5). */}
+      {fotosPeca && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-[110] p-4" onClick={() => setFotosPeca(null)}>
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-2xl p-6 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-base font-bold text-slate-800">
+                Fotos do produto{' '}
+                <span className="text-slate-400 font-medium text-sm">(principal + galeria, máx. 5)</span>
+              </h2>
+              <button onClick={() => setFotosPeca(null)} className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-500 flex items-center justify-center">
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12"/></svg>
+              </button>
+            </div>
+            <UploadImagens
+              pecaId={fotosPeca}
+              imagensAtuais={imagensAtuais}
+              onImagensChange={(imgs) => {
+                setImagensAtuais(imgs);
+                // Sincroniza a capa do card da DONA com a foto principal da galeria.
+                const principal = imgs.find(i => i.tipo === 'PRINCIPAL') || imgs[0];
+                if (principal) setPecas(prev => prev.map(p => p.id === fotosPeca ? { ...p, imagemUrl: principal.url } : p));
+              }}
+            />
+          </div>
+        </div>
       )}
     </div>
   );

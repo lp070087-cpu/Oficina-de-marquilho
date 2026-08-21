@@ -99,6 +99,7 @@ export async function POST(req: NextRequest) {
       compatibilidade: body.compatibilidade || null,
       tamanho: body.tamanho || null,
       genero: body.genero || null,
+      cor: body.cor || null,
       codigoBarras: body.codigoBarras || null,
       custoMedio: body.custoMedio || 0,
       localizacao: body.localizacao || null,

@@ -145,3 +145,89 @@ export function slugDeNome(nome: string): string {
     .replace(/\s+/g, '-')
     .replace(/[^a-z0-9-]/g, '');
 }
+
+/**
+ * AJUSTE 6 — FONTE ÚNICA DE VERDADE das categorias da Vitrine PÚBLICA.
+ *
+ * Consulta o Prisma DIRETAMENTE (sem fetch HTTP) e retorna apenas as categorias
+ * com PELO MENOS 1 produto visível (regra oficial ativo && quantidadeLoja>0 &&
+ * precoVenda>0). Subcategorias hierárquicas e tipos derivados de Peca.subcategoria
+ * são incluídos somente quando têm produto visível. Ordenação oficial
+ * CAPACETES → CAPAS → ACESSÓRIOS → alfabética.
+ *
+ * Usada TANTO pela rota /api/vitrine/categorias quanto pelo Server Component da
+ * Home (/vitrine) — eliminando o self-fetch que derrubava as categorias em produção.
+ */
+export async function getCategoriasVitrine() {
+  // Import dinâmico evita ciclo no bundle do cliente (nada aqui roda no cliente).
+  const prisma = (await import('@/lib/prisma')).default;
+
+  const cats = await prisma.categoria.findMany({
+    where: { parentId: null, ativa: true, mostrarNaVitrine: true },
+    include: {
+      subcategorias: {
+        where: { ativa: true, mostrarNaVitrine: true },
+        select: { id: true, nome: true, slug: true },
+        orderBy: { ordem: 'asc' },
+      },
+    },
+    orderBy: { ordem: 'asc' },
+  });
+
+  const resultado = [];
+  for (const c of cats) {
+    const idsSubs = [c.id, ...c.subcategorias.map((s: any) => s.id)];
+    const count = await prisma.peca.count({
+      where: { ...VITRINE_VISIBILITY, categoriaId: { in: idsSubs } },
+    });
+    if (count === 0) continue;
+
+    const subsVisiveis: any[] = [];
+    for (const s of c.subcategorias) {
+      const nSub = await prisma.peca.count({
+        where: { ...VITRINE_VISIBILITY, categoriaId: s.id },
+      });
+      if (nSub > 0) subsVisiveis.push({ id: s.id, nome: s.nome, slug: s.slug, totalProdutos: nSub });
+    }
+
+    const tipos = await prisma.peca.groupBy({
+      by: ['subcategoria'],
+      where: {
+        ...VITRINE_VISIBILITY,
+        subcategoria: { not: null },
+        categoriaId: { in: [c.id, ...c.subcategorias.map((s: any) => s.id)] },
+      },
+      _count: { _all: true },
+    });
+    for (const t of tipos) {
+      const nome = (t.subcategoria || '').trim();
+      if (!nome) continue;
+      if (subsVisiveis.some((s: any) => normalizarNome(s.nome) === normalizarNome(nome))) continue;
+      subsVisiveis.push({
+        id: `tipo:${slugDeNome(nome)}`,
+        nome,
+        slug: `tipo:${slugDeNome(nome)}`,
+        totalProdutos: t._count._all,
+        tipo: true,
+      });
+    }
+
+    subsVisiveis.sort((a: any, b: any) => {
+      const ta = a.tipo ? 1 : 0, tb = b.tipo ? 1 : 0;
+      if (ta !== tb) return ta - tb;
+      return normalizarNome(a.nome).localeCompare(normalizarNome(b.nome), 'pt-BR');
+    });
+
+    resultado.push({
+      id: c.id,
+      nome: c.nome,
+      slug: c.slug,
+      icone: c.icone || null,
+      totalProdutos: count,
+      subcategorias: subsVisiveis,
+    });
+  }
+
+  resultado.sort(compararCategoriasVitrine);
+  return resultado;
+}

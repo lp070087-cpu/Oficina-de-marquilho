@@ -1,10 +1,10 @@
 'use client';
 
-import { useState, useRef, useCallback } from 'react';
+import { useState, useRef, useCallback, useEffect } from 'react';
 
 export type TipoImagem = 'PRINCIPAL' | 'SECUNDARIA' | 'TECNICA' | 'EMBALAGEM' | '360';
 
-interface ImagemInfo {
+export interface ImagemInfo {
   id?: string;
   url: string;
   tipo: TipoImagem;
@@ -16,6 +16,9 @@ interface UploadImagensProps {
   imagensAtuais: ImagemInfo[];
   onImagensChange: (imagens: ImagemInfo[]) => void;
 }
+
+// AJUSTE 3 — máximo de 5 fotos por produto (principal + galeria).
+const MAX_IMAGENS = 5;
 
 const TIPOS: { key: TipoImagem; label: string; descricao: string }[] = [
   { key: 'PRINCIPAL', label: 'Principal', descricao: 'Foto principal do produto (catalogo)' },
@@ -32,8 +35,15 @@ export default function UploadImagens({ pecaId, imagensAtuais, onImagensChange }
   const [tipoSelecionado, setTipoSelecionado] = useState<TipoImagem>('PRINCIPAL');
   const fileRef = useRef<HTMLInputElement>(null);
 
+  // Sincroniza com o pai quando o modal abre (imagensAtuais muda de [] → lista real).
+  useEffect(() => { setImagens(imagensAtuais || []); }, [imagensAtuais]);
+
   const handleUpload = useCallback(async (file: File) => {
     setErro('');
+    if (imagens.length >= MAX_IMAGENS) {
+      setErro(`Limite de ${MAX_IMAGENS} fotos por produto atingido. Remova uma foto para adicionar outra.`);
+      return;
+    }
     setUploading(true);
     try {
       const form = new FormData();
@@ -83,11 +93,13 @@ export default function UploadImagens({ pecaId, imagensAtuais, onImagensChange }
         body: JSON.stringify({ id: img.id, tipo: 'PRINCIPAL' }),
       });
       if (!res.ok) return;
-      setImagens(prev => prev.map((im, i) => ({
+      const novas = imagens.map((im, i) => ({
         ...im,
         tipo: (i === index ? 'PRINCIPAL' : im.tipo === 'PRINCIPAL' ? 'GALERIA' : im.tipo) as TipoImagem,
         ordem: i === index ? 0 : im.ordem,
-      })));
+      }));
+      setImagens(novas);
+      onImagensChange(novas);
     } catch {}
   }
 
@@ -103,13 +115,16 @@ export default function UploadImagens({ pecaId, imagensAtuais, onImagensChange }
     <div className="space-y-3">
       <div className="flex items-center justify-between">
         <h4 className="text-sm font-bold text-slate-800">Imagens ({imagens.length})</h4>
-        <button
-          onClick={() => fileRef.current?.click()}
-          disabled={uploading}
-          className="text-xs font-semibold text-brand-600 hover:text-brand-700 bg-brand-50 px-3 py-1.5 rounded-lg hover:bg-brand-100 transition-colors disabled:opacity-50"
-        >
-          {uploading ? 'Enviando...' : '+ Adicionar'}
-        </button>
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] text-slate-400">{imagens.length}/{MAX_IMAGENS}</span>
+          <button
+            onClick={() => fileRef.current?.click()}
+            disabled={uploading || imagens.length >= MAX_IMAGENS}
+            className="text-xs font-semibold text-brand-600 hover:text-brand-700 bg-brand-50 px-3 py-1.5 rounded-lg hover:bg-brand-100 transition-colors disabled:opacity-50"
+          >
+            {uploading ? 'Enviando...' : imagens.length >= MAX_IMAGENS ? 'Limite atingido' : '+ Adicionar'}
+          </button>
+        </div>
       </div>
 
       {/* Seletor de tipo */}

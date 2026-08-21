@@ -1,6 +1,7 @@
 import { Suspense } from 'react';
 import VitrineHomeClient from './VitrineHomeClient';
 import { Metadata } from 'next';
+import { getCategoriasVitrine } from '@/lib/vitrine-utils';
 
 export const metadata: Metadata = {
   title: 'Marquinho Moto Peças — Peças e Acessórios para Motos',
@@ -21,30 +22,29 @@ interface Peca {
   categoria: { nome: string; slug: string };
 }
 
-// Remove dados internos (_estoque com custo médio/valores) do payload de categorias
-// repassado à Vitrine. A API /api/categorias é compartilhada com o admin e NÃO foi alterada.
-function limparCategorias(cats: any[]): Categoria[] {
-  return (cats || []).map((c: any) => ({
-    id: c.id,
-    nome: c.nome,
-    slug: c.slug,
-    subcategorias: (c.subcategorias || []).map((s: any) => ({ nome: s.nome, slug: s.slug })),
-  }));
-}
-
 async function getVitrineData() {
-  const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || (process.env.NODE_ENV === 'production' ? 'https://marquinhomotopeças.com' : 'http://localhost:3000');
+  // AJUSTE 6 — FONTE ÚNICA DE VERDADE:
+  //   • `categoriasVitrine` (menu + grid) vem do PRISMA DIRETO via getCategoriasVitrine()
+  //     — a MESMA função da API /api/vitrine/categorias. Sem self-fetch HTTP, sem domínio
+  //     com acento (IDN), sem variável não configurada. Elimina a causa raiz das categorias
+  //     sumirem na Home em produção.
+  //   • `pecas` (catálogo da Home) continua vindo da API pública /api/vitrine (leitura
+  //     server-side; o self-fetch aqui é resiliente e não afeta o menu de categorias).
   try {
-    const [pecasRes, catsRes, catsVitrineRes] = await Promise.all([
-      fetch(`${baseUrl}/api/vitrine`, { cache: 'no-store' }),
-      fetch(`${baseUrl}/api/categorias`, { cache: 'no-store' }),
-      fetch(`${baseUrl}/api/vitrine/categorias`, { cache: 'no-store' }),
+    const [pecasRes, categoriasVitrine] = await Promise.all([
+      fetch(
+        (process.env.NEXT_PUBLIC_BASE_URL || (process.env.NODE_ENV === 'production' ? 'https://marquinhomotopecas.com' : 'http://localhost:3000')) + '/api/vitrine',
+        { cache: 'no-store' }
+      ),
+      getCategoriasVitrine(),
     ]);
-    const catsVitrine = await catsVitrineRes.json().catch(() => []);
+    const pecas = ((await pecasRes.json()) as Peca[]) || [];
+    // Fallback defensivo: categorias derivadas das peças (caso getCategoriasVitrine retorne []).
+    const catsDerivadas = [...new Map(pecas.map((p: any) => [p.categoria.slug, p.categoria])).values()];
     return {
-      pecas: ((await pecasRes.json()) as Peca[]) || [],
-      categorias: limparCategorias((await catsRes.json()) as any[]) || [],
-      categoriasVitrine: (Array.isArray(catsVitrine) ? catsVitrine : []) as CategoriaVitrine[],
+      pecas,
+      categorias: catsDerivadas as Categoria[],
+      categoriasVitrine: (Array.isArray(categoriasVitrine) ? categoriasVitrine : []) as CategoriaVitrine[],
     };
   } catch {
     return { pecas: [] as Peca[], categorias: [] as Categoria[], categoriasVitrine: [] as CategoriaVitrine[] };

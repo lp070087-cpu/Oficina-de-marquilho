@@ -85,6 +85,7 @@ model Peca {
   subcategoria          String?
   tamanho               String?
   genero                String?
+  cor                   String?
   descricaoCurta        String?
   destaque              Boolean                  @default(false)
   oferta                Boolean                  @default(false)

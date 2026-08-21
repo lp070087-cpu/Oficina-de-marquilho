@@ -75,7 +75,7 @@ export default async function ProdutoPage({ params }: { params: Promise<{ id: st
   const desconto = temDesconto ? Math.round((economia / precoBase) * 100) : 0;
   const temPrecoVitrineDiferente = peca.precoVitrine != null && Number(peca.precoVitrine) !== precoBase;
   const disponivel = peca.quantidadeLoja > 0;
-  const storeDomain = process.env.NEXT_PUBLIC_STORE_DOMAIN || 'vitrine.marquinhomotopeças.com';
+  const storeDomain = process.env.NEXT_PUBLIC_STORE_DOMAIN || 'vitrine.marquinhomotopecas.com';
   const baseUrl = `https://${storeDomain}`;
   const url = `${baseUrl}/vitrine/produto/${peca.id}`;
   const duvidasWhatsApp = `https://wa.me/${WHATSAPP_LOJA}?text=${encodeURIComponent(`Olá! Tenho uma dúvida sobre o produto ${peca.nome}.`)}`;
@@ -225,6 +225,14 @@ export default async function ProdutoPage({ params }: { params: Promise<{ id: st
                   <span className="font-medium text-slate-700">{rotuloAtributosAcessorio(peca)}</span>
                 </div>
               )}
+              {/* COR DO CAPACETE — só exibe a linha quando há cor cadastrada.
+                  null/vazio → nenhuma linha (nunca exibe "Cor:" vazia). */}
+              {peca.cor && peca.cor.trim() ? (
+                <div className="flex justify-between py-1.5 border-b border-slate-50">
+                  <span className="text-slate-400">Cor</span>
+                  <span className="font-medium text-slate-700">{peca.cor.trim()}</span>
+                </div>
+              ) : null}
               <div className="flex justify-between py-1.5 border-b border-slate-50">
                 <span className="text-slate-400">Garantia</span>
                 <span className="font-medium text-slate-700">{garantia}</span>

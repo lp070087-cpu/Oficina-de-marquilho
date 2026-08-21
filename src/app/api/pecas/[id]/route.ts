@@ -59,6 +59,9 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
       // Tamanho/Gênero do acessório: se enviado, grava (ou limpa com ''); se ausente, preserva.
       tamanho: has(body.tamanho) ? (body.tamanho || null) : existing.tamanho,
       genero: has(body.genero) ? (body.genero || null) : existing.genero,
+      // COR DO CAPACETE: mesmo padrão — se o formulário enviar, grava (vazio → null);
+      // se NÃO enviar (undefined), preserva o valor existente (nunca apaga acidentalmente).
+      cor: has(body.cor) ? (body.cor || null) : existing.cor,
     };
 
     // Preços: somente DONO/ESTOQUE podem alterar. BALCAO/MECANICO não.

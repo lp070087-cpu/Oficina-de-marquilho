@@ -3,10 +3,11 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import EstoqueCategorias from '@/components/estoque/EstoqueCategorias';
+import UploadImagens, { ImagemInfo } from '@/components/estoque/UploadImagens';
 import { useEstoqueRefresh } from '@/lib/estoque-events';
 import { mascaraMoeda, parseMoeda, fmtMoeda } from '@/lib/moeda-utils';
 import { DADOS_EMPRESA } from '@/lib/imprimirNotaServico';
-import { TIPOS_ACESSORIOS, TAMANHOS_CAPACETE, TAMANHOS_CAPA_CHUVA, GENEROS_CAPA_CHUVA, ehCategoriaAcessorios, tipoExigeTamanho, tipoExigeGenero, tipoEhCapacete, tipoEhCapaChuva } from '@/lib/peca-acessorios';
+import { TIPOS_ACESSORIOS, TAMANHOS_CAPACETE, TAMANHOS_CAPA_CHUVA, GENEROS_CAPA_CHUVA, CORES_SUGERIDAS_CAPACETE, ehCategoriaAcessorios, tipoExigeTamanho, tipoExigeGenero, tipoEhCapacete, tipoEhCapaChuva } from '@/lib/peca-acessorios';
 
 type CardFiltro = 'todos' | 'baixo' | 'zerado' | 'naLoja' | 'unidades';
 
@@ -15,7 +16,7 @@ interface Peca {
   id: string; nome: string; codigo: string; codigoBarras?: string;
   precoVenda: number; precoCusto: number; quantidade: number; quantidadeLoja: number;
   estoqueMinimo: number; marca?: string; compatibilidade?: string; localizacao?: string;
-  subcategoria?: string; tamanho?: string | null; genero?: string | null; categoria: { nome: string; id: string; slug: string };
+  subcategoria?: string; tamanho?: string | null; genero?: string | null; cor?: string | null; categoria: { nome: string; id: string; slug: string };
 }
 
 type SortField = 'nome' | 'codigo' | 'quantidade' | 'quantidadeLoja' | 'precoVenda';
@@ -64,6 +65,10 @@ export default function EstoqueCentralPage() {
   const [tamanho, setTamanho] = useState('');
   // Gênero da CAPA DE CHUVA (ACESSÓRIOS→CAPA DE CHUVA). Estado SEPARADO de form.
   const [generoCapaChuva, setGeneroCapaChuva] = useState('');
+  // COR DO CAPACETE (ACESSÓRIOS→CAPACETE). Texto livre com sugestões. Estado SEPARADO de form.
+  const [cor, setCor] = useState('');
+  // AJUSTE 3 — múltiplas fotos (PecaImagem). Carregadas ao abrir edição.
+  const [imagensAtuais, setImagensAtuais] = useState<ImagemInfo[]>([]);
   const [formErrors, setFormErrors] = useState<Record<string, string>>({});
 
   // Export modal
@@ -228,7 +233,14 @@ export default function EstoqueCentralPage() {
     setFormErrors({});
     setTamanho(peca?.tamanho || '');
     setGeneroCapaChuva(peca?.genero || '');
+    setCor(peca?.cor || '');
+    setImagensAtuais([]);
     if (peca) {
+      // AJUSTE 3 — carrega as imagens existentes da peça ao abrir edição.
+      fetch(`/api/pecas/imagens?pecaId=${peca.id}`)
+        .then(r => r.json())
+        .then((d: any[]) => { if (Array.isArray(d)) setImagensAtuais(d.map(img => ({ id: img.id, url: img.url, tipo: img.tipo, ordem: img.ordem }))); })
+        .catch(() => {});
       setForm({
         nome: peca.nome, codigo: peca.codigo, codigoBarras: peca.codigoBarras || '',
         codigoOEM: '', precoVenda: fmtMoeda(Number(peca.precoVenda)),
@@ -278,6 +290,9 @@ export default function EstoqueCentralPage() {
       estoqueMinimo: Number(form.estoqueMinimo) || 5,
       tamanho: tipoExigeTamanho(form.subcategoria) ? tamanho : null,
       genero: tipoExigeGenero(form.subcategoria) ? generoCapaChuva : null,
+      // COR DO CAPACETE: só envia/limpa quando o tipo é CAPACETE. Nos demais tipos
+      // não é enviado (undefined) → o PUT preserva o valor existente (nunca apaga).
+      cor: ehCapacete ? (cor.trim() || null) : undefined,
     };
 
     const url = modal.peca ? `/api/pecas/${modal.peca.id}` : '/api/pecas';
@@ -335,10 +350,15 @@ export default function EstoqueCentralPage() {
     }
     const nomesCat = [...grupos.keys()].sort((a, b) => a.localeCompare(b, 'pt-BR'));
 
-    const colunasBaixo = ['Categoria','Cod.Int.','Cod.Barras','Nome','Marca','Compatibilidade','Tamanho','Genero','Qtd','Min','PREÇO VENDA','PREÇO CUSTO','PREÇO CUSTO A','PREÇO CUSTO B','PREÇO CUSTO C','PREÇO CUSTO D','OBS'];
-    const colunasTodos = ['Categoria','Cod.Int.','Cod.Barras','Nome','Marca','Compatibilidade','Tamanho','Genero','Qtd','Min','PREÇO DE VENDA','PREÇO DE CUSTO','OBS'];
+    const colunasBaixo = ['Categoria','Cod.Int.','Cod.Barras','Nome','Marca','Compatibilidade','Tamanho','Genero','Qtd','Min','PREÇO VENDA','PREÇO CUSTO','PREÇO CUSTO A','PREÇO CUSTO B','PREÇO CUSTO C','PREÇO CUSTO D','STATUS','OBS'];
+    const colunasTodos = ['Categoria','Cod.Int.','Cod.Barras','Nome','Marca','Compatibilidade','Tamanho','Genero','Qtd','Min','PREÇO DE VENDA','PREÇO DE CUSTO','STATUS','OBS'];
     const colunas = tipo === 'baixo' ? colunasBaixo : colunasTodos;
     const colspan = colunas.length;
+    // AJUSTE 1 — larguras por coluna (A4 PAISAGEM). Somam 100% para nenhuma coluna sobrar/estourar.
+    const larguras = tipo === 'baixo'
+      ? [7,5,7,12,6,11,4,5,3,3,5,5,4,4,4,4,4,7]
+      : [8,6,8,14,7,12,5,6,4,4,6,6,5,9];
+    const colgroup = '<colgroup>' + larguras.map(w => '<col style="width:' + w + '%">').join('') + '</colgroup>';
 
     let rows = '';
     for (const nomeCat of nomesCat) {
@@ -349,29 +369,35 @@ export default function EstoqueCentralPage() {
         return byNome !== 0 ? byNome : a.codigo.localeCompare(b.codigo, 'pt-BR');
       });
       for (const p of itens) {
+        // AJUSTE 1 — STATUS: ESGOTADO (qtd<=0) · BAIXO (qtd<=mínimo) · OK.
+        const statusLabel = (Number(p.quantidade) || 0) <= 0 ? 'ESGOTADO' : (Number(p.quantidade) || 0) <= (Number(p.estoqueMinimo) || 0) ? 'BAIXO' : 'OK';
+        const statusCor = statusLabel === 'ESGOTADO' ? 'background:#fee2e2;color:#991b1b;font-weight:bold' : statusLabel === 'BAIXO' ? 'background:#fef3c7;color:#92400e;font-weight:bold' : 'background:#dcfce7;color:#166534;font-weight:bold';
         const base = `
           <td>${p.codigo}</td>
           <td>${p.codigoBarras || ''}</td>
           <td>${p.nome}</td>
           <td>${p.marca || ''}</td>
-          <td>${p.compatibilidade || ''}</td>
+          <td style="word-break:break-word;overflow-wrap:anywhere;white-space:normal;vertical-align:top">${p.compatibilidade || ''}</td>
           <td>${p.tamanho || ''}</td>
           <td>${p.genero || ''}</td>
           <td style="text-align:center">${p.quantidade}</td>
           <td style="text-align:center">${p.estoqueMinimo}</td>`;
         const precoVenda = fm(Number(p.precoVenda) || 0);
         const precoCusto = fm(Number(p.precoCusto) || 0);
+        const statusTd = `<td style="text-align:center;${statusCor}">${statusLabel}</td>`;
         if (tipo === 'baixo') {
           // A/B/C/D = anotação manual da responsável (preços de fornecedores) — não salvos no banco
           rows += `<tr><td>${p.categoria?.nome || ''}</td>${base}
             <td style="text-align:center">${precoVenda}</td>
             <td style="text-align:center">${precoCusto}</td>
             <td></td><td></td><td></td><td></td>
+            ${statusTd}
             <td>${p.localizacao || ''}</td></tr>`;
         } else {
           rows += `<tr><td>${p.categoria?.nome || ''}</td>${base}
             <td style="text-align:center">${precoVenda}</td>
             <td style="text-align:center">${precoCusto}</td>
+            ${statusTd}
             <td>${p.localizacao || ''}</td></tr>`;
         }
       }
@@ -386,13 +412,19 @@ export default function EstoqueCentralPage() {
     ].join('');
 
     w.document.write('<!DOCTYPE html><html><head><title>' + titulo + ' - ' + DADOS_EMPRESA.fantasia + '</title>' +
-      '<style>body{font-family:Arial;padding:20px;font-size:11px}h1{text-align:center;font-size:16px;margin-bottom:5px}' +
-      'table{width:100%;border-collapse:collapse}th,td{border:1px solid #ccc;padding:4px 6px}th{background:#2563eb;color:#fff;font-size:10px}' +
-      'tr[style*="background"] td{font-size:11px;letter-spacing:0.5px}' +
-      '@media print{body{padding:5mm}button{display:none}}</style></head><body>' +
+      '<style>' +
+      '@page{size:A4 landscape;margin:6mm 7mm}' +
+      'body{font-family:Arial;padding:0;font-size:9.5px;color:#111}' +
+      'h1{text-align:center;font-size:14px;margin:6px 0 3px}' +
+      'table{width:100%;border-collapse:collapse;table-layout:fixed}' +
+      'th,td{border:1px solid #b9c2d0;padding:2px 3px;overflow-wrap:break-word;word-break:break-word;white-space:normal;vertical-align:top}' +
+      'th{background:#2563eb;color:#fff;font-size:8px;text-align:left;padding:3px 4px}' +
+      'tr[style*="background"] td{font-size:10px;letter-spacing:0.5px;font-weight:bold}' +
+      '@media print{body{padding:0;font-size:9.5px}button{display:none}}' +
+      '</style></head><body>' +
       dadosEmpresaHtml +
-      '<h1 style="margin-top:10px">' + titulo + '</h1><p style="text-align:center">' + new Date().toLocaleDateString('pt-BR') + ' · ' + data.length + ' produtos</p>' +
-      '<table><thead><tr>' + colunas.map(c => '<th>' + c + '</th>').join('') + '</tr></thead><tbody>' + rows + '</tbody></table>' +
+      '<h1 style="margin-top:8px">' + titulo + '</h1><p style="text-align:center;font-size:9px;margin:2px 0 6px">' + new Date().toLocaleDateString('pt-BR') + ' · ' + data.length + ' produtos</p>' +
+      '<table>' + colgroup + '<thead><tr>' + colunas.map(c => '<th>' + c + '</th>').join('') + '</tr></thead><tbody>' + rows + '</tbody></table>' +
       '<button onclick="window.print()" style="margin-top:15px;padding:8px 16px;background:#2563eb;color:#fff;border:none;border-radius:6px;cursor:pointer">Imprimir</button></body></html>');
     w.document.close();
     setExportModal(false);
@@ -841,6 +873,26 @@ export default function EstoqueCentralPage() {
                 </div>
               )}
 
+              {/* CAPACETE — COR (texto livre com sugestões). Só aparece quando tipo = CAPACETE.
+                  Não é obrigatório; outros acessórios não exigem cor. */}
+              {mostrarTamanho && ehCapacete && (
+                <div>
+                  <label className="text-xs font-semibold text-slate-600 uppercase">Cor do Capacete</label>
+                  <input
+                    type="text"
+                    list="cores-capacete-central"
+                    value={cor}
+                    onChange={e => setCor(e.target.value)}
+                    className="input-field mt-1.5 text-xs"
+                    placeholder="Ex: Preto Fosco, Preto/Vermelho, Azul/Branco..."
+                  />
+                  <datalist id="cores-capacete-central">
+                    {CORES_SUGERIDAS_CAPACETE.map(c => <option key={c} value={c} />)}
+                  </datalist>
+                  <p className="text-[10px] text-slate-400 mt-1">Sugestões: Preto, Branco, Vermelho, Azul, Cinza, Prata, Rosa, Amarelo, Verde, Laranja, Grafite — ou digite à vontade.</p>
+                </div>
+              )}
+
               {/* CAPA DE CHUVA — GÊNERO + TAMANHO (P/M/G/GG) */}
               {mostrarTamanho && ehCapaChuva && (
                 <div className="space-y-3">
@@ -904,6 +956,18 @@ export default function EstoqueCentralPage() {
                 <label className="text-xs font-semibold text-slate-600 uppercase">Localizacao</label>
                 <input value={form.localizacao} onChange={e => setForm({ ...form, localizacao: e.target.value })} className="input-field mt-1.5 text-xs" placeholder="Ex: A-03-B-02"/>
               </div>
+
+              {/* AJUSTE 3 — múltiplas fotos (principal + até 4 galeria). Só em EDIÇÃO
+                  (upload exige peça já criada). Novo cadastro → após salvar, abrir edição. */}
+              {modal.peca && (
+                <div className="sm:col-span-2">
+                  <UploadImagens
+                    pecaId={modal.peca.id}
+                    imagensAtuais={imagensAtuais}
+                    onImagensChange={setImagensAtuais}
+                  />
+                </div>
+              )}
 
               <div>
                 <label className="text-xs font-semibold text-slate-600 uppercase">Preco custo (R$)</label>

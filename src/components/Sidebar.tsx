@@ -137,9 +137,9 @@ export default function Sidebar({ user, collapsed, mobileOpen, isMobile, onToggl
   return (
     <>
       {showOverlay && (
-        <div className="fixed inset-0 bg-black/50 z-30 lg:hidden" onClick={onToggle} />
+        <div className="fixed inset-0 bg-black/50 z-[90] lg:hidden" onClick={onToggle} />
       )}
-      <aside className={`fixed lg:relative z-40 h-screen flex-shrink-0 w-[260px] ${width} bg-[#0F1A2E] text-white flex flex-col transition-all duration-300 ${showOverlay ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
+      <aside className={`fixed lg:relative z-[100] h-screen flex-shrink-0 w-[260px] ${width} bg-[#0F1A2E] text-white flex flex-col transition-all duration-300 ${showOverlay ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}`}>
         {/* Botão recolher/expandir (desktop) */}
         {!isMobile && onToggle && (
           <button onClick={onToggle} className="absolute top-3 right-2 p-1.5 rounded-md hover:bg-white/10 z-50 text-slate-400 hover:text-white" title={menuCollapsed ? 'Expandir menu' : 'Recolher menu'}>

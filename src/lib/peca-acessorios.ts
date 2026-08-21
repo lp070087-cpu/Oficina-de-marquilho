@@ -50,6 +50,25 @@ export const TAMANHOS_CAPA_CHUVA = ['P', 'M', 'G', 'GG'] as const;
 /** Lista oficial de GÊNEROS de CAPA DE CHUVA. */
 export const GENEROS_CAPA_CHUVA = ['MASCULINO', 'FEMININO'] as const;
 
+/**
+ * Sugestões de COR DO CAPACETE (campo de texto com digitação LIVRE).
+ * A lista abaixo é apenas um atalho visual (datalist) — o usuário pode digitar
+ * qualquer valor: "Preto Fosco", "Preto/Vermelho", "Azul/Branco", etc.
+ */
+export const CORES_SUGERIDAS_CAPACETE = [
+  'Preto',
+  'Branco',
+  'Vermelho',
+  'Azul',
+  'Cinza',
+  'Prata',
+  'Rosa',
+  'Amarelo',
+  'Verde',
+  'Laranja',
+  'Grafite',
+] as const;
+
 /** Tipos de acessório que exigem seleção de TAMANHO (capacete + capa de chuva). */
 export const TIPOS_ACESSORIOS_COM_TAMANHO: ReadonlySet<string> = new Set([TIPO_CAPACETE, TIPO_CAPA_CHUVA]);
 
