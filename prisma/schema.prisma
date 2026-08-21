@@ -540,6 +540,10 @@ model BannerCarrossel {
   posicaoConteudo String?
   overlay         String?
   opacidade       String?
+  // Rodada Subcategorias (2026-08-21): onde o banner deve ser exibido.
+  // DESKTOP | MOBILE | AMBOS — default AMBOS = compatibilidade retroativa
+  // (banners existentes continuam aparecendo em desktop e mobile).
+  exibirEm        String   @default("AMBOS")
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 }
@@ -637,6 +641,10 @@ model PecaImagem {
   pecaId    String
   url       String
   tipo      String   @default("PRINCIPAL")
+  // Rodada Subcategorias (2026-08-21): cor ASSOCIADA a esta foto (ex.: Foto 1 → Preto,
+  // Foto 2 → Vermelho, Foto 3 → Azul). Nullable p/ não quebrar imagens antigas.
+  // NÃO é o mesmo que Peca.cor (cor principal do produto/capacete).
+  cor       String?
   ordem     Int      @default(0)
   createdAt DateTime @default(now())
   peca      Peca     @relation(fields: [pecaId], references: [id], onDelete: Cascade)

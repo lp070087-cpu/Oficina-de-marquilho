@@ -63,6 +63,9 @@ export async function POST(req: NextRequest) {
     const dataFim = formData.get('dataFim') as string || null;
     const corTexto = formData.get('corTexto') as string || null;
     const posicaoConteudo = formData.get('posicaoConteudo') as string || null;
+    // Rodada Subcategorias (2026-08-21): onde exibir — DESKTOP | MOBILE | AMBOS (default AMBOS).
+    const exibirEmRaw = (formData.get('exibirEm') as string || '').trim().toUpperCase();
+    const exibirEm = ['DESKTOP', 'MOBILE'].includes(exibirEmRaw) ? exibirEmRaw : 'AMBOS';
 
     let imagemDesktop: string | null = null;
     let imagemMobile: string | null = null;
@@ -95,7 +98,7 @@ export async function POST(req: NextRequest) {
     }
 
     const banner = await prisma.bannerCarrossel.create({
-      data: { titulo, subtitulo, imagemDesktop, imagemMobile, ctaTexto, ctaLink, ordem, dataInicio, dataFim, corTexto, posicaoConteudo },
+      data: { titulo, subtitulo, imagemDesktop, imagemMobile, ctaTexto, ctaLink, ordem, dataInicio, dataFim, corTexto, posicaoConteudo, exibirEm },
     });
     return NextResponse.json(banner);
   } catch (e: any) {

@@ -239,7 +239,7 @@ export default function EstoqueCentralPage() {
       // AJUSTE 3 — carrega as imagens existentes da peça ao abrir edição.
       fetch(`/api/pecas/imagens?pecaId=${peca.id}`)
         .then(r => r.json())
-        .then((d: any[]) => { if (Array.isArray(d)) setImagensAtuais(d.map(img => ({ id: img.id, url: img.url, tipo: img.tipo, ordem: img.ordem }))); })
+        .then((d: any[]) => { if (Array.isArray(d)) setImagensAtuais(d.map(img => ({ id: img.id, url: img.url, tipo: img.tipo, ordem: img.ordem, cor: img.cor || null }))); })
         .catch(() => {});
       setForm({
         nome: peca.nome, codigo: peca.codigo, codigoBarras: peca.codigoBarras || '',

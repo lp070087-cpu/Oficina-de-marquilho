@@ -2,13 +2,16 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react';
 
-export type TipoImagem = 'PRINCIPAL' | 'SECUNDARIA' | 'TECNICA' | 'EMBALAGEM' | '360';
-
+// Rodada Subcategorias (2026-08-21): interface de fotos SIMPLIFICADA.
+// Removido o seletor Principal/Secundária/Técnica/Embalagem/360°.
+// Máximo 5 fotos. Cada foto possui FOTO + COR. A primeira foto vira capa por padrão
+// (tipo 'PRINCIPAL') e um botão simples "Usar como capa" promove qualquer foto.
 export interface ImagemInfo {
   id?: string;
   url: string;
-  tipo: TipoImagem;
+  tipo: string;
   ordem: number;
+  cor?: string | null;
 }
 
 interface UploadImagensProps {
@@ -17,22 +20,13 @@ interface UploadImagensProps {
   onImagensChange: (imagens: ImagemInfo[]) => void;
 }
 
-// AJUSTE 3 — máximo de 5 fotos por produto (principal + galeria).
+// Regra mantida: máximo de 5 fotos por produto.
 const MAX_IMAGENS = 5;
-
-const TIPOS: { key: TipoImagem; label: string; descricao: string }[] = [
-  { key: 'PRINCIPAL', label: 'Principal', descricao: 'Foto principal do produto (catalogo)' },
-  { key: 'SECUNDARIA', label: 'Secundaria', descricao: 'Angulo alternativo' },
-  { key: 'TECNICA', label: 'Tecnica', descricao: 'Detalhes tecnicos, medidas, especificacoes' },
-  { key: 'EMBALAGEM', label: 'Embalagem', descricao: 'Foto da embalagem original' },
-  { key: '360', label: '360°', descricao: 'Foto 360 graus do produto' },
-];
 
 export default function UploadImagens({ pecaId, imagensAtuais, onImagensChange }: UploadImagensProps) {
   const [imagens, setImagens] = useState<ImagemInfo[]>(imagensAtuais || []);
   const [uploading, setUploading] = useState(false);
   const [erro, setErro] = useState('');
-  const [tipoSelecionado, setTipoSelecionado] = useState<TipoImagem>('PRINCIPAL');
   const fileRef = useRef<HTMLInputElement>(null);
 
   // Sincroniza com o pai quando o modal abre (imagensAtuais muda de [] → lista real).
@@ -49,7 +43,9 @@ export default function UploadImagens({ pecaId, imagensAtuais, onImagensChange }
       const form = new FormData();
       form.append('imagem', file);
       form.append('pecaId', pecaId);
-      form.append('tipo', tipoSelecionado);
+      // Primeira foto vira capa por padrão (PRINCIPAL); demais viram GALERIA.
+      const primeira = imagens.length === 0;
+      form.append('tipo', primeira ? 'PRINCIPAL' : 'GALERIA');
       form.append('ordem', String(imagens.length + 1));
 
       const res = await fetch('/api/pecas/imagens', { method: 'POST', body: form });
@@ -59,14 +55,14 @@ export default function UploadImagens({ pecaId, imagensAtuais, onImagensChange }
       }
       const data = await res.json();
 
-      const novas = [...imagens, { id: data.id, url: data.url, tipo: tipoSelecionado, ordem: imagens.length + 1 }];
+      const novas = [...imagens, { id: data.id, url: data.url, tipo: primeira ? 'PRINCIPAL' : 'GALERIA', ordem: imagens.length + 1, cor: null }];
       setImagens(novas);
       onImagensChange(novas);
     } catch (e: any) {
       setErro(e.message || 'Erro ao fazer upload');
     }
     setUploading(false);
-  }, [pecaId, tipoSelecionado, imagens, onImagensChange]);
+  }, [pecaId, imagens, onImagensChange]);
 
   async function handleRemover(index: number) {
     const img = imagens[index];
@@ -75,17 +71,21 @@ export default function UploadImagens({ pecaId, imagensAtuais, onImagensChange }
         await fetch(`/api/pecas/imagens?id=${img.id}`, { method: 'DELETE' });
       } catch {}
     }
-    const novas = imagens.filter((_, i) => i !== index);
+    const restantes = imagens.filter((_, i) => i !== index);
+    // Se removeu a capa, a próxima foto vira capa automaticamente (a API já promove
+    // a próxima ao deletar PRINCIPAL; refletimos aqui no estado local).
+    let novas = restantes.map((im, i) => ({ ...im, ordem: i + 1 }));
+    if (novas.length > 0 && !novas.some(n => n.tipo === 'PRINCIPAL')) {
+      novas = novas.map((n, i) => i === 0 ? { ...n, tipo: 'PRINCIPAL' } : n);
+    }
     setImagens(novas);
     onImagensChange(novas);
   }
 
-  // Correção 4 (DONA): definir uma imagem como PRINCIPAL (capa do produto na Vitrine).
-  // O PUT /api/pecas/imagens promove a imagem, rebaixa a principal anterior para
-  // GALERIA e atualiza peca.imagemUrl — tudo em uma única chamada.
-  async function handleDefinirPrincipal(index: number) {
+  // Botão simples "Usar como capa": promove a foto clicada para PRINCIPAL.
+  async function handleUsarComoCapa(index: number) {
     const img = imagens[index];
-    if (!img.id) return;
+    if (!img.id || img.tipo === 'PRINCIPAL') return;
     try {
       const res = await fetch('/api/pecas/imagens', {
         method: 'PUT',
@@ -95,11 +95,28 @@ export default function UploadImagens({ pecaId, imagensAtuais, onImagensChange }
       if (!res.ok) return;
       const novas = imagens.map((im, i) => ({
         ...im,
-        tipo: (i === index ? 'PRINCIPAL' : im.tipo === 'PRINCIPAL' ? 'GALERIA' : im.tipo) as TipoImagem,
-        ordem: i === index ? 0 : im.ordem,
+        tipo: (i === index ? 'PRINCIPAL' : 'GALERIA') as string,
+        ordem: i === index ? 0 : i + 1,
       }));
       setImagens(novas);
       onImagensChange(novas);
+    } catch {}
+  }
+
+  // Altera a cor associada à foto (salva via PUT; ausente preserva).
+  async function handleMudarCor(index: number, cor: string) {
+    const img = imagens[index];
+    const valor = cor.trim() || null;
+    const novas = imagens.map((im, i) => i === index ? { ...im, cor: valor } : im);
+    setImagens(novas);
+    onImagensChange(novas);
+    if (!img?.id) return;
+    try {
+      await fetch('/api/pecas/imagens', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: img.id, cor: valor }),
+      });
     } catch {}
   }
 
@@ -109,12 +126,10 @@ export default function UploadImagens({ pecaId, imagensAtuais, onImagensChange }
     if (fileRef.current) fileRef.current.value = '';
   }
 
-  const tiposComImagem = imagens.map(i => i.tipo);
-
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <h4 className="text-sm font-bold text-slate-800">Imagens ({imagens.length})</h4>
+        <h4 className="text-sm font-bold text-slate-800">Fotos do produto ({imagens.length})</h4>
         <div className="flex items-center gap-2">
           <span className="text-[10px] text-slate-400">{imagens.length}/{MAX_IMAGENS}</span>
           <button
@@ -122,27 +137,14 @@ export default function UploadImagens({ pecaId, imagensAtuais, onImagensChange }
             disabled={uploading || imagens.length >= MAX_IMAGENS}
             className="text-xs font-semibold text-brand-600 hover:text-brand-700 bg-brand-50 px-3 py-1.5 rounded-lg hover:bg-brand-100 transition-colors disabled:opacity-50"
           >
-            {uploading ? 'Enviando...' : imagens.length >= MAX_IMAGENS ? 'Limite atingido' : '+ Adicionar'}
+            {uploading ? 'Enviando...' : imagens.length >= MAX_IMAGENS ? 'Limite atingido' : '+ Adicionar foto'}
           </button>
         </div>
       </div>
 
-      {/* Seletor de tipo */}
-      <div className="flex flex-wrap gap-1 bg-slate-100 p-0.5 rounded-lg">
-        {TIPOS.map(t => (
-          <button
-            key={t.key}
-            onClick={() => setTipoSelecionado(t.key)}
-            className={`flex-1 text-[10px] font-medium px-1.5 py-1.5 rounded-md transition-colors ${
-              tipoSelecionado === t.key ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-            } ${tiposComImagem.includes(t.key) ? 'ring-1 ring-emerald-300' : ''}`}
-            title={t.descricao}
-          >
-            {t.label}
-            {tiposComImagem.includes(t.key) && <span className="ml-0.5 text-emerald-500">✓</span>}
-          </button>
-        ))}
-      </div>
+      <p className="text-[10px] text-slate-400">
+        A primeira foto vira a capa do produto. Cada foto pode ter sua própria cor (ex.: Foto 1 → Preto, Foto 2 → Vermelho).
+      </p>
 
       <input ref={fileRef} type="file" accept="image/png,image/jpeg,image/webp" onChange={handleFileChange} className="hidden" />
 
@@ -156,38 +158,49 @@ export default function UploadImagens({ pecaId, imagensAtuais, onImagensChange }
           <p className="text-[10px] text-slate-400 mt-0.5">Formatos aceitos: PNG, JPEG, WebP (max 10MB)</p>
         </div>
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
           {imagens.map((img, i) => {
-            const tipo = TIPOS.find(t => t.key === img.tipo);
+            const ehCapa = img.tipo === 'PRINCIPAL' || i === 0;
             return (
-              <div key={i} className="relative group rounded-xl overflow-hidden border border-slate-200 bg-slate-50 aspect-square">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src={img.url}
-                  alt={`${tipo?.label || 'Imagem'} ${i + 1}`}
-                  className="w-full h-full object-cover"
-                  onError={(e) => { (e.target as HTMLImageElement).src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y="50" x="50" text-anchor="middle" font-size="30">📷</text></svg>'; }}
-                />
-                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-colors" />
-                <span className="absolute top-1.5 left-1.5 text-[9px] font-bold px-1.5 py-0.5 rounded bg-black/60 text-white">
-                  {tipo?.label || img.tipo}
-                </span>
-                {img.tipo !== 'PRINCIPAL' && (
-                  <button
-                    onClick={() => handleDefinirPrincipal(i)}
-                    className="absolute bottom-1.5 left-1.5 px-1.5 py-0.5 rounded bg-brand-600 text-white text-[9px] font-bold opacity-0 group-hover:opacity-100 transition-opacity hover:bg-brand-700"
-                    title="Definir como foto principal"
-                  >
-                    ★ Principal
+              <div key={i} className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-2">
+                {/* Thumbnail */}
+                <div className="relative w-20 h-20 rounded-lg overflow-hidden border border-slate-200 bg-white flex-shrink-0 aspect-square">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={img.url}
+                    alt={`Foto ${i + 1}`}
+                    className="w-full h-full object-cover"
+                    onError={(e) => { (e.target as HTMLImageElement).src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><text y="50" x="50" text-anchor="middle" font-size="30">📷</text></svg>'; }}
+                  />
+                  {ehCapa && (
+                    <span className="absolute top-1 left-1 text-[8px] font-extrabold px-1.5 py-0.5 rounded bg-brand-600 text-white">CAPA</span>
+                  )}
+                </div>
+
+                {/* Ações: usar como capa + cor */}
+                <div className="flex-1 min-w-0 space-y-1.5">
+                  {!ehCapa && (
+                    <button onClick={() => handleUsarComoCapa(i)}
+                      className="px-2 py-1 rounded bg-brand-600 text-white text-[10px] font-bold hover:bg-brand-700 transition-colors"
+                      title="Usar esta foto como capa do produto">
+                      ★ Usar como capa
+                    </button>
+                  )}
+                  <div className="flex items-center gap-1.5">
+                    <label className="text-[10px] text-slate-400 uppercase font-bold">Cor</label>
+                    <input
+                      value={img.cor || ''}
+                      onChange={e => handleMudarCor(i, e.target.value)}
+                      placeholder="Ex: Preto"
+                      className="flex-1 min-w-0 bg-white border border-slate-200 rounded-md px-2 py-1 text-xs text-slate-700 outline-none focus:border-brand-400"
+                    />
+                  </div>
+                  <button onClick={() => handleRemover(i)}
+                    className="text-[10px] font-bold text-red-600 hover:text-red-700"
+                    title="Remover foto">
+                    Remover
                   </button>
-                )}
-                <button
-                  onClick={() => handleRemover(i)}
-                  className="absolute top-1.5 right-1.5 w-5 h-5 rounded-full bg-red-500 text-white text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
-                  title="Remover"
-                >
-                  ×
-                </button>
+                </div>
               </div>
             );
           })}

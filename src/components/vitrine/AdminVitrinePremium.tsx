@@ -21,7 +21,7 @@ export default function AdminVitrine() {
 
   // Banners
   const [banners, setBanners] = useState<any[]>([]);
-  const [novoBanner, setNovoBanner] = useState({ titulo: '', subtitulo: '', ctaTexto: '', ctaLink: '', ordem: 0 });
+  const [novoBanner, setNovoBanner] = useState({ titulo: '', subtitulo: '', ctaTexto: '', ctaLink: '', ordem: 0, exibirEm: 'AMBOS' });
   const [bannerDesktop, setBannerDesktop] = useState<File | null>(null);
   const [bannerMobile, setBannerMobile] = useState<File | null>(null);
 
@@ -83,11 +83,12 @@ export default function AdminVitrine() {
     fd.append('ctaTexto', novoBanner.ctaTexto);
     fd.append('ctaLink', novoBanner.ctaLink);
     fd.append('ordem', String(novoBanner.ordem));
+    fd.append('exibirEm', novoBanner.exibirEm);
     if (bannerDesktop) fd.append('imagemDesktop', bannerDesktop);
     if (bannerMobile) fd.append('imagemMobile', bannerMobile);
 
     const r = await fetch('/api/vitrine/banners', { method: 'POST', body: fd });
-    if (r.ok) { setNovoBanner({ titulo: '', subtitulo: '', ctaTexto: '', ctaLink: '', ordem: 0 }); setBannerDesktop(null); setBannerMobile(null); fetchBanners(); setSaveMsg('Banner criado!'); setTimeout(() => setSaveMsg(''), 2000); }
+    if (r.ok) { setNovoBanner({ titulo: '', subtitulo: '', ctaTexto: '', ctaLink: '', ordem: 0, exibirEm: 'AMBOS' }); setBannerDesktop(null); setBannerMobile(null); fetchBanners(); setSaveMsg('Banner criado!'); setTimeout(() => setSaveMsg(''), 2000); }
   }
 
   // Promoções
@@ -201,6 +202,24 @@ export default function AdminVitrine() {
                 <input type="file" accept="image/png,image/webp,image/jpeg" onChange={e => setBannerMobile(e.target.files?.[0] || null)} className="text-xs" />
               </div>
             </div>
+            {/* Rodada Subcategorias (2026-08-21): onde exibir o banner */}
+            <div className="mt-1">
+              <label className="text-[10px] text-slate-400 block mb-1">Exibir em</label>
+              <div className="flex flex-wrap gap-4">
+                {([['AMBOS', 'Desktop e Mobile'], ['DESKTOP', 'Somente Desktop'], ['MOBILE', 'Somente Mobile']] as const).map(([valor, rotulo]) => (
+                  <label key={valor} className="flex items-center gap-1.5 text-xs cursor-pointer">
+                    <input
+                      type="radio"
+                      name="admin-banner-exibir-em"
+                      value={valor}
+                      checked={novoBanner.exibirEm === valor}
+                      onChange={() => setNovoBanner({ ...novoBanner, exibirEm: valor })}
+                      className="rounded"
+                    /> {rotulo}
+                  </label>
+                ))}
+              </div>
+            </div>
             <button onClick={criarBanner} className="btn-primary text-xs px-4 py-2">Criar Banner</button>
           </div>
           <div className="space-y-2">
@@ -208,7 +227,7 @@ export default function AdminVitrine() {
               <div key={b.id} className="flex items-center justify-between bg-white border border-slate-200 rounded-xl p-4">
                 <div>
                   <p className="text-sm font-bold text-slate-700">{b.titulo || 'Sem título'}</p>
-                  <p className="text-[10px] text-slate-400">{b.subtitulo} | Ordem: {b.ordem} | {b.ativo ? 'Ativo' : 'Inativo'}</p>
+                  <p className="text-[10px] text-slate-400">{b.subtitulo} | Ordem: {b.ordem} | {b.ativo ? 'Ativo' : 'Inativo'} | {b.exibirEm === 'DESKTOP' ? '🖥️ Desktop' : b.exibirEm === 'MOBILE' ? '📱 Mobile' : '💻📱 Ambos'}</p>
                 </div>
                 {b.imagemDesktop && <img src={b.imagemDesktop} alt="" className="w-40 aspect-[4/1] object-contain bg-slate-100 rounded" />}
               </div>

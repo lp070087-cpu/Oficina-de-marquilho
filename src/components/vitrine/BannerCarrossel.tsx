@@ -8,6 +8,7 @@ interface Banner {
   imagemDesktop?: string; imagemMobile?: string;
   ctaTexto?: string; ctaLink?: string; ativo: boolean;
   corTexto?: string; overlay?: string; opacidade?: string; posicaoConteudo?: string;
+  exibirEm?: string;
 }
 
 export default function BannerCarrossel({ banners: propBanners }: { banners?: Banner[] }) {
@@ -15,6 +16,7 @@ export default function BannerCarrossel({ banners: propBanners }: { banners?: Ba
   const [paused, setPaused] = useState(false);
   const [banners, setBanners] = useState<Banner[]>(propBanners || []);
   const [carregado, setCarregado] = useState(!!propBanners);
+  const [isDesktop, setIsDesktop] = useState(true);
 
   // Item 3: quando chamado sem prop (Vitrine pública), busca do /api/vitrine/banners
   // que já retorna SÓ banners ativos dentro do período (GET público).
@@ -25,24 +27,50 @@ export default function BannerCarrossel({ banners: propBanners }: { banners?: Ba
     }).catch(() => {}).finally(() => setCarregado(true));
   }, [propBanners]);
 
+  // Rodada Subcategorias (2026-08-21): detecta desktop/mobile para respeitar exibirEm.
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 768px)');
+    const atualizar = () => setIsDesktop(mq.matches);
+    atualizar();
+    mq.addEventListener('change', atualizar);
+    return () => mq.removeEventListener('change', atualizar);
+  }, []);
+
   const active = banners.filter(b => b.ativo);
-  const next = useCallback(() => setCurrent(prev => (prev + 1) % (active.length || 1)), [active.length]);
-  const prev = useCallback(() => setCurrent(prev => prev === 0 ? (active.length || 1) - 1 : prev - 1), [active.length]);
+
+  // Filtra pelo destino configurado: AMBOS (default) → todos; DESKTOP → só desktop; MOBILE → só mobile.
+  const visiveis = active.filter(b => {
+    const exibir = (b.exibirEm || 'AMBOS').toUpperCase();
+    if (exibir === 'DESKTOP') return isDesktop;
+    if (exibir === 'MOBILE') return !isDesktop;
+    return true; // AMBOS (ou valor desconhecido) → ambos
+  });
+
+  const next = useCallback(() => setCurrent(prev => (prev + 1) % (visiveis.length || 1)), [visiveis.length]);
+  const prev = useCallback(() => setCurrent(prev => prev === 0 ? (visiveis.length || 1) - 1 : prev - 1), [visiveis.length]);
 
   useEffect(() => {
-    if (active.length <= 1 || paused) return;
+    if (visiveis.length <= 1 || paused) return;
     const t = setInterval(next, 5000);
     return () => clearInterval(t);
-  }, [active.length, paused, next]);
+  }, [visiveis.length, paused, next]);
+
+  // Se a lista visível mudou (ex.: trocou de dispositivo), ajusta o índice.
+  useEffect(() => {
+    if (current >= visiveis.length) setCurrent(0);
+  }, [visiveis.length, current]);
 
   if (!carregado) return <div className="aspect-[4/1] max-md:aspect-[2/1] bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900" />;
-  if (active.length === 0) return null;
+  if (visiveis.length === 0) return null;
 
-  const b = active[current];
+  const b = visiveis[current];
   const txtColor = b.corTexto || '#ffffff';
   const overlayStyle = b.overlay ? { backgroundColor: b.overlay, opacity: parseFloat(b.opacidade || '0.3') } : {};
   // Mobile: usa imagemMobile se existir; senão usa a Desktop como fallback (sem quebrar).
   const mobileImg = b.imagemMobile || b.imagemDesktop;
+  const exibir = (b.exibirEm || 'AMBOS').toUpperCase();
+  const mostrarDesktop = exibir === 'AMBOS' || exibir === 'DESKTOP';
+  const mostrarMobile = exibir === 'AMBOS' || exibir === 'MOBILE';
 
   return (
     <div className="relative overflow-hidden bg-slate-900 text-white"
@@ -51,45 +79,49 @@ export default function BannerCarrossel({ banners: propBanners }: { banners?: Ba
       <div className="absolute inset-0 z-0" style={overlayStyle} />
 
       {/* Com imagem: container respeita a proporção oficial (desktop 4:1, mobile 2:1).
-          object-cover num container na MESMA proporção da arte = imagem INTEIRA, sem corte. */}
+          object-contain num container na MESMA proporção da arte = imagem INTEIRA, sem corte. */}
       {b.imagemDesktop && (
         <>
-          {/* Desktop — container 4:1 (1600×400). A arte preenche o container na MESMA
-              proporção → imagem INTEIRA, sem corte. object-contain garante que mesmo
-              arquivos fora da proporção apareçam completos (letterbox). */}
-          <div className="relative hidden md:block w-full aspect-[4/1]">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={b.imagemDesktop} alt={b.titulo || 'Banner'} className="absolute inset-0 w-full h-full object-contain bg-slate-900" />
-            <div className={`absolute inset-0 z-10 flex items-center px-6 lg:px-12 ${b.posicaoConteudo === 'right' ? 'justify-end text-right' : ''}`}>
-              <div className="max-w-xl">
-                {b.titulo && <span className="inline-block bg-brand-600 text-white text-[10px] font-extrabold px-3 py-1 rounded-full uppercase tracking-wider mb-2">{b.titulo}</span>}
-                {b.subtitulo && <h1 className="text-lg md:text-xl lg:text-2xl font-extrabold mb-1 leading-tight" style={{ color: txtColor }}>{b.subtitulo}</h1>}
-                {b.ctaLink && b.ctaTexto && (
-                  <Link href={b.ctaLink} className="inline-flex items-center gap-2 mt-2 px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white rounded-md font-bold text-xs transition-colors shadow-lg shadow-brand-600/30">{b.ctaTexto}</Link>
-                )}
+          {/* Desktop — container 4:1 (1600×400). Só quando exibirEm for AMBOS ou DESKTOP. */}
+          {mostrarDesktop && (
+            <div className="relative hidden md:block w-full aspect-[4/1]">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={b.imagemDesktop} alt={b.titulo || 'Banner'} className="absolute inset-0 w-full h-full object-contain bg-slate-900" />
+              <div className={`absolute inset-0 z-10 flex items-center px-6 lg:px-12 ${b.posicaoConteudo === 'right' ? 'justify-end text-right' : ''}`}>
+                <div className="max-w-xl">
+                  {b.titulo && <span className="inline-block bg-brand-600 text-white text-[10px] font-extrabold px-3 py-1 rounded-full uppercase tracking-wider mb-2">{b.titulo}</span>}
+                  {b.subtitulo && <h1 className="text-lg md:text-xl lg:text-2xl font-extrabold mb-1 leading-tight" style={{ color: txtColor }}>{b.subtitulo}</h1>}
+                  {b.ctaLink && b.ctaTexto && (
+                    <Link href={b.ctaLink} className="inline-flex items-center gap-2 mt-2 px-4 py-2 bg-brand-600 hover:bg-brand-700 text-white rounded-md font-bold text-xs transition-colors shadow-lg shadow-brand-600/30">{b.ctaTexto}</Link>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
-          {/* Mobile (2:1) — imagemMobile oficial 600×300; fallback: Desktop sem quebrar */}
-          <div className="relative md:hidden w-full aspect-[2/1]">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src={mobileImg || b.imagemDesktop} alt={b.titulo || 'Banner'} className="absolute inset-0 w-full h-full object-contain bg-slate-900" />
-            <div className={`absolute inset-0 z-10 flex items-center px-4 ${b.posicaoConteudo === 'right' ? 'justify-end text-right' : ''}`}>
-              <div className="max-w-xs">
-                {b.titulo && <span className="inline-block bg-brand-600 text-white text-[9px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider mb-1">{b.titulo}</span>}
-                {b.subtitulo && <h1 className="text-sm font-extrabold leading-tight" style={{ color: txtColor }}>{b.subtitulo}</h1>}
-                {b.ctaLink && b.ctaTexto && (
-                  <Link href={b.ctaLink} className="inline-flex items-center gap-2 mt-1.5 px-3 py-1.5 bg-brand-600 hover:bg-brand-700 text-white rounded-md font-bold text-[11px] transition-colors">{b.ctaTexto}</Link>
-                )}
+          )}
+          {/* Mobile (2:1) — imagemMobile oficial 600×300; fallback: Desktop sem quebrar.
+              Só quando exibirEm for AMBOS ou MOBILE. */}
+          {mostrarMobile && (
+            <div className="relative md:hidden w-full aspect-[2/1]">
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={mobileImg || b.imagemDesktop} alt={b.titulo || 'Banner'} className="absolute inset-0 w-full h-full object-contain bg-slate-900" />
+              <div className={`absolute inset-0 z-10 flex items-center px-4 ${b.posicaoConteudo === 'right' ? 'justify-end text-right' : ''}`}>
+                <div className="max-w-xs">
+                  {b.titulo && <span className="inline-block bg-brand-600 text-white text-[9px] font-extrabold px-2 py-0.5 rounded-full uppercase tracking-wider mb-1">{b.titulo}</span>}
+                  {b.subtitulo && <h1 className="text-sm font-extrabold leading-tight" style={{ color: txtColor }}>{b.subtitulo}</h1>}
+                  {b.ctaLink && b.ctaTexto && (
+                    <Link href={b.ctaLink} className="inline-flex items-center gap-2 mt-1.5 px-3 py-1.5 bg-brand-600 hover:bg-brand-700 text-white rounded-md font-bold text-[11px] transition-colors">{b.ctaTexto}</Link>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
+          )}
         </>
       )}
 
-      {/* Sem imagem: hero padrão com gradiente + conteúdo completo */}
+      {/* Sem imagem: hero padrão com gradiente + conteúdo completo.
+          Respeita exibirEm (AMBOS/DESKTOP/MOBILE). */}
       {!b.imagemDesktop && (
-        <div className="relative w-full aspect-[4/1] max-md:aspect-[2/1] bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 flex items-center px-6 md:px-12">
+        <div className={`relative w-full flex items-center px-6 md:px-12 bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 ${mostrarDesktop && mostrarMobile ? 'aspect-[4/1] max-md:aspect-[2/1]' : mostrarDesktop ? 'aspect-[4/1] hidden md:block' : 'aspect-[2/1] md:hidden'}`}>
           <div className={`max-w-xl ${b.posicaoConteudo === 'right' ? 'ml-auto text-right' : ''}`}>
             {b.titulo && <span className="inline-block bg-brand-600 text-white text-[10px] font-extrabold px-3 py-1 rounded-full uppercase tracking-wider mb-2">{b.titulo}</span>}
             <h1 className="text-lg md:text-2xl lg:text-3xl font-extrabold mb-1 leading-tight" style={{ color: txtColor }}>{b.subtitulo || 'Tudo para sua moto com precos de atacado'}</h1>
@@ -108,7 +140,7 @@ export default function BannerCarrossel({ banners: propBanners }: { banners?: Ba
       )}
 
       {/* Arrows + dots */}
-      {active.length > 1 && (
+      {visiveis.length > 1 && (
         <>
           <button onClick={prev} className="absolute left-3 top-1/2 -translate-y-1/2 z-20 w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center transition-colors">
             <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7"/></svg>
@@ -117,7 +149,7 @@ export default function BannerCarrossel({ banners: propBanners }: { banners?: Ba
             <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7"/></svg>
           </button>
           <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 flex gap-2">
-            {active.map((_, i) => (
+            {visiveis.map((_, i) => (
               <button key={i} onClick={() => setCurrent(i)}
                 className={`w-2 h-2 rounded-full transition-all ${i === current ? 'bg-white scale-125' : 'bg-white/40'}`} />
             ))}

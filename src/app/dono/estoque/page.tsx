@@ -3,6 +3,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import React from 'react';
 import { mascaraMoeda } from '@/lib/moeda-utils';
+import { DADOS_EMPRESA } from '@/lib/imprimirNotaServico';
 import UploadImagens, { ImagemInfo } from '@/components/estoque/UploadImagens';
 import { pecaMatchBusca } from '@/lib/peca-utils';
 import { TIPOS_ACESSORIOS, TAMANHOS_CAPACETE, TAMANHOS_CAPA_CHUVA, GENEROS_CAPA_CHUVA, CORES_SUGERIDAS_CAPACETE, ehCategoriaAcessorios, tipoExigeTamanho, tipoExigeGenero, tipoEhCapacete, tipoEhCapaChuva } from '@/lib/peca-acessorios';
@@ -11,7 +12,7 @@ interface Categoria { id: string; nome: string; slug: string; _count?: { pecas: 
 interface Peca {
   id: string; nome: string; codigo: string; codigoBarras?: string; subcategoria?: string;
   marca?: string; compatibilidade?: string; tamanho?: string | null; genero?: string | null; cor?: string | null;
-  precoVenda: number; precoCusto: number; quantidade: number; estoqueMinimo: number;
+  localizacao?: string; precoVenda: number; precoCusto: number; quantidade: number; estoqueMinimo: number;
   descricao?: string; categoriaId: string; categoria: { nome: string };
 }
 
@@ -156,7 +157,7 @@ export default function EstoquePage() {
       // P2 — carrega as imagens existentes da peça ao abrir EDIÇÃO.
       fetch(`/api/pecas/imagens?pecaId=${peca.id}`)
         .then(r => r.json())
-        .then((d: any[]) => { if (Array.isArray(d)) setImagensAtuais(d.map(img => ({ id: img.id, url: img.url, tipo: img.tipo, ordem: img.ordem }))); })
+        .then((d: any[]) => { if (Array.isArray(d)) setImagensAtuais(d.map(img => ({ id: img.id, url: img.url, tipo: img.tipo, ordem: img.ordem, cor: img.cor || null }))); })
         .catch(() => {});
     }
     else{setForm({nome:'',codigo:'',descricao:'',subcategoria:subcategoriaSelecionada&&subcategoriaSelecionada!==NO_SUBCAT_DONO?subcategoriaSelecionada:'',marca:'',compatibilidade:'',precoVenda:'',precoCusto:'',quantidade:'',estoqueMinimo:'5',categoriaId:categoriaSelecionada?.id||''});setModal({open:true});}
@@ -164,7 +165,136 @@ export default function EstoquePage() {
   async function salvar(){if(!form.nome||!form.codigo||!form.categoriaId){setMsg('Preencha nome, codigo e categoria.');return;}const subcategoria=form.subcategoria.trim();const body={...form,subcategoria,precoVenda:parseMoeda(form.precoVenda),precoCusto:parseMoeda(form.precoCusto),quantidade:Number(form.quantidade)||0,estoqueMinimo:Number(form.estoqueMinimo)||5,tamanho:tipoExigeTamanho(form.subcategoria)?tamanho:null,genero:tipoExigeGenero(form.subcategoria)?generoCapaChuva:null,cor:ehCapaceteDona?(cor.trim()||null):undefined};const url=modal.peca?`/api/pecas/${modal.peca.id}`:'/api/pecas';const method=modal.peca?'PUT':'POST';const res=await fetch(url,{method,headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});if(res.ok){setModal({open:false});fetchPecas();setMsg('');}else{const e=await res.json();setMsg(e.error||'Erro ao salvar.');}}
   async function remover(id:string){if(!confirm('Remover esta peca?'))return;await fetch(`/api/pecas/${id}`,{method:'DELETE'});fetchPecas();}
 
-  function exportarCSV(){const data=view==='pecas'?pecasNivel:pecasFiltradas;const headers=['SKU','Peca','Marca','Compatibilidade','Tamanho','Genero','Categoria','Preco','Estoque','Status'];const grupos=new Map<string,Peca[]>();for(const p of data){const c=p.categoria.nome||'Sem categoria';if(!grupos.has(c))grupos.set(c,[]);grupos.get(c)!.push(p);}const cats=[...grupos.keys()].sort((a,b)=>a.localeCompare(b,'pt-BR'));const rows:any[]=[];for(const c of cats){rows.push([`=== ${c.toUpperCase()} ===`]);const itens=grupos.get(c)!.slice().sort((a,b)=>{const n=a.nome.localeCompare(b.nome,'pt-BR');return n!==0?n:a.codigo.localeCompare(b.codigo,'pt-BR');});for(const p of itens){rows.push([p.codigo,p.nome,p.marca||'-',p.compatibilidade||'',p.tamanho||'',p.genero||'',p.categoria.nome,p.precoVenda.toLocaleString('pt-BR',{style:'currency',currency:'BRL'}),String(p.quantidade),p.quantidade<=p.estoqueMinimo?'BAIXO':'OK']);}}const csv=[headers,...rows].map(r=>r.map((c:any)=>`"${c}"`).join(',')).join('\n');const blob=new Blob(['﻿'+csv],{type:'text/csv;charset=utf-8'});const url=URL.createObjectURL(blob);const a=document.createElement('a');a.href=url;a.download='estoque-marquinho.csv';a.click();URL.revokeObjectURL(url);}
+  // AJUSTE 6 — Exportação igual ao Estoque Central: [Estoque baixo | Todo estoque] → [CSV | PDF | Imprimir].
+  // Reutiliza o MESMO padrão A4 landscape (table-layout fixed, colgroup, word-break) do Central.
+  const [exportModal, setExportModal] = useState(false);
+  const [exportEscopo, setExportEscopo] = useState<'baixo' | 'todos' | null>(null);
+
+  const fm = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+
+  function exportarCSV(escopo: 'baixo' | 'todos') {
+    const data = escopo === 'baixo'
+      ? pecasFiltradas.filter(p => p.quantidade <= p.estoqueMinimo)
+      : pecasFiltradas;
+    const headers = ['SKU','Peca','Marca','Compatibilidade','Tamanho','Genero','Categoria','Subcategoria','Cor','Localizacao','Preco','Estoque','Minimo','Status'];
+    const grupos = new Map<string, Peca[]>();
+    for (const p of data) {
+      const c = p.categoria.nome || 'Sem categoria';
+      if (!grupos.has(c)) grupos.set(c, []);
+      grupos.get(c)!.push(p);
+    }
+    const cats = [...grupos.keys()].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+    const rows: any[] = [];
+    for (const c of cats) {
+      rows.push([`=== ${c.toUpperCase()} ===`]);
+      const itens = grupos.get(c)!.slice().sort((a, b) => {
+        const n = a.nome.localeCompare(b.nome, 'pt-BR');
+        return n !== 0 ? n : a.codigo.localeCompare(b.codigo, 'pt-BR');
+      });
+      for (const p of itens) {
+        const status = (Number(p.quantidade) || 0) <= 0 ? 'ESGOTADO' : (Number(p.quantidade) || 0) <= (Number(p.estoqueMinimo) || 0) ? 'BAIXO' : 'OK';
+        rows.push([
+          p.codigo, p.nome, p.marca || '-', p.compatibilidade || '', p.tamanho || '', p.genero || '',
+          p.categoria.nome, p.subcategoria || '', p.cor || '', p.localizacao || '',
+          fm(Number(p.precoVenda) || 0), String(p.quantidade), String(p.estoqueMinimo), status,
+        ]);
+      }
+    }
+    const csv = [headers, ...rows].map(r => r.map((cell: any) => `"${String(cell ?? '')}"`).join(',')).join('\n');
+    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `estoque-marquinho-${escopo === 'baixo' ? 'baixo' : 'completo'}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    setExportModal(false);
+  }
+
+  // PDF / IMPRESSÃO — A4 landscape, DADOS_EMPRESA, colgroup, table-layout fixed, word-break (mesmo padrão do Estoque Central).
+  function exportarPdf(escopo: 'baixo' | 'todos', imprimir: boolean) {
+    const data = escopo === 'baixo'
+      ? pecasFiltradas.filter(p => p.quantidade <= p.estoqueMinimo)
+      : pecasFiltradas;
+    const titulo = escopo === 'baixo' ? 'Produtos com Estoque Baixo' : 'Todo o Estoque';
+    const w = window.open('', '_blank', 'width=1000,height=700');
+    if (!w) return;
+
+    const grupos = new Map<string, Peca[]>();
+    for (const p of data) {
+      const c = p.categoria.nome || 'Sem categoria';
+      if (!grupos.has(c)) grupos.set(c, []);
+      grupos.get(c)!.push(p);
+    }
+    const nomesCat = [...grupos.keys()].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+
+    // Colunas: Produto, SKU, Categoria, Subcategoria, Marca, Compatibilidade, Tamanho, Genero, Cor, Estoque, Minimo, Localizacao, Custo, Venda, Status
+    const colunas = ['Produto','SKU','Categoria','Subcategoria','Marca','Compatibilidade','Tamanho','Genero','Cor','Estoque','Minimo','Localizacao','Custo','Venda','Status'];
+    const colspan = colunas.length;
+    // Larguras A4 landscape (somam 100%)
+    const larguras = [11,6,7,8,6,10,4,5,5,4,4,6,6,6,7];
+    const colgroup = '<colgroup>' + larguras.map(w => '<col style="width:' + w + '%">').join('') + '</colgroup>';
+
+    let rows = '';
+    for (const nomeCat of nomesCat) {
+      rows += `<tr style="background:#e0e7ff;font-weight:bold"><td colspan="${colspan}">${nomeCat.toUpperCase()}</td></tr>`;
+      const itens = grupos.get(nomeCat)!.slice().sort((a, b) => {
+        const byNome = a.nome.localeCompare(b.nome, 'pt-BR');
+        return byNome !== 0 ? byNome : a.codigo.localeCompare(b.codigo, 'pt-BR');
+      });
+      for (const p of itens) {
+        const status = (Number(p.quantidade) || 0) <= 0 ? 'ESGOTADO' : (Number(p.quantidade) || 0) <= (Number(p.estoqueMinimo) || 0) ? 'BAIXO' : 'OK';
+        const statusCor = status === 'ESGOTADO' ? 'background:#fee2e2;color:#991b1b;font-weight:bold' : status === 'BAIXO' ? 'background:#fef3c7;color:#92400e;font-weight:bold' : 'background:#dcfce7;color:#166534;font-weight:bold';
+        rows += `<tr>
+          <td>${p.nome}</td>
+          <td>${p.codigo}</td>
+          <td>${p.categoria.nome || ''}</td>
+          <td>${p.subcategoria || ''}</td>
+          <td>${p.marca || ''}</td>
+          <td style="word-break:break-word;overflow-wrap:anywhere;white-space:normal;vertical-align:top">${p.compatibilidade || ''}</td>
+          <td>${p.tamanho || ''}</td>
+          <td>${p.genero || ''}</td>
+          <td>${p.cor || ''}</td>
+          <td style="text-align:center">${p.quantidade}</td>
+          <td style="text-align:center">${p.estoqueMinimo}</td>
+          <td>${p.localizacao || ''}</td>
+          <td style="text-align:center">${fm(Number(p.precoCusto) || 0)}</td>
+          <td style="text-align:center">${fm(Number(p.precoVenda) || 0)}</td>
+          <td style="text-align:center;${statusCor}">${status}</td>
+        </tr>`;
+      }
+    }
+
+    const dadosEmpresaHtml = [
+      '<div style="text-align:center;font-size:15px;font-weight:900;letter-spacing:-0.3px">' + DADOS_EMPRESA.fantasia + '</div>',
+      '<div style="text-align:center;font-size:11px;font-weight:700">' + DADOS_EMPRESA.razao + '</div>',
+      '<div style="text-align:center;font-size:9px;color:#555">CNPJ: ' + DADOS_EMPRESA.cnpj + ' · IE: ' + DADOS_EMPRESA.ie + '</div>',
+      '<div style="text-align:center;font-size:9px;color:#555">' + DADOS_EMPRESA.endereco + ' — ' + DADOS_EMPRESA.cidade + '</div>',
+      '<div style="text-align:center;font-size:9px;color:#555">WHATSAPP: ' + DADOS_EMPRESA.telefone1 + ' · ' + DADOS_EMPRESA.telefone2 + '</div>',
+    ].join('');
+
+    w.document.write('<!DOCTYPE html><html><head><title>' + titulo + ' - ' + DADOS_EMPRESA.fantasia + '</title>' +
+      '<style>' +
+      '@page{size:A4 landscape;margin:6mm 7mm}' +
+      'body{font-family:Arial;padding:0;font-size:9.5px;color:#111}' +
+      'h1{text-align:center;font-size:14px;margin:6px 0 3px}' +
+      'table{width:100%;border-collapse:collapse;table-layout:fixed}' +
+      'th,td{border:1px solid #b9c2d0;padding:2px 3px;overflow-wrap:break-word;word-break:break-word;white-space:normal;vertical-align:top}' +
+      'th{background:#2563eb;color:#fff;font-size:8px;text-align:left;padding:3px 4px}' +
+      'tr[style*="background"] td{font-size:10px;letter-spacing:0.5px;font-weight:bold}' +
+      '@media print{body{padding:0;font-size:9.5px}button{display:none}}' +
+      '</style></head><body>' +
+      dadosEmpresaHtml +
+      '<h1 style="margin-top:8px">' + titulo + '</h1><p style="text-align:center;font-size:9px;margin:2px 0 6px">' + new Date().toLocaleDateString('pt-BR') + ' · ' + data.length + ' produtos</p>' +
+      '<table>' + colgroup + '<thead><tr>' + colunas.map(c => '<th>' + c + '</th>').join('') + '</tr></thead><tbody>' + rows + '</tbody></table>' +
+      '<button onclick="window.print()" style="margin-top:15px;padding:8px 16px;background:#2563eb;color:#fff;border:none;border-radius:6px;cursor:pointer">Imprimir</button></body></html>');
+    w.document.close();
+    if (imprimir) {
+      // Aguarda o carregamento e abre o diálogo de impressão automaticamente
+      setTimeout(() => { try { w.focus(); w.print(); } catch { /* noop */ } }, 300);
+    }
+    setExportModal(false);
+  }
 
   const formatMoney=(v:number)=>v.toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
 
@@ -193,7 +323,7 @@ export default function EstoquePage() {
             <div className="text-center"><p className="text-slate-400">Estoque baixo</p><p className={`text-sm font-bold ${estoqueBaixo>0?'text-amber-600':'text-emerald-600'}`}>{estoqueBaixo}</p></div>
           </div>
           <div className="flex items-center gap-2">
-            <button onClick={exportarCSV} className="btn-secondary inline-flex items-center gap-2 text-xs"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>Exportar CSV</button>
+            <button onClick={() => setExportModal(true)} className="btn-secondary inline-flex items-center gap-2 text-xs"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>Exportar</button>
             <button onClick={()=>abrirForm()} className="btn-primary inline-flex items-center gap-2 text-xs"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>Nova peca</button>
           </div>
         </div>
@@ -357,6 +487,67 @@ export default function EstoquePage() {
               </div>
             )}
             <div className="flex justify-end gap-2 mt-6 pt-4 border-t border-slate-100"><button onClick={()=>setModal({open:false})} className="btn-secondary text-xs">Cancelar</button><button onClick={salvar} className="btn-primary text-xs">Salvar</button></div>
+          </div>
+        </div>
+      )}
+
+      {/* AJUSTE 6 — MODAL EXPORTAR (1º: Estoque baixo | Todo estoque → 2º: CSV | PDF | Imprimir) */}
+      {exportModal && !exportEscopo && (
+        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4" onClick={() => setExportModal(false)}>
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-xl w-full max-w-sm p-6 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()} style={{animation: 'scaleIn 0.2s ease-out'}}>
+            <h2 className="text-base font-bold text-slate-800 mb-1">Exportar Estoque</h2>
+            <p className="text-xs text-slate-500 mb-5">Qual lista deseja gerar?</p>
+            <div className="space-y-3">
+              <button
+                onClick={() => setExportEscopo('baixo')}
+                className="w-full text-left p-4 rounded-xl border border-slate-200 hover:border-amber-300 hover:bg-amber-50/50 transition-all duration-200 group"
+              >
+                <strong className="text-sm text-slate-800 group-hover:text-amber-700">Apenas estoque baixo</strong>
+                <p className="text-[11px] text-slate-400 mt-0.5">{pecasFiltradas.filter(p => p.quantidade <= p.estoqueMinimo).length} produtos abaixo do estoque minimo</p>
+              </button>
+              <button
+                onClick={() => setExportEscopo('todos')}
+                className="w-full text-left p-4 rounded-xl border border-slate-200 hover:border-brand-300 hover:bg-brand-50/50 transition-all duration-200 group"
+              >
+                <strong className="text-sm text-slate-800 group-hover:text-brand-700">Todos os produtos</strong>
+                <p className="text-[11px] text-slate-400 mt-0.5">{pecasFiltradas.length} produtos no total</p>
+              </button>
+            </div>
+            <button onClick={() => setExportModal(false)} className="btn-secondary w-full mt-4 text-xs">Cancelar</button>
+          </div>
+        </div>
+      )}
+
+      {/* AJUSTE 6 — MODAL ESCOLHA FORMATO (CSV | PDF | Imprimir) */}
+      {exportModal && exportEscopo && (
+        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4" onClick={() => setExportModal(false)}>
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-xl w-full max-w-sm p-6 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()} style={{animation: 'scaleIn 0.2s ease-out'}}>
+            <h2 className="text-base font-bold text-slate-800 mb-1">{exportEscopo === 'baixo' ? 'Estoque Baixo' : 'Todo o Estoque'}</h2>
+            <p className="text-xs text-slate-500 mb-5">Escolha o formato:</p>
+            <div className="space-y-3">
+              <button
+                onClick={() => exportarCSV(exportEscopo)}
+                className="w-full text-left p-4 rounded-xl border border-slate-200 hover:border-emerald-300 hover:bg-emerald-50/50 transition-all duration-200 group"
+              >
+                <strong className="text-sm text-slate-800 group-hover:text-emerald-700">CSV</strong>
+                <p className="text-[11px] text-slate-400 mt-0.5">Arquivo .csv (abre no Excel)</p>
+              </button>
+              <button
+                onClick={() => exportarPdf(exportEscopo, false)}
+                className="w-full text-left p-4 rounded-xl border border-slate-200 hover:border-red-300 hover:bg-red-50/50 transition-all duration-200 group"
+              >
+                <strong className="text-sm text-slate-800 group-hover:text-red-700">PDF</strong>
+                <p className="text-[11px] text-slate-400 mt-0.5">Visualizar e salvar em PDF (A4 paisagem)</p>
+              </button>
+              <button
+                onClick={() => exportarPdf(exportEscopo, true)}
+                className="w-full text-left p-4 rounded-xl border border-slate-200 hover:border-blue-300 hover:bg-blue-50/50 transition-all duration-200 group"
+              >
+                <strong className="text-sm text-slate-800 group-hover:text-blue-700">Imprimir</strong>
+                <p className="text-[11px] text-slate-400 mt-0.5">Abre o diálogo de impressão do navegador</p>
+              </button>
+            </div>
+            <button onClick={() => setExportEscopo(null)} className="btn-secondary w-full mt-4 text-xs">Voltar</button>
           </div>
         </div>
       )}

@@ -12,7 +12,7 @@ function isBlobUrl(url: string | null): boolean {
 const CAMPOS_PERMITIDOS = [
   'titulo', 'subtitulo', 'imagemDesktop', 'imagemMobile',
   'ctaTexto', 'ctaLink', 'ativo', 'ordem', 'dataInicio', 'dataFim',
-  'corTexto', 'overlay', 'opacidade', 'posicaoConteudo',
+  'corTexto', 'overlay', 'opacidade', 'posicaoConteudo', 'exibirEm',
 ] as const;
 
 // DELETE — remover banner (admin)
@@ -58,6 +58,11 @@ export async function PUT(req: NextRequest, ctx: { params: Promise<{ id: string 
     const updateData: any = {};
     for (const campo of CAMPOS_PERMITIDOS) {
       if (rest[campo] !== undefined) updateData[campo] = rest[campo];
+    }
+    // Sanitiza exibirEm: só aceita DESKTOP | MOBILE | AMBOS (default AMBOS p/ compatibilidade).
+    if (updateData.exibirEm !== undefined) {
+      const val = String(updateData.exibirEm).trim().toUpperCase();
+      updateData.exibirEm = ['DESKTOP', 'MOBILE'].includes(val) ? val : 'AMBOS';
     }
     if (Object.keys(updateData).length === 0) {
       return NextResponse.json({ error: 'Nenhum campo válido para atualizar' }, { status: 400 });

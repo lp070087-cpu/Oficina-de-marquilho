@@ -37,11 +37,14 @@ export default function VitrineManagePage() {
   const [catAtiva, setCatAtiva] = useState('');
   // AJUSTE 1: subcategoria selecionada (filtro rápido na DONA).
   const [subcatAtiva, setSubcatAtiva] = useState('');
+  // AJUSTE 1 (rodada atual): "Ver todos os produtos" sai da visão de pastas
+  // e abre a grade completa da categoria.
+  const [verTodosPasta, setVerTodosPasta] = useState(false);
   const [uploading, setUploading] = useState('');
   const [editandoBanner, setEditandoBanner] = useState(false);
   // Item 3/4 — editor de banner POR IMAGEM (Vercel Blob). Desktop ~1600x400 · Mobile ~600x300.
   const [banners, setBanners] = useState<any[]>([]);
-  const [novoBanner, setNovoBanner] = useState({ titulo: '', subtitulo: '', ctaTexto: '', ctaLink: '', ordem: 0, ativo: true });
+  const [novoBanner, setNovoBanner] = useState({ titulo: '', subtitulo: '', ctaTexto: '', ctaLink: '', ordem: 0, ativo: true, exibirEm: 'AMBOS' });
   const [bannerDesktop, setBannerDesktop] = useState<File | null>(null);
   const [bannerMobile, setBannerMobile] = useState<File | null>(null);
   const [bannerDesktopPrev, setBannerDesktopPrev] = useState('');
@@ -89,7 +92,7 @@ export default function VitrineManagePage() {
     try {
       const r = await fetch(`/api/pecas/imagens?pecaId=${pecaId}`);
       const d = await r.json();
-      if (Array.isArray(d)) setImagensAtuais(d.map((img: any) => ({ id: img.id, url: img.url, tipo: img.tipo, ordem: img.ordem })));
+      if (Array.isArray(d)) setImagensAtuais(d.map((img: any) => ({ id: img.id, url: img.url, tipo: img.tipo, ordem: img.ordem, cor: img.cor || null })));
     } catch {}
     setFotosPeca(pecaId);
   }
@@ -123,12 +126,13 @@ export default function VitrineManagePage() {
       fd.append('ctaTexto', novoBanner.ctaTexto);
       fd.append('ctaLink', novoBanner.ctaLink);
       fd.append('ordem', String(novoBanner.ordem));
+      fd.append('exibirEm', novoBanner.exibirEm);
       if (bannerDesktop) fd.append('imagemDesktop', bannerDesktop);
       if (bannerMobile) fd.append('imagemMobile', bannerMobile);
       const r = await fetch('/api/vitrine/banners', { method: 'POST', body: fd });
       if (r.ok) {
         setBannerMsg('Banner salvo com sucesso!');
-        setNovoBanner({ titulo: '', subtitulo: '', ctaTexto: '', ctaLink: '', ordem: 0, ativo: true });
+        setNovoBanner({ titulo: '', subtitulo: '', ctaTexto: '', ctaLink: '', ordem: 0, ativo: true, exibirEm: 'AMBOS' });
         setBannerDesktop(null); setBannerMobile(null); setBannerDesktopPrev(''); setBannerMobilePrev('');
         fetchBanners();
       } else { const e = await r.json(); setBannerMsg(e.error || 'Erro ao salvar banner.'); }
@@ -218,6 +222,18 @@ export default function VitrineManagePage() {
       )
     ),
   ];
+  // AJUSTE 1 (rodada): conta produtos VISÍVEIS dentro de uma pasta (subcategoria).
+  const contarPasta = (s: { id: string }) => {
+    if (s.id.startsWith('tipo:')) {
+      const alvo = decodeURIComponent(s.id.replace(/^tipo:/, '')).trim().toLowerCase();
+      return pecas.filter(p => {
+        const sub = (p.subcategoria || '').trim().toLowerCase();
+        return sub === alvo && visivel(p);
+      }).length;
+    }
+    return pecas.filter(p => p.categoria.id === s.id && visivel(p)).length;
+  };
+
   const destaques = pecasFiltradas.filter(p => p.destaque).slice(0, 8);
   const ofertas = pecasFiltradas.filter(p => p.oferta && p.precoOferta).slice(0, 8);
 
@@ -261,10 +277,10 @@ export default function VitrineManagePage() {
         {/* Menu azul categorias — 100% data-driven (AJUSTE 1/3) */}
         <div className="bg-brand-600">
           <div className="max-w-7xl mx-auto px-4 flex items-center h-9 overflow-x-auto gap-0.5">
-            <button onClick={() => { setCatAtiva(''); setSubcatAtiva(''); }}
+            <button onClick={() => { setCatAtiva(''); setSubcatAtiva(''); setVerTodosPasta(false); }}
               className={`px-3 py-1.5 text-[11px] font-semibold rounded-md transition-colors whitespace-nowrap ${!catAtiva?'bg-brand-700 text-white':'text-white/80 hover:text-white hover:bg-brand-700'}`}>Todos</button>
             {categorias.map(c => (
-              <button key={c.id} onClick={() => { setCatAtiva(c.id); setSubcatAtiva(''); }}
+              <button key={c.id} onClick={() => { setCatAtiva(c.id); setSubcatAtiva(''); setVerTodosPasta(false); }}
                 className={`px-3 py-1.5 text-[11px] font-semibold rounded-md transition-colors whitespace-nowrap ${catAtiva===c.id?'bg-brand-700 text-white':'text-white/80 hover:text-white hover:bg-brand-700'}`}>{c.nome}</button>
             ))}
           </div>
@@ -436,6 +452,26 @@ export default function VitrineManagePage() {
                     </div>
                   </div>
 
+                  {/* Rodada Subcategorias (2026-08-21): onde exibir o banner.
+                      DESKTOP → só desktop · MOBILE → só mobile · AMBOS → ambos (default). */}
+                  <div className="pt-1">
+                    <label className="text-[10px] text-slate-400 uppercase font-bold mb-1.5 block">Exibir em</label>
+                    <div className="flex flex-wrap gap-2">
+                      {([['AMBOS', 'Desktop e Mobile'], ['DESKTOP', 'Somente Desktop'], ['MOBILE', 'Somente Mobile']] as const).map(([valor, rotulo]) => (
+                        <label key={valor} className="flex items-center gap-1.5 cursor-pointer text-xs text-slate-300">
+                          <input
+                            type="radio"
+                            name="banner-exibir-em"
+                            value={valor}
+                            checked={novoBanner.exibirEm === valor}
+                            onChange={() => setNovoBanner({ ...novoBanner, exibirEm: valor })}
+                            className="accent-brand-500"
+                          /> {rotulo}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
                   <div className="flex items-center gap-3 pt-1">
                     <label className="flex items-center gap-2 cursor-pointer text-xs">
                       <input type="checkbox" checked={novoBanner.ativo} onChange={e=>setNovoBanner({...novoBanner,ativo:e.target.checked})} className="rounded" /> Ativo
@@ -468,6 +504,7 @@ export default function VitrineManagePage() {
                         <div className="min-w-0">
                           <p className="text-sm font-bold text-white truncate">{b.titulo || 'Sem título'}</p>
                           <p className="text-[10px] text-slate-400 truncate">{b.subtitulo}{b.ordem ? ` · ordem ${b.ordem}` : ''}</p>
+                          <p className="text-[9px] text-slate-500">{b.exibirEm === 'DESKTOP' ? '🖥️ Somente Desktop' : b.exibirEm === 'MOBILE' ? '📱 Somente Mobile' : '💻📱 Desktop e Mobile'}</p>
                         </div>
                       </div>
                       <div className="flex items-center gap-1.5 flex-shrink-0">
@@ -498,17 +535,67 @@ export default function VitrineManagePage() {
               <section>
                 <div className="flex items-center justify-between mb-3">
                   <h2 className="text-base font-extrabold text-slate-800">{catSelecionada?.nome || 'Categoria'} <span className="text-slate-400 font-normal text-xs">({visiveisExibidas.length} visiveis)</span></h2>
-                  <button onClick={()=>{setCatAtiva('');setSubcatAtiva('');}} className="text-xs text-brand-600 hover:text-brand-700 font-bold">← Ver todas categorias</button>
+                  <button onClick={()=>{setCatAtiva('');setSubcatAtiva('');setVerTodosPasta(false);}} className="text-xs text-brand-600 hover:text-brand-700 font-bold">← Ver todas categorias</button>
                 </div>
 
-                {/* AJUSTE 1 — filtros rápidos de subcategoria (Todos + reais, dinâmicos p/ qualquer categoria) */}
-                {subsVisiveis.length > 0 && (
+                {/* AJUSTE 1 (rodada) — PASTAS DE SUBCATEGORIAS.
+                    Quando a categoria tem subcategorias (ex.: ACESSÓRIOS), NÃO abre os
+                    produtos direto: mostra pastas grandes 📁 (data-driven, só as com
+                    produto VISÍVEL). "← Voltar para Acessórios" volta às pastas. */}
+                {subsVisiveis.length > 0 && !subcatAtiva && !verTodosPasta && (
+                  <div className="mb-6">
+                    <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+                      <p className="text-xs text-slate-500 font-medium">Escolha uma pasta para ver os produtos:</p>
+                      <button onClick={()=>{setVerTodosPasta(true);setSubcatAtiva('');}}
+                        className="text-xs text-brand-600 hover:text-brand-700 font-bold underline underline-offset-2">Ver todos os produtos desta categoria</button>
+                    </div>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                      {subsVisiveis.map(s => {
+                        const qtd = contarPasta(s);
+                        if (qtd === 0) return null; // nunca mostra pasta vazia
+                        return (
+                          <button key={s.id} onClick={()=>setSubcatAtiva(s.id)}
+                            className="group flex flex-col items-center justify-center gap-3 rounded-2xl border border-slate-200 bg-white p-6 min-h-[140px] shadow-sm hover:shadow-md hover:border-brand-300 hover:bg-brand-50/40 transition-all duration-200">
+                            <span className="text-4xl">📁</span>
+                            <span className="font-bold text-sm text-slate-800 group-hover:text-brand-700 text-center leading-tight">{s.nome}</span>
+                            <span className="text-[11px] text-slate-400 font-medium">{qtd} produto{qtd !== 1 ? 's' : ''}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* AJUSTE 1 — quando está DENTRO de uma pasta (subcategoria ativa) */}
+                {subcatAtiva && (
+                  <div className="mb-4">
+                    <button onClick={()=>setSubcatAtiva('')}
+                      className="inline-flex items-center gap-1 text-xs text-brand-600 hover:text-brand-700 font-bold">
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7"/></svg>
+                      ← Voltar para {catSelecionada?.nome || 'Acessórios'}
+                    </button>
+                  </div>
+                )}
+
+                {/* AJUSTE 1 — quando escolheu "Ver todos os produtos", oferece voltar às pastas */}
+                {!subcatAtiva && verTodosPasta && subsVisiveis.length > 0 && (
+                  <div className="mb-4">
+                    <button onClick={()=>setVerTodosPasta(false)}
+                      className="inline-flex items-center gap-1 text-xs text-brand-600 hover:text-brand-700 font-bold">
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7"/></svg>
+                      ← Voltar para as pastas de {catSelecionada?.nome || 'Acessórios'}
+                    </button>
+                  </div>
+                )}
+
+                {/* Filtros rápidos (chips) — mantidos para quem está dentro da pasta */}
+                {subcatAtiva && subsVisiveis.length > 0 && (
                   <div className="flex flex-wrap items-center gap-1.5 mb-4">
                     <span className="text-[10px] text-slate-400 uppercase font-bold mr-1">Filtro:</span>
-                    <button onClick={()=>setSubcatAtiva('')}
+                    <button onClick={()=>{setSubcatAtiva('');setVerTodosPasta(false);}}
                       className={`px-2.5 py-1 rounded-full text-[11px] font-semibold transition-colors ${!subcatAtiva?'bg-brand-600 text-white':'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>Todos</button>
                     {subsVisiveis.map(s => (
-                      <button key={s.id} onClick={()=>setSubcatAtiva(s.id)}
+                      <button key={s.id} onClick={()=>{setSubcatAtiva(s.id);setVerTodosPasta(false);}}
                         className={`px-2.5 py-1 rounded-full text-[11px] font-semibold transition-colors ${subcatAtiva===s.id?'bg-brand-600 text-white':'bg-slate-100 text-slate-600 hover:bg-slate-200'}`}>
                         {s.nome}
                       </button>
@@ -516,9 +603,13 @@ export default function VitrineManagePage() {
                   </div>
                 )}
 
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                  {pecasExibidas.map(p => <AdminProdutoCard key={p.id} p={p} onToggle={toggle} onUpload={handleUpload} onFotos={abrirFotos} uploading={uploading} />)}
-                </div>
+                {/* Grade de produtos — NÃO renderiza na visão de pastas (mostra só os cards
+                    quando está dentro de uma pasta ou escolheu "Ver todos") */}
+                {!(subsVisiveis.length > 0 && !subcatAtiva && !verTodosPasta) && (
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                    {pecasExibidas.map(p => <AdminProdutoCard key={p.id} p={p} onToggle={toggle} onUpload={handleUpload} onFotos={abrirFotos} uploading={uploading} />)}
+                  </div>
+                )}
               </section>
             ) : (
               <>
@@ -545,7 +636,7 @@ export default function VitrineManagePage() {
                   <section key={sec.slug}>
                     <div className="flex items-center justify-between mb-3">
                       <h2 className="text-base font-extrabold text-slate-800">{sec.nome} <span className="text-slate-400 font-normal text-xs">({sec.pecas.filter(visivel).length} visiveis)</span></h2>
-                      <button onClick={() => { setCatAtiva(sec.catId); setSubcatAtiva(''); }} className="text-xs text-brand-600 hover:text-brand-700 font-bold">Filtrar só {sec.nome}</button>
+                      <button onClick={() => { setCatAtiva(sec.catId); setSubcatAtiva(''); setVerTodosPasta(false); }} className="text-xs text-brand-600 hover:text-brand-700 font-bold">Filtrar só {sec.nome}</button>
                     </div>
                     <div className="grid grid-cols-2 md:grid-cols-4 gap-3">{sec.pecas.map(p => <AdminProdutoCard key={p.id} p={p} onToggle={toggle} onUpload={handleUpload} onFotos={abrirFotos} uploading={uploading} />)}</div>
                   </section>

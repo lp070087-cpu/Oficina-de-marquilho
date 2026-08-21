@@ -115,7 +115,7 @@ export default async function ProdutoPage({ params }: { params: Promise<{ id: st
           {/* Galeria */}
           <div>
             <GaleriaPremium
-              imagens={peca.imagens.map(i => ({ id: i.id, url: i.url, tipo: i.tipo }))}
+              imagens={peca.imagens.map(i => ({ id: i.id, url: i.url, tipo: i.tipo, cor: i.cor || null }))}
               videos={peca.documentos.filter(d => d.tipo === 'VIDEO')}
               nome={peca.nome}
             />

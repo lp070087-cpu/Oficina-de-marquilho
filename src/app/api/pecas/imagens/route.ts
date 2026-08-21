@@ -42,6 +42,8 @@ export async function POST(req: NextRequest) {
     const file = formData.get('imagem') as File;
     const pecaId = formData.get('pecaId') as string;
     const tipo = (formData.get('tipo') as string) || 'PRINCIPAL';
+    // Rodada Subcategorias (2026-08-21): cor ASSOCIADA a esta foto (ex.: Preto, Vermelho, Azul).
+    const cor = (formData.get('cor') as string || '').trim() || null;
 
     if (!file || !pecaId) {
       return NextResponse.json({ error: 'Imagem e pecaId obrigatorios' }, { status: 400 });
@@ -80,7 +82,7 @@ export async function POST(req: NextRequest) {
     const ordem = tipo === 'PRINCIPAL' ? 0 : count + 1;
 
     const imagem = await prisma.pecaImagem.create({
-      data: { pecaId, url, tipo, ordem },
+      data: { pecaId, url, tipo, ordem, cor },
     });
 
     // Se for PRINCIPAL, atualiza a imagemUrl da peça
@@ -113,9 +115,10 @@ export async function GET(req: NextRequest) {
 
 /**
  * Correção 4 — definir imagem principal / reordenar galeria.
- * Body: { id: string; tipo?: 'PRINCIPAL' | 'GALERIA'; ordem?: number }
+ * Body: { id: string; tipo?: 'PRINCIPAL' | 'GALERIA'; ordem?: number; cor?: string | null }
  * Quando tipo = 'PRINCIPAL', a imagem se torna a capa (imagemUrl da peça) e a
  * anterior principal vira GALERIA. Não mexe em outros campos do produto.
+ * Rodada Subcategorias (2026-08-21): `cor` permite alterar a cor associada à foto.
  */
 export async function PUT(req: NextRequest) {
   try {
@@ -132,6 +135,8 @@ export async function PUT(req: NextRequest) {
 
     const data: any = {};
     if (typeof ordem === 'number') data.ordem = ordem;
+    // Cor por foto: atualiza SOMENTE quando o campo vier no body (null limpa, ausente preserva).
+    if (body.cor !== undefined) data.cor = (typeof body.cor === 'string' && body.cor.trim()) ? body.cor.trim() : null;
 
     if (tipo === 'PRINCIPAL') {
       // Demove a principal anterior para GALERIA e promove a selecionada.

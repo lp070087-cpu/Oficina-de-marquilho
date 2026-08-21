@@ -18,7 +18,7 @@ export default function CatalogoContent() {
   const [total, setTotal] = useState(0);
   const [pagina, setPagina] = useState(1);
   const [marcas, setMarcas] = useState<string[]>([]);
-  const [categorias, setCategorias] = useState<{ slug: string; nome: string; subcategorias?: { slug: string; nome: string }[] }[]>([]);
+  const [categorias, setCategorias] = useState<{ slug: string; nome: string; subcategorias?: { slug: string; nome: string; totalProdutos?: number }[] }[]>([]);
   const [filtros, setFiltros] = useState({
     marca: searchParams.get('marca') || '',
     categoria: searchParams.get('categoria') || '',
@@ -30,6 +30,9 @@ export default function CatalogoContent() {
   const [comparar, setComparar] = useState<any[]>([]);
   const [showComparador, setShowComparador] = useState(false);
   const [cliente, setCliente] = useState<any>(null);
+  // AJUSTE 1 — pastas de subcategorias na vitrine pública. Quando a categoria tem
+  // subcategorias, mostra pastas 📁 antes de abrir os produtos direto.
+  const [verTodosPasta, setVerTodosPasta] = useState(false);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -63,6 +66,10 @@ export default function CatalogoContent() {
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
+  // AJUSTE 1 — trocou de categoria (ou escolheu subcategoria) → volta às pastas / sai delas corretamente.
+  const catSlugAtual = filtros.categoria;
+  useEffect(() => { setVerTodosPasta(false); }, [catSlugAtual]);
+
   useEffect(() => {
     const d = getClienteVitrine();
     if (d) setCliente(d);
@@ -71,9 +78,17 @@ export default function CatalogoContent() {
   useEffect(() => {
     // Item 1: categorias do filtro 100% data-driven (só categorias com produtos visíveis).
     fetch('/api/vitrine/categorias').then(r => r.json()).then((d: any[]) => {
-      if (Array.isArray(d)) setCategorias(d.map((c: any) => ({ slug: c.slug, nome: c.nome, subcategorias: c.subcategorias || [] })));
+      if (Array.isArray(d)) setCategorias(d.map((c: any) => ({ slug: c.slug, nome: c.nome, subcategorias: (c.subcategorias || []).map((s: any) => ({ slug: s.slug, nome: s.nome, totalProdutos: s.totalProdutos })) })));
     });
   }, []);
+
+  // AJUSTE 1 — pasta de subcategorias da categoria ativa (data-driven da API pública).
+  // NUNCA usa Categoria.parentId para isso — usa as subcategorias reais derivadas de
+  // Peca.subcategoria que a API /api/vitrine/categorias já devolve com totalProdutos.
+  const catAtivaPasta = categorias.find(c => c.slug === filtros.categoria);
+  const pastasDaCategoria = (catAtivaPasta?.subcategorias || []).filter(s => (s.totalProdutos ?? 0) > 0);
+  // Nesta visão de pastas, ainda não há subcategoria escolhida.
+  const mostrandoPastas = !filtros.subcategoria && pastasDaCategoria.length > 0 && !verTodosPasta;
 
   function toggleComparar(id: string) {
     setComparar(prev => {
@@ -136,6 +151,38 @@ export default function CatalogoContent() {
           <ComparadorVitrine produtos={comparar} onClose={() => setShowComparador(false)} />
         )}
 
+        {/* AJUSTE 1 — PASTAS DE SUBCATEGORIAS (vitrine pública).
+            Categoria com subcategorias → NÃO abre produtos direto: mostra pastas 📁.
+            Só pastas com produto visível (totalProdutos > 0). "Ver todos" abre a grade. */}
+        {!loading && mostrandoPastas && (
+          <div className="bg-white rounded-xl border border-slate-200 p-5 mb-6">
+            <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+              <p className="text-sm font-bold text-slate-800">Escolha uma categoria de {catAtivaPasta?.nome || ''}:</p>
+              <button onClick={() => setVerTodosPasta(true)}
+                className="text-xs text-brand-600 hover:text-brand-700 font-bold underline underline-offset-2">Ver todos os produtos</button>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+              {pastasDaCategoria.map(s => (
+                <button key={s.slug} onClick={() => { setFiltros({ ...filtros, subcategoria: s.slug, categoria: filtros.categoria }); setPagina(1); }}
+                  className="group flex flex-col items-center justify-center gap-3 rounded-2xl border border-slate-200 bg-white p-6 min-h-[140px] shadow-sm hover:shadow-md hover:border-brand-300 hover:bg-brand-50/40 transition-all duration-200">
+                  <span className="text-4xl">📁</span>
+                  <span className="font-bold text-sm text-slate-800 group-hover:text-brand-700 text-center leading-tight">{s.nome}</span>
+                  <span className="text-[11px] text-slate-400 font-medium">{s.totalProdutos ?? 0} produto{(s.totalProdutos ?? 0) !== 1 ? 's' : ''}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* AJUSTE 1 — "← Voltar para as pastas" quando está dentro de uma pasta */}
+        {!loading && filtros.subcategoria && pastasDaCategoria.length > 0 && (
+          <button onClick={() => { setFiltros({ ...filtros, subcategoria: '' }); setVerTodosPasta(false); setPagina(1); }}
+            className="inline-flex items-center gap-1 text-xs text-brand-600 hover:text-brand-700 font-bold mb-4">
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7"/></svg>
+            ← Voltar para as pastas de {catAtivaPasta?.nome || 'Acessórios'}
+          </button>
+        )}
+
         {/* Resultados */}
         {loading ? (
           <div className="text-center py-16"><div className="w-8 h-8 border-3 border-brand-600 border-t-transparent rounded-full animate-spin mx-auto"/></div>
@@ -143,6 +190,10 @@ export default function CatalogoContent() {
           <div className="bg-white rounded-xl border border-slate-200 p-16 text-center">
             <p className="text-sm text-slate-400 mb-4">Nenhum produto encontrado</p>
             <button onClick={() => { window.location.href = '/vitrine/catalogo'; }} className="text-brand-600 text-sm font-bold">Limpar filtros</button>
+          </div>
+        ) : mostrandoPastas ? (
+          <div className="text-center py-8">
+            <p className="text-sm text-slate-400">Escolha uma pasta acima para ver os produtos de {catAtivaPasta?.nome || 'esta categoria'}.</p>
           </div>
         ) : (
           <>
