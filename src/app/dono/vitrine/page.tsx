@@ -190,18 +190,23 @@ export default function VitrineManagePage() {
       : pecas.filter(p => p.categoria.id === subcatAtiva)
     : pecas;
   const visiveisExibidas = pecasExibidas.filter(visivel);
-  // Subcategorias com PELO MENOS 1 produto VISÍVEL no lote atual (categoria selecionada)
-  // — AJUSTE 1/4. DUAS fontes:
-  //   1. Hierárquicas (Categoria.parentId) — vêm do /api/categorias com id real.
-  //   2. Tipos derivados de Peca.subcategoria (ex.: "Capacetes") — id sintético `tipo:<slug>`.
+  // AUDITORIA A–N (2026-08-21): pastas de subcategorias da DONA — CORREÇÃO DO PROBLEMA 1.
+  // O painel da DONA é uma visão de GESTÃO. As pastas agora são derivadas de TODOS os
+  // produtos da categoria (mesmo com quantidadeLoja=0 / ativo=false / preço 0), para que
+  // a DONA SEMPRE veja as pastas (ex.: 📁 Capacetes) e possa corrigir estoque/preço/ativo
+  // dentro delas. A regra estrita VITRINE_VISIBILITY (ativo && quantidadeLoja>0 &&
+  // precoVenda>0) vale SOMENTE para a Vitrine PÚBLICA — gating as pastas por `visivel(p)`
+  // aqui fazia as pastas sumirem quando quantidadeLoja=0, abrindo os 185 produtos direto.
+  //  1. Hierárquicas (Categoria.parentId) — vêm do /api/categorias com id real.
+  //  2. Tipos derivados de Peca.subcategoria (ex.: "Capacetes") — id sintético `tipo:<slug>`.
   const subsHierarquicas = (catSelecionada?.subcategorias || []).filter(s =>
-    pecas.some(p => p.categoria.id === s.id && visivel(p))
+    pecas.some(p => p.categoria.id === s.id)
   );
   const subsTipo = Object.values(
     pecas
       .filter(p => {
         const sub = (p.subcategoria || '').trim();
-        if (!sub || !visivel(p)) return false;
+        if (!sub) return false;
         return p.categoria.id === catSelecionada?.id ||
           (catSelecionada?.subcategorias || []).some(s => s.id === p.categoria.id);
       })
@@ -222,16 +227,17 @@ export default function VitrineManagePage() {
       )
     ),
   ];
-  // AJUSTE 1 (rodada): conta produtos VISÍVEIS dentro de uma pasta (subcategoria).
+  // AUDITORIA A–N: conta TODOS os produtos da pasta (gestão DONA — mesmo sem estoque loja),
+  // em linha com a grade interna que também mostra todos os produtos da pasta (visíveis ou não).
   const contarPasta = (s: { id: string }) => {
     if (s.id.startsWith('tipo:')) {
       const alvo = decodeURIComponent(s.id.replace(/^tipo:/, '')).trim().toLowerCase();
       return pecas.filter(p => {
         const sub = (p.subcategoria || '').trim().toLowerCase();
-        return sub === alvo && visivel(p);
+        return sub === alvo;
       }).length;
     }
-    return pecas.filter(p => p.categoria.id === s.id && visivel(p)).length;
+    return pecas.filter(p => p.categoria.id === s.id).length;
   };
 
   const destaques = pecasFiltradas.filter(p => p.destaque).slice(0, 8);
