@@ -12,6 +12,11 @@ export default function NFManualPage() {
   const [cliente, setCliente] = useState('');
   const [cpf, setCpf] = useState('');
   const [endereco, setEndereco] = useState('');
+  const [telefoneCliente, setTelefoneCliente] = useState('');
+  const [modeloMoto, setModeloMoto] = useState('');
+  const [placaMoto, setPlacaMoto] = useState('');
+  const [anoMoto, setAnoMoto] = useState('');
+  const [quilometragemMoto, setQuilometragemMoto] = useState('');
   const [obs, setObs] = useState('');
   const [itens, setItens] = useState<ItemNF[]>([]);
   const [msg, setMsg] = useState('');
@@ -126,6 +131,11 @@ export default function NFManualPage() {
       cliente,
       cpfCnpj: cpf,
       endereco,
+      telefoneCliente,
+      modeloMoto,
+      placaMoto,
+      anoMoto,
+      quilometragemMoto,
       observacoes: obs,
       itens: itens.map(i => ({
         nome: i.nome,
@@ -166,6 +176,31 @@ export default function NFManualPage() {
         </div>
       </div>
 
+      <div className="card space-y-4 mb-6">
+        <h3 className="text-sm font-bold text-slate-800">Telefone e dados da moto</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label htmlFor="nf-telefone" className="text-xs font-semibold text-slate-600 uppercase">Telefone do cliente</label>
+            <input id="nf-telefone" type="tel" value={telefoneCliente} onChange={e => setTelefoneCliente(e.target.value)} className="input-field mt-1.5" placeholder="(81) 99999-9999" />
+          </div>
+          <div>
+            <label htmlFor="nf-modelo" className="text-xs font-semibold text-slate-600 uppercase">Modelo da moto</label>
+            <input id="nf-modelo" value={modeloMoto} onChange={e => setModeloMoto(e.target.value)} className="input-field mt-1.5" placeholder="Ex.: Honda CG 160 Fan" />
+          </div>
+          <div>
+            <label htmlFor="nf-placa" className="text-xs font-semibold text-slate-600 uppercase">Placa da moto</label>
+            <input id="nf-placa" value={placaMoto} onChange={e => setPlacaMoto(e.target.value.toUpperCase().slice(0, 7))} className="input-field mt-1.5 uppercase" placeholder="ABC1D23" maxLength={7} />
+          </div>
+          <div>
+            <label htmlFor="nf-ano" className="text-xs font-semibold text-slate-600 uppercase">Ano da moto</label>
+            <input id="nf-ano" inputMode="numeric" value={anoMoto} onChange={e => setAnoMoto(e.target.value.replace(/\D/g, '').slice(0, 4))} className="input-field mt-1.5" placeholder="2024" maxLength={4} />
+          </div>
+          <div>
+            <label htmlFor="nf-km" className="text-xs font-semibold text-slate-600 uppercase">Quilometragem</label>
+            <input id="nf-km" inputMode="numeric" value={quilometragemMoto} onChange={e => setQuilometragemMoto(e.target.value.replace(/\D/g, '').slice(0, 8))} className="input-field mt-1.5" placeholder="Ex.: 25000" />
+          </div>
+        </div>
+      </div>
       <div className="card space-y-4 mb-6">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-bold text-slate-800">Produtos</h3>

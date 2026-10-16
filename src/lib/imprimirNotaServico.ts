@@ -429,6 +429,11 @@ export interface NfManualParaImprimir {
   cliente?: string;
   cpfCnpj?: string;
   endereco?: string;
+  telefoneCliente?: string;
+  modeloMoto?: string;
+  placaMoto?: string;
+  anoMoto?: string;
+  quilometragemMoto?: string;
   observacoes?: string;
   formaPagamento?: string;
   itens: { nome: string; codigo: string; marca?: string | null; quantidade: number; valorUnitario: number }[];
@@ -479,6 +484,15 @@ export function imprimirNfManual(opts: NfManualParaImprimir): void {
       <div><span>CPF/CNPJ:</span> ${esc(opts.cpfCnpj) || '—'}</div>
       <div><span>Endereço:</span> ${esc(opts.endereco) || '—'}</div>
     </div>
+    ${opts.telefoneCliente ? `<div class="info"><div><span>Telefone:</span> ${esc(opts.telefoneCliente)}</div></div>` : ''}
+    ${(opts.modeloMoto || opts.placaMoto || opts.anoMoto || opts.quilometragemMoto) ? `
+    <div class="section-title">Dados da Moto</div>
+    <div class="info">
+      ${opts.modeloMoto ? `<div><span>Modelo:</span> ${esc(opts.modeloMoto)}</div>` : ''}
+      ${opts.placaMoto ? `<div><span>Placa:</span> ${esc(opts.placaMoto)}</div>` : ''}
+      ${opts.anoMoto ? `<div><span>Ano:</span> ${esc(opts.anoMoto)}</div>` : ''}
+      ${opts.quilometragemMoto ? `<div><span>Quilometragem:</span> ${esc(opts.quilometragemMoto)} km</div>` : ''}
+    </div>` : ''}
     <div class="section-title">Produtos</div>
     <table><thead><tr><th>SKU</th><th>Descrição</th><th class="center">Qtd</th><th class="right">V. Unit.</th><th class="right">Total</th></tr></thead><tbody>${linhasItens || '<tr><td colspan="5" style="text-align:center;color:#999">Nenhum item</td></tr>'}</tbody></table>
     <div class="totais"><table>
