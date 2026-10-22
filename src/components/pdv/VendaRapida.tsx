@@ -79,12 +79,13 @@ export default function VendaRapida({ onAdicionar, carrinhoItens }: VendaRapidaP
       nome: peca.nome,
       codigo: peca.codigo,
       imagemUrl: peca.imagemUrl,
-      precoOriginal: peca.precoVenda,
-      precoUnitario: peca.precoVenda,
+      // precoVenda chega da API como texto (Decimal do Prisma) — converte como no preload do Estoque
+      precoOriginal: preco,
+      precoUnitario: preco,
       descontoPercent: 0,
       descontoReais: 0,
       quantidade: 1,
-      subtotal: peca.precoVenda,
+      subtotal: preco,
       reservado: false,
     };
     onAdicionar(item);
@@ -169,7 +170,7 @@ export default function VendaRapida({ onAdicionar, carrinhoItens }: VendaRapidaP
                   </div>
                 </div>
                 <div className="text-right flex-shrink-0">
-                  <p className="text-sm font-bold text-brand-700">{fm(peca.precoVenda)}</p>
+                  <p className="text-sm font-bold text-brand-700">{fm(Number(peca.precoVenda))}</p>
                   <p className={`text-[10px] font-medium ${estoqueBaixo ? 'text-red-500' : 'text-slate-400'}`}>
                     {peca.quantidadeLoja} un.
                   </p>

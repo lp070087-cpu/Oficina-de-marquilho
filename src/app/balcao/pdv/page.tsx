@@ -336,12 +336,13 @@ export default function BalcaoPdvPage() {
           nome: peca.nome,
           codigo: peca.codigo,
           imagemUrl: peca.imagemUrl,
-          precoOriginal: peca.precoVenda,
-          precoUnitario: peca.precoVenda,
+          // precoVenda chega como texto (Decimal do Prisma) — mesma conversão do preload
+          precoOriginal: Number(peca.precoVenda),
+          precoUnitario: Number(peca.precoVenda),
           descontoPercent: 0,
           descontoReais: 0,
           quantidade: 1,
-          subtotal: peca.precoVenda,
+          subtotal: Number(peca.precoVenda),
           reservado: false,
         };
         adicionarItem(novo);
