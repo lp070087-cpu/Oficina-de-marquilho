@@ -18,21 +18,22 @@ const menuIcon = (d: string) => (
   </svg>
 );
 
+// Agrupado por secao (somente rotulos visuais — rotas inalteradas).
 const donoMenu = [
-  { label: 'Painel', href: '/dono', d: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1' },
-  { label: 'Estoque', href: '/dono/estoque', d: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4' },
-  { label: 'Categorias', href: '/dono/categorias', d: 'M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z' },
-  { label: 'Ordens de Servico', href: '/dono/ordens', d: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2' },
-  { label: 'Nota Fiscal', href: '/dono/notas', d: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' },
-  { label: 'NF Manual', href: '/dono/nf-manual', d: 'M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z' },
-  { label: 'Funcionarios', href: '/dono/mecanicos', d: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z' },
-  { label: 'Balcoes', href: '/dono/balcoes', d: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4' },
-  { label: 'Fornecedores', href: '/dono/fornecedores', d: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4' },
-  { label: 'Vitrine', href: '/dono/vitrine', d: 'M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z' },
-  { label: 'Pedidos da Loja', href: '/dono/pedidos-loja', d: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4' },
-  { label: 'Financeiro Premium', href: '/dono/financeiro', d: 'M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z' },
-  { label: 'Notificações', href: '/dono/notificacoes', d: 'M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9', badge: true },
-  { label: 'Eventos do Sistema', href: '/dono/eventos', d: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z' },
+  { group: 'Operação', label: 'Painel', href: '/dono', d: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1' },
+  { group: 'Operação', label: 'Ordens de Servico', href: '/dono/ordens', d: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2' },
+  { group: 'Operação', label: 'Nota Fiscal', href: '/dono/notas', d: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' },
+  { group: 'Operação', label: 'NF Manual', href: '/dono/nf-manual', d: 'M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z' },
+  { group: 'Estoque', label: 'Estoque', href: '/dono/estoque', d: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4' },
+  { group: 'Estoque', label: 'Categorias', href: '/dono/categorias', d: 'M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z' },
+  { group: 'Estoque', label: 'Fornecedores', href: '/dono/fornecedores', d: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4' },
+  { group: 'Loja online', label: 'Vitrine', href: '/dono/vitrine', d: 'M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z' },
+  { group: 'Loja online', label: 'Pedidos da Loja', href: '/dono/pedidos-loja', d: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4' },
+  // Financeiro Premium removido do menu (pagina /dono/financeiro, APIs e dados mantidos — notificacoes ainda apontam para la)
+  { group: 'Gestão', label: 'Funcionarios', href: '/dono/mecanicos', d: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z' },
+  { group: 'Gestão', label: 'Balcoes', href: '/dono/balcoes', d: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4' },
+  { group: 'Sistema', label: 'Notificações', href: '/dono/notificacoes', d: 'M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9', badge: true },
+  { group: 'Sistema', label: 'Eventos do Sistema', href: '/dono/eventos', d: 'M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z' },
 ];
 
 const balcaoServicosMenu = [
@@ -157,46 +158,56 @@ export default function Sidebar({ user, collapsed, mobileOpen, isMobile, onToggl
           </button>
         )}
 
-        <div className="px-4 py-5 border-b border-white/5">
+        <div className="px-4 py-5 border-b border-white/[0.06]">
           <div className={`flex items-center ${menuCollapsed ? 'justify-center' : 'gap-3'}`}>
-            <LogoOficina className="w-10 h-10 rounded-full bg-brand-600 flex items-center justify-center flex-shrink-0 shadow-lg shadow-brand-600/25 overflow-hidden" textClassName="text-white font-bold text-sm" />
+            <LogoOficina className="w-10 h-10 rounded-full bg-brand-600 flex items-center justify-center flex-shrink-0 ring-2 ring-gold-400/30 overflow-hidden" textClassName="text-white font-bold text-sm" />
             {!menuCollapsed && (
               <div className="min-w-0">
-                <p className="font-semibold text-sm leading-tight">Marquinho</p>
-                <p className="font-semibold text-sm leading-tight">Moto Pecas</p>
-                <p className="text-[10px] text-slate-400 tracking-wider uppercase mt-0.5">Atacado &amp; Varejo</p>
+                <p className="font-semibold text-[14px] leading-tight tracking-tight">Marquinho Moto Peças</p>
+                <p className="text-[10px] text-gold-400/80 tracking-[0.14em] uppercase mt-1">Atacado &amp; Varejo</p>
               </div>
             )}
           </div>
         </div>
 
-        <nav className="flex-1 py-3 px-2 overflow-y-auto space-y-0.5">
-          {menuItems.map((item: any) => {
+        <nav className="flex-1 py-3 px-2.5 overflow-y-auto">
+          {menuItems.map((item: any, idx: number) => {
             const active = item.href === base ? pathname === item.href : pathname.startsWith(item.href);
+            const novoGrupo = item.group && item.group !== (menuItems[idx - 1] as any)?.group;
             return (
-              <button key={item.href} onClick={() => navigate(item.href)}
-                title={menuCollapsed ? item.label : undefined}
-                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-[13px] font-medium transition-all ${active ? 'bg-brand-600 text-white shadow-md shadow-brand-600/15' : 'text-slate-400 hover:text-white hover:bg-white/5'} ${menuCollapsed ? 'justify-center' : ''}`}>
-                {menuIcon(item.d)}
-                {!menuCollapsed && <span className="flex-1 text-left">{item.label}</span>}
-                {!menuCollapsed && item.badge && notifCount > 0 && (
-                  <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center">
-                    {notifCount > 99 ? '99+' : notifCount}
-                  </span>
-                )}
-              </button>
+              <div key={item.href}>
+                {novoGrupo && (menuCollapsed
+                  ? idx > 0 && <div className="mx-3 my-2 border-t border-white/[0.06]" />
+                  : <p className={`px-3 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-slate-500 ${idx > 0 ? 'pt-4' : 'pt-1'}`}>{item.group}</p>)}
+                <button onClick={() => navigate(item.href)}
+                  title={menuCollapsed ? item.label : undefined}
+                  aria-current={active ? 'page' : undefined}
+                  className={`relative w-full flex items-center gap-3 px-3 py-2 my-px rounded-lg text-[13px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-400/40 ${active ? 'bg-white/[0.08] text-white' : 'text-slate-400 hover:text-white hover:bg-white/[0.04]'} ${menuCollapsed ? 'justify-center' : ''}`}>
+                  {active && <span className="absolute left-0 top-1/2 -translate-y-1/2 h-5 w-[3px] rounded-r-full bg-gold-400" />}
+                  <span className={active ? 'text-gold-400' : ''}>{menuIcon(item.d)}</span>
+                  {!menuCollapsed && <span className="flex-1 text-left truncate">{item.label}</span>}
+                  {!menuCollapsed && item.badge && notifCount > 0 && (
+                    <span className="bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full min-w-[20px] text-center">
+                      {notifCount > 99 ? '99+' : notifCount}
+                    </span>
+                  )}
+                  {menuCollapsed && item.badge && notifCount > 0 && (
+                    <span className="absolute top-1.5 right-3 w-2 h-2 rounded-full bg-red-500 ring-2 ring-[#0F1A2E]" />
+                  )}
+                </button>
+              </div>
             );
           })}
         </nav>
 
-        <div className="px-3 py-3 border-t border-white/5">
-          <div className={`flex items-center mb-2 ${menuCollapsed ? 'justify-center' : 'gap-3'}`}>
-            <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center flex-shrink-0">
-              <span className="text-white text-xs font-medium">{user.name.charAt(0).toUpperCase()}</span>
+        <div className="px-3 py-3 border-t border-white/[0.06]">
+          <div className={`flex items-center mb-2 px-1 ${menuCollapsed ? 'justify-center' : 'gap-3'}`}>
+            <div className="w-8 h-8 rounded-full bg-white/10 ring-1 ring-white/10 flex items-center justify-center flex-shrink-0">
+              <span className="text-white text-xs font-semibold">{user.name.charAt(0).toUpperCase()}</span>
             </div>
             {!menuCollapsed && <div className="min-w-0"><p className="text-[12px] font-medium truncate">{user.name}</p><p className="text-[10px] text-slate-500">{roleLabel}</p></div>}
           </div>
-          <button onClick={handleLogout} title={menuCollapsed ? 'Sair' : undefined} className={`w-full flex items-center justify-center gap-2 py-2 rounded-lg text-[12px] text-slate-500 hover:text-white hover:bg-white/5 transition-colors ${menuCollapsed ? '' : 'gap-2'}`}>
+          <button onClick={handleLogout} title={menuCollapsed ? 'Sair' : undefined} className={`w-full flex items-center justify-center gap-2 py-2 rounded-lg text-[12px] text-slate-400 hover:text-white bg-white/[0.03] hover:bg-white/[0.07] transition-colors ${menuCollapsed ? '' : 'gap-2'}`}>
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
             {!menuCollapsed && 'Sair'}
           </button>

@@ -336,12 +336,13 @@ export default function BalcaoPdvPage() {
           nome: peca.nome,
           codigo: peca.codigo,
           imagemUrl: peca.imagemUrl,
-          precoOriginal: peca.precoVenda,
-          precoUnitario: peca.precoVenda,
+          // precoVenda chega como texto (Decimal do Prisma) — mesma conversão do preload
+          precoOriginal: Number(peca.precoVenda),
+          precoUnitario: Number(peca.precoVenda),
           descontoPercent: 0,
           descontoReais: 0,
           quantidade: 1,
-          subtotal: peca.precoVenda,
+          subtotal: Number(peca.precoVenda),
           reservado: false,
         };
         adicionarItem(novo);
@@ -389,126 +390,158 @@ export default function BalcaoPdvPage() {
 
   const fm = (v: number) => v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
+  // Indicador visual do caixa (somente leitura — a trava real continua em verificarCaixaAberto)
+  const [caixaAberto, setCaixaAberto] = useState<boolean | null>(null);
+  useEffect(() => {
+    let ativo = true;
+    fetch('/api/caixa').then(r => r.json()).then(d => { if (ativo) setCaixaAberto(!!d?.sessaoAberta); }).catch(() => {});
+    return () => { ativo = false; };
+  }, [vendaFinalizada]);
+
+  const iconeCliente = 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z';
+  const atalhosCaixa = [
+    { label: 'Estoque da loja', detalhe: 'Consultar saldo e vender', href: '/balcao/estoque', d: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4', cor: 'bg-emerald-50 text-emerald-600' },
+    { label: 'Receber O.S.', detalhe: 'Ordens de serviço', href: '/balcao/ordens', d: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01', cor: 'bg-violet-50 text-violet-600' },
+    { label: 'Caixa', detalhe: 'Abertura e fechamento', href: '/balcao/caixa', d: 'M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z', cor: 'bg-amber-50 text-amber-600' },
+  ];
+
   return (
-    <div className="flex flex-col lg:flex-row h-full">
-      {/* Coluna esquerda: Busca + area livre */}
-      <div className="flex-1 flex flex-col min-w-0 min-h-0">
+    <div className="h-full flex flex-col lg:grid lg:grid-cols-[minmax(0,1fr)_400px] xl:grid-cols-[minmax(0,1fr)_440px] 2xl:grid-cols-[minmax(0,1fr)_480px] min-h-0">
+      {/* Coluna esquerda: área de venda */}
+      <section className="flex flex-col min-w-0 lg:min-h-0 lg:h-full">
         {/* Header PDV */}
-        <div className="flex items-center justify-between px-4 sm:px-6 py-4 border-b border-slate-100 bg-white flex-shrink-0">
-          <div>
-            <h1 className="text-lg font-bold text-slate-800">PDV / Balcao</h1>
-            <p className="text-[10px] text-slate-400 uppercase tracking-wider">Ponto de Venda</p>
+        <div className="flex flex-wrap items-center justify-between gap-3 px-4 sm:px-6 lg:px-8 py-4 border-b border-slate-200/80 bg-white flex-shrink-0">
+          <div className="min-w-0">
+            <p className="eyebrow">Ponto de venda</p>
+            <h1 className="text-lg sm:text-xl font-semibold text-slate-900 tracking-tight mt-0.5">Caixa rápido</h1>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-2.5">
+            {caixaAberto !== null && (
+              caixaAberto ? (
+                <span className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg text-[12.5px] font-medium text-emerald-700 bg-emerald-50 ring-1 ring-inset ring-emerald-600/15">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500" /><span className="hidden min-[420px]:inline">Caixa aberto</span>
+                </span>
+              ) : (
+                <a href="/balcao/caixa" className="inline-flex items-center gap-1.5 h-9 px-3 rounded-lg text-[12.5px] font-medium text-amber-800 bg-amber-50 ring-1 ring-inset ring-amber-600/20 hover:bg-amber-100">
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />Caixa fechado · abrir
+                </a>
+              )
+            )}
+            <button
+              onClick={() => { setShowCliente(!showCliente); }}
+              aria-pressed={showCliente}
+              className={`inline-flex items-center gap-2 h-9 px-3 rounded-lg border text-[13px] font-medium transition-colors ${showCliente || clienteNome || clienteTelefone ? 'bg-brand-50 border-brand-200 text-brand-700' : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300'}`}
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.6} d={iconeCliente}/></svg>
+              <span className="hidden min-[420px]:inline max-w-[140px] truncate">{clienteNome || 'Cliente'}</span>
+            </button>
             <button
               onClick={() => setScannerOpen(true)}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-brand-600 text-white text-xs font-bold hover:bg-brand-700 transition-colors shadow-sm shadow-brand-600/20"
+              className="inline-flex items-center gap-2 h-9 px-3.5 rounded-lg bg-[#0F1A2E] text-white text-[13px] font-medium hover:bg-[#1b2a45] transition-colors"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z"/>
               </svg>
-              Scanner
+              <span className="hidden min-[420px]:inline">Scanner</span>
             </button>
           </div>
         </div>
 
-        {/* Area de busca e resultados */}
-        <div className="px-6 py-4 bg-white border-b border-slate-100 flex-shrink-0">
-          <VendaRapida onAdicionar={adicionarItem} carrinhoItens={itens} />
-        </div>
-
-        {/* Erro */}
-        {erro && (
-          <div className="mx-6 mt-3 bg-red-50 border border-red-200 text-red-700 px-4 py-2.5 rounded-xl text-xs font-medium">
-            {erro}
-          </div>
-        )}
-
-        {/* Cliente rapido — OPCIONAL e discreto. Não bloqueia o pagamento:
-            FINALIZAR VENDA já abre o modal de pagamento direto. */}
-        {showCliente && (
-          <div className="mx-6 mt-3 p-4 bg-slate-50 rounded-xl border border-slate-200">
-            <p className="text-xs font-bold text-slate-700 mb-3">Dados do Cliente (opcional)</p>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-[10px] font-semibold text-slate-500 uppercase">Telefone</label>
-                <input
-                  type="tel"
-                  value={clienteTelefone}
-                  onChange={e => setClienteTelefone(e.target.value)}
-                  placeholder="(11) 99999-9999"
-                  className="input-field mt-1 text-sm"
-                />
-              </div>
-              <div>
-                <label className="text-[10px] font-semibold text-slate-500 uppercase">Nome</label>
-                <input
-                  type="text"
-                  value={clienteNome}
-                  onChange={e => setClienteNome(e.target.value)}
-                  placeholder="Nome do cliente"
-                  className="input-field mt-1 text-sm"
-                />
-              </div>
+        <div className="flex-1 min-h-0 flex flex-col px-4 sm:px-6 lg:px-8 py-4 lg:py-5 gap-3">
+          {/* Erro */}
+          {erro && (
+            <div className="flex-shrink-0 bg-red-50 border border-red-200 text-red-700 px-4 py-2.5 rounded-xl text-xs font-medium" role="alert">
+              {erro}
             </div>
-            <p className="text-[10px] text-slate-400 mt-2">
-              Os dados são opcionais. Ao finalizar a venda, o pagamento abre direto.
-            </p>
-          </div>
-        )}
+          )}
 
-        {/* Placeholder area - pode conter vitrine de produtos, ultimos vendidos, etc */}
-        <div className="flex-1 p-6 overflow-y-auto">
-          <div className="grid grid-cols-2 gap-4">
-            {/* Card de acoes rapidas */}
-            <div className="col-span-2 grid grid-cols-3 gap-3">
-              <button
-                onClick={() => { setShowCliente(!showCliente); }}
-                className={`p-4 rounded-xl border text-left transition-all ${showCliente ? 'bg-brand-50 border-brand-200' : 'bg-white border-slate-200 hover:border-brand-200 hover:bg-brand-50/50'}`}
-              >
-                <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center mb-2">
-                  <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+          {/* Cliente rapido — OPCIONAL e discreto. Não bloqueia o pagamento:
+              FINALIZAR VENDA já abre o modal de pagamento direto. */}
+          {showCliente && (
+            <div className="flex-shrink-0 p-4 bg-white rounded-xl border border-slate-200">
+              <div className="flex items-center justify-between gap-3 mb-3">
+                <p className="text-[13px] font-semibold text-slate-800">Dados do cliente <span className="font-normal text-slate-400">(opcional)</span></p>
+                <button onClick={() => setShowCliente(false)} className="text-[12px] text-slate-500 hover:text-slate-800">Ocultar</button>
+              </div>
+              <div className="grid grid-cols-1 min-[480px]:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[11px] font-medium text-slate-500">Telefone</label>
+                  <input
+                    type="tel"
+                    value={clienteTelefone}
+                    onChange={e => setClienteTelefone(e.target.value)}
+                    placeholder="(11) 99999-9999"
+                    className="input-field mt-1 text-sm"
+                  />
                 </div>
-                <p className="text-xs font-bold text-slate-700">Cliente</p>
-                <p className="text-[10px] text-slate-400 mt-0.5">Identificar cliente</p>
-              </button>
-              <button
-                onClick={() => window.location.href = '/balcao/estoque'}
-                className="p-4 rounded-xl border border-slate-200 bg-white hover:border-brand-200 hover:bg-brand-50/50 transition-all text-left"
-              >
-                <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center mb-2">
-                  <svg className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>
-                </div>
-                <p className="text-xs font-bold text-slate-700">Estoque</p>
-                <p className="text-[10px] text-slate-400 mt-0.5">Consultar e vender</p>
-              </button>
-              <button
-                onClick={() => window.location.href = '/balcao/ordens'}
-                className="p-4 rounded-xl border border-slate-200 bg-white hover:border-brand-200 hover:bg-brand-50/50 transition-all text-left"
-              >
-                <div className="w-8 h-8 rounded-lg bg-violet-100 flex items-center justify-center mb-2">
-                  <svg className="w-4 h-4 text-violet-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-3 7h3m-3 4h3m-6-4h.01M9 16h.01"/></svg>
-                </div>
-                <p className="text-xs font-bold text-slate-700">O.S.</p>
-                <p className="text-[10px] text-slate-400 mt-0.5">Receber OS</p>
-              </button>
-            </div>
-
-            {/* Loading overlay */}
-            {loading && (
-              <div className="col-span-2 flex items-center justify-center py-12">
-                <div className="flex flex-col items-center gap-3">
-                  <div className="w-8 h-8 border-3 border-brand-600 border-t-transparent rounded-full animate-spin"/>
-                  <p className="text-sm text-slate-500">Processando venda...</p>
+                <div>
+                  <label className="text-[11px] font-medium text-slate-500">Nome</label>
+                  <input
+                    type="text"
+                    value={clienteNome}
+                    onChange={e => setClienteNome(e.target.value)}
+                    placeholder="Nome do cliente"
+                    className="input-field mt-1 text-sm"
+                  />
                 </div>
               </div>
-            )}
+              <p className="text-[11px] text-slate-400 mt-2">
+                Os dados são opcionais. Ao finalizar a venda, o pagamento abre direto.
+              </p>
+            </div>
+          )}
+
+          {/* Busca + resultados — captura global de digitação desligada com modais abertos */}
+          <div className="flex-1 min-h-0">
+            <VendaRapida
+              onAdicionar={adicionarItem}
+              carrinhoItens={itens}
+              capturaGlobal={!pagamentoOpen && !vendaFinalizada && !scannerOpen && !loading}
+            >
+              {/* Área ociosa (sem busca ativa) */}
+              {loading ? (
+                <div className="h-full min-h-[200px] flex items-center justify-center">
+                  <div className="flex flex-col items-center gap-3">
+                    <div className="w-8 h-8 border-[3px] border-brand-600 border-t-transparent rounded-full animate-spin"/>
+                    <p className="text-sm text-slate-500">Processando venda...</p>
+                  </div>
+                </div>
+              ) : (
+                <div className="h-full flex flex-col gap-3">
+                  <div className="hidden sm:flex flex-1 min-h-[180px] rounded-xl border border-dashed border-slate-300/80 bg-white/60 flex-col items-center justify-center text-center px-6 py-8">
+                    <div className="w-12 h-12 rounded-xl bg-white border border-slate-200 shadow-sm flex items-center justify-center mb-3">
+                      <svg className="w-6 h-6 text-brand-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.6} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/></svg>
+                    </div>
+                    <p className="text-[15px] font-semibold text-slate-800">Pronto para vender</p>
+                    <p className="text-[13px] text-slate-500 mt-1 max-w-md">Digite o nome, SKU ou marca da peça, ou passe o leitor de código de barras. Os resultados aparecem aqui.</p>
+                    <div className="hidden md:flex items-center gap-4 mt-5 text-[12px] text-slate-500">
+                      <span className="inline-flex items-center gap-1.5"><span className="kbd">↑</span><span className="kbd">↓</span> escolher</span>
+                      <span className="inline-flex items-center gap-1.5"><span className="kbd">Enter</span> adicionar</span>
+                      <span className="inline-flex items-center gap-1.5"><span className="kbd">Esc</span> fechar</span>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-3 gap-2 sm:gap-3 flex-shrink-0">
+                    {atalhosCaixa.map(a => (
+                      <a key={a.href} href={a.href} title={a.label} className="flex items-center justify-center min-[480px]:justify-start gap-3 p-3 sm:p-4 rounded-xl border border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm transition-all min-w-0">
+                        <span className={`w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 ${a.cor}`}>
+                          <svg className="w-[18px] h-[18px]" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.6} d={a.d}/></svg>
+                        </span>
+                        <span className="min-w-0 hidden min-[480px]:block">
+                          <span className="block text-[13px] font-medium text-slate-800 truncate">{a.label}</span>
+                          <span className="hidden lg:block text-[11.5px] text-slate-400 truncate">{a.detalhe}</span>
+                        </span>
+                      </a>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </VendaRapida>
           </div>
         </div>
-      </div>
+      </section>
 
       {/* Coluna direita: Carrinho */}
-      <div className="w-full lg:w-96 border-t lg:border-t-0 lg:border-l border-slate-200 bg-white flex-shrink-0 flex flex-col max-h-[50vh] sm:max-h-[60vh] lg:max-h-none">
+      <aside className="w-full border-t lg:border-t-0 lg:border-l border-slate-200 bg-white flex flex-col flex-1 min-h-[320px] lg:flex-none lg:h-full lg:min-h-0">
         <CarrinhoPDV
           itens={itens}
           onUpdateQuantidade={updateQuantidade}
@@ -519,7 +552,7 @@ export default function BalcaoPdvPage() {
           onReservar={pedidoId ? handleReservar : undefined}
           onLiberarReserva={pedidoId ? handleLiberarReserva : undefined}
         />
-      </div>
+      </aside>
 
       {/* Modal de pagamento */}
       <PagamentoModal

@@ -148,7 +148,7 @@ export default function NotasPage() {
     <div className="p-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
         <div>
-          <h1 className="text-xl font-bold text-slate-800 tracking-tight">CENTRAL DE NOTAS</h1>
+          <h1 className="text-xl sm:text-2xl font-semibold text-slate-900 tracking-tight">Central de notas</h1>
           <p className="text-sm text-slate-500 mt-0.5">Todas as notas emitidas — Ordens de Serviço e Vendas do PDV</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -235,8 +235,8 @@ export default function NotasPage() {
 
       {/* Modal de visualização da nota */}
       {selecionada && (
-        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4" onClick={() => setSelecionada(null)}>
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-[2px] flex items-center justify-center z-50 p-4" onClick={() => setSelecionada(null)}>
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()}>
             <div className="p-5 border-b border-slate-100 flex items-center justify-between">
               <div>
                 <h2 className="text-base font-bold text-slate-800">Nota #{selecionada.numero}</h2>

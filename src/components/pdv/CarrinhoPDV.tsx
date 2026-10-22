@@ -48,8 +48,8 @@ export default function CarrinhoPDV({
       {/* Header */}
       <div className="flex flex-wrap items-center justify-between p-4 border-b border-slate-100 flex-shrink-0 gap-2">
         <div>
-          <h2 className="text-base font-bold text-slate-800">Carrinho</h2>
-          <p className="text-[10px] text-slate-400">{itens.length} item(ns) · {totalItens} un.</p>
+          <h2 className="text-[15px] font-semibold text-slate-900 tracking-tight">Carrinho</h2>
+          <p className="text-[11px] text-slate-500 num">{itens.length} item(ns) · {totalItens} un.</p>
         </div>
         <div className="flex items-center gap-2">
           {itens.length > 0 && onReservar && !temReservas && (
@@ -105,9 +105,10 @@ export default function CarrinhoPDV({
 
                   <div className="flex-1 min-w-0">
                     <div className="flex items-start justify-between gap-2">
-                      <p className="text-xs font-semibold text-slate-800 truncate">{item.nome}</p>
+                      <p className="text-[13px] font-medium text-slate-900 truncate">{item.nome}</p>
                       <button onClick={() => onRemover(item.id)}
-                        className="w-5 h-5 rounded-full text-slate-300 hover:text-red-500 hover:bg-red-50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all flex-shrink-0"
+                        className="w-6 h-6 rounded-md text-slate-400 hover:text-red-600 hover:bg-red-50 flex items-center justify-center lg:opacity-0 lg:group-hover:opacity-100 focus-visible:opacity-100 transition-all flex-shrink-0"
+                        aria-label={`Remover ${item.nome}`}
                         title="Remover"
                       >×</button>
                     </div>
@@ -116,21 +117,23 @@ export default function CarrinhoPDV({
                     {/* Qtd + Preco */}
                     <div className="flex items-center gap-2 mt-1.5">
                       {/* Quantidade */}
-                      <div className="flex items-center bg-slate-100 rounded-lg">
+                      <div className="flex items-center rounded-lg border border-slate-200 bg-white">
                         <button
                           onClick={() => onUpdateQuantidade(item.id, Math.max(1, item.quantidade - 1))}
-                          className="w-6 h-6 flex items-center justify-center text-slate-500 hover:text-slate-700 text-xs"
+                          className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-slate-50 rounded-l-lg text-sm"
+                          aria-label="Diminuir quantidade"
                         >−</button>
-                        <span className="w-8 text-center text-xs font-bold text-slate-700">{item.quantidade}</span>
+                        <span className="w-8 text-center text-[13px] font-semibold text-slate-900 num">{item.quantidade}</span>
                         <button
                           onClick={() => onUpdateQuantidade(item.id, item.quantidade + 1)}
-                          className="w-6 h-6 flex items-center justify-center text-slate-500 hover:text-slate-700 text-xs"
+                          className="w-8 h-8 flex items-center justify-center text-slate-500 hover:text-slate-900 hover:bg-slate-50 rounded-r-lg text-sm"
+                          aria-label="Aumentar quantidade"
                         >+</button>
                       </div>
 
                       <span className="text-[10px] text-slate-400">×</span>
                       <div className="flex flex-col">
-                        <span className="text-xs font-semibold text-slate-600">{fm(item.precoUnitario)}</span>
+                        <span className="text-xs font-medium text-slate-600 num">{fm(item.precoUnitario)}</span>
                         {item.precoOriginal !== item.precoUnitario && (
                           <span className="text-[9px] text-slate-400 line-through">{fm(item.precoOriginal)}</span>
                         )}
@@ -151,7 +154,7 @@ export default function CarrinhoPDV({
                             (−{fm(item.precoOriginal * item.quantidade - item.subtotal)})
                           </span>
                         )}
-                        <span className="text-xs font-bold text-slate-800">{fm(item.subtotal)}</span>
+                        <span className="text-[13px] font-semibold text-slate-900 num">{fm(item.subtotal)}</span>
                       </div>
                     </div>
                   </div>
@@ -176,9 +179,9 @@ export default function CarrinhoPDV({
                 <span>− {fm(totalDescontos)}</span>
               </div>
             )}
-            <div className="flex justify-between text-base font-bold text-slate-800 pt-1 border-t border-slate-100">
-              <span>Total</span>
-              <span>{fm(totalGeral)}</span>
+            <div className="flex items-baseline justify-between pt-2 border-t border-slate-100">
+              <span className="text-[13px] font-medium text-slate-600">Total</span>
+              <span className="text-2xl font-semibold text-slate-900 tracking-tight num">{fm(totalGeral)}</span>
             </div>
           </div>
 
@@ -191,7 +194,7 @@ export default function CarrinhoPDV({
           <button
             onClick={onFinalizar}
             disabled={itensSemPreco.length > 0}
-            className="btn-primary w-full py-3 text-sm font-bold disabled:opacity-50 disabled:cursor-not-allowed"
+            className="btn-primary w-full h-12 text-[14px] font-semibold tracking-wide disabled:opacity-50 disabled:cursor-not-allowed"
             title={itensSemPreco.length > 0 ? 'Impossível finalizar: há itens sem preço (R$ 0,00)' : ''}
           >
             {itensSemPreco.length > 0 ? 'REMOVIDA — item sem preço' : `FINALIZAR VENDA · ${fm(totalGeral)}`}

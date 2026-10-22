@@ -5,6 +5,7 @@ import AdminProdutoCard from '@/components/vitrine/AdminProdutoCard';
 import AdminVitrine from '@/components/vitrine/AdminVitrinePremium';
 import LogoOficina from '@/components/LogoOficina';
 import UploadImagens, { ImagemInfo } from '@/components/estoque/UploadImagens';
+import GaleriaProdutos from '@/components/vitrine/GaleriaProdutos';
 
 interface Categoria { id: string; nome: string; slug: string; subcategorias?: { id: string; nome: string; slug: string }[]; }
 interface Peca {
@@ -32,7 +33,8 @@ export default function VitrineManagePage() {
   const [orcamentos, setOrcamentos] = useState<Orcamento[]>([]);
   const [pedidosLoja, setPedidosLoja] = useState<PedidoLoja[]>([]);
   const [loading, setLoading] = useState(true);
-  const [tab, setTab] = useState<'vitrine'|'orcamentos'|'pedidos_loja'|'admin_premium'>('vitrine');
+  // Galeria de fotos é a aba inicial (identificar peças sem foto); demais abas mantidas.
+  const [tab, setTab] = useState<'galeria'|'vitrine'|'orcamentos'|'pedidos_loja'|'admin_premium'>('galeria');
   const [copiado, setCopiado] = useState(false);
   const [catAtiva, setCatAtiva] = useState('');
   // AJUSTE 1: subcategoria selecionada (filtro rápido na DONA).
@@ -257,7 +259,22 @@ export default function VitrineManagePage() {
   return (
     <div className="min-h-screen bg-[#F3F6FB]">
       {/* ===== BARRA DE TOPO ===== */}
-      <div className="bg-[#0D1117] text-white sticky top-0 z-50">
+      <div className="sticky top-0 z-50">
+        {/* Abas da Vitrine */}
+        <div className="bg-white border-b border-slate-200/80">
+          <div className="max-w-[1440px] mx-auto px-4 sm:px-6 lg:px-8 flex items-center gap-1 overflow-x-auto" role="tablist">
+            {([['galeria','Galeria de fotos'],['vitrine','Vitrine do site'],['orcamentos','Orçamentos'],['pedidos_loja','Pedidos da loja'],['admin_premium','Admin Premium']] as const).map(([id,label]) => (
+              <button key={id} role="tab" aria-selected={tab===id} onClick={() => setTab(id)}
+                className={`relative h-12 px-3.5 text-[13px] font-medium whitespace-nowrap transition-colors ${tab===id ? 'text-slate-900' : 'text-slate-500 hover:text-slate-800'}`}>
+                {label}
+                {tab===id && <span className="absolute left-2 right-2 bottom-0 h-[2px] rounded-full bg-brand-600" />}
+              </button>
+            ))}
+          </div>
+        </div>
+        {tab !== 'galeria' && (
+        <>
+        <div className="bg-[#0D1117] text-white">
         <div className="max-w-7xl mx-auto px-4 flex flex-wrap items-center justify-between gap-y-1 gap-x-2 py-1 min-h-10 text-[11px]">
           <div className="flex items-center gap-2">
             <span className="font-extrabold">Editando Vitrine</span>
@@ -272,15 +289,14 @@ export default function VitrineManagePage() {
             </button>
             {salvoMsg && <span className="px-2 py-1 bg-emerald-900/60 text-emerald-300 rounded text-[10px] font-bold">{salvoMsg}</span>}
             <button onClick={() => setEditandoBanner(!editandoBanner)} className="px-2.5 py-1 bg-white/10 hover:bg-white/15 rounded text-[10px] transition-colors">{editandoBanner ? 'Fechar banner' : 'Editar banner'}</button>
-            <button onClick={() => setTab(tab==='vitrine'?'orcamentos':tab==='orcamentos'?'pedidos_loja':tab==='pedidos_loja'?'admin_premium':'vitrine')} className="px-2.5 py-1 bg-white/10 hover:bg-white/15 rounded text-[10px] transition-colors">
-              {tab==='vitrine'?'Orçamentos':tab==='orcamentos'?'Pedidos Loja':tab==='pedidos_loja'?'Admin Premium':'Vitrine'}
-            </button>
             <button onClick={copiarLink} className="px-2.5 py-1 bg-brand-600 hover:bg-brand-700 rounded text-[10px] font-bold transition-colors">{copiado?'Copiado':'Copiar link'}</button>
             <a href="/vitrine" target="_blank" className="px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 rounded text-[10px] font-bold transition-colors">Ver site</a>
           </div>
         </div>
 
+        </div>
         {/* Menu azul categorias — 100% data-driven (AJUSTE 1/3) */}
+        {tab === 'vitrine' && (
         <div className="bg-brand-600">
           <div className="max-w-7xl mx-auto px-4 flex items-center h-9 overflow-x-auto gap-0.5">
             <button onClick={() => { setCatAtiva(''); setSubcatAtiva(''); setVerTodosPasta(false); }}
@@ -291,7 +307,12 @@ export default function VitrineManagePage() {
             ))}
           </div>
         </div>
+        )}
+        </>
+        )}
       </div>
+
+      {tab === 'galeria' && <GaleriaProdutos />}
 
       {/* ===== PAINEL ADMIN PREMIUM ===== */}
       {tab === 'admin_premium' && (

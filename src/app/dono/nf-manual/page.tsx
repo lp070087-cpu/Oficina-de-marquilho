@@ -159,15 +159,18 @@ export default function NFManualPage() {
   const estoqueLabel = (s: Sugestao) => `Central ${s.quantidade} · Loja ${s.quantidadeLoja || 0}`;
 
   return (
-    <div className="p-6 max-w-3xl mx-auto">
+    <div className="p-4 sm:p-6 lg:p-8 max-w-[1440px] mx-auto">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-xl font-bold text-slate-800 tracking-tight">NOTA FISCAL MANUAL</h1>
+          <h1 className="text-xl sm:text-2xl font-semibold text-slate-900 tracking-tight">Nota fiscal manual</h1>
           <p className="text-sm text-slate-500 mt-0.5">Controle interno - sem integracao fiscal</p>
         </div>
       </div>
 
-      <div className="card space-y-4 mb-6">
+      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_380px] gap-6 items-start">
+      <div className="min-w-0 space-y-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="card space-y-4">
         <h3 className="text-sm font-bold text-slate-800">Dados do cliente</h3>
         <div className="grid grid-cols-2 gap-4">
           <div className="col-span-2"><label className="text-xs font-semibold text-slate-600 uppercase">Nome do cliente</label><input value={cliente} onChange={e=>setCliente(e.target.value)} className="input-field mt-1.5" placeholder="Nome completo"/></div>
@@ -176,7 +179,7 @@ export default function NFManualPage() {
         </div>
       </div>
 
-      <div className="card space-y-4 mb-6">
+      <div className="card space-y-4">
         <h3 className="text-sm font-bold text-slate-800">Telefone e dados da moto</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
@@ -201,7 +204,8 @@ export default function NFManualPage() {
           </div>
         </div>
       </div>
-      <div className="card space-y-4 mb-6">
+      </div>
+      <div className="card space-y-4">
         <div className="flex items-center justify-between">
           <h3 className="text-sm font-bold text-slate-800">Produtos</h3>
           <span className="text-xs text-slate-400">{itens.length} item(ns)</span>
@@ -310,15 +314,19 @@ export default function NFManualPage() {
         )}
       </div>
 
-      <div className="card space-y-4 mb-6">
+      <div className="card space-y-4">
         <h3 className="text-sm font-bold text-slate-800">Observacoes</h3>
         <textarea value={obs} onChange={e=>setObs(e.target.value)} className="input-field" rows={2} placeholder="Observacoes adicionais..."/>
       </div>
+      </div>
+
+      {/* Coluna direita (computador): totais e ações sempre visíveis */}
+      <aside className="space-y-4 xl:sticky xl:top-6">
 
       {/* BLOCO 7 — Desconto fixo em R$ com recálculo imediato */}
-      <div className="card space-y-4 mb-6">
+      <div className="card space-y-4">
         <h3 className="text-sm font-bold text-slate-800">Totais e Desconto</h3>
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4">
+        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-2 gap-4">
           <div>
             <label className="text-[10px] font-semibold text-slate-500 uppercase">Subtotal</label>
             <p className="text-lg font-extrabold text-slate-800 mt-1">{fm(total)}</p>
@@ -336,9 +344,9 @@ export default function NFManualPage() {
               <p className="text-[10px] text-red-500 mt-0.5">Desconto não pode ser maior que o subtotal.</p>
             )}
           </div>
-          <div>
+          <div className="xl:col-span-2 xl:pt-3 xl:border-t xl:border-slate-100">
             <label className="text-[10px] font-semibold text-slate-500 uppercase">Total</label>
-            <p className="text-lg font-extrabold text-brand-700 mt-1">{fm(totalFinal)}</p>
+            <p className="text-lg xl:text-2xl font-extrabold text-brand-700 mt-1 num">{fm(totalFinal)}</p>
           </div>
         </div>
         <div>
@@ -364,11 +372,11 @@ export default function NFManualPage() {
       </div>
 
       {/* BLOCO 1 — dois botões separados, MESMO documento/layout */}
-      <div className="flex flex-wrap gap-2 justify-end">
+      <div className="flex flex-col sm:flex-row xl:flex-col gap-2 sm:justify-end">
         <button
           onClick={() => gerarDocumento(true)}
           disabled={itens.length===0}
-          className="btn-primary text-xs inline-flex items-center gap-2 disabled:opacity-50"
+          className="btn-primary text-xs inline-flex items-center gap-2 disabled:opacity-50 xl:w-full xl:h-11"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
           IMPRIMIR
@@ -376,11 +384,13 @@ export default function NFManualPage() {
         <button
           onClick={() => gerarDocumento(false)}
           disabled={itens.length===0}
-          className="btn-secondary text-xs inline-flex items-center gap-2 disabled:opacity-50"
+          className="btn-secondary text-xs inline-flex items-center gap-2 disabled:opacity-50 xl:w-full xl:h-11"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"/></svg>
           GERAR PDF
         </button>
+      </div>
+      </aside>
       </div>
     </div>
   );
