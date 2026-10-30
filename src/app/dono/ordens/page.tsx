@@ -81,7 +81,7 @@ export default function OrdensPage() {
   return (
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
-        <div><h1 className="text-xl font-bold text-slate-800 tracking-tight">ORDENS DE SERVICO</h1><p className="text-sm text-slate-500 mt-0.5">{ordens.length} ordens</p></div>
+        <div><h1 className="text-xl sm:text-2xl font-semibold text-slate-900 tracking-tight">Ordens de serviço</h1><p className="text-sm text-slate-500 mt-0.5">{ordens.length} ordens</p></div>
         <button onClick={abrirNova} className="btn-primary inline-flex items-center gap-2 text-xs"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>Nova OS</button>
       </div>
 
@@ -91,7 +91,7 @@ export default function OrdensPage() {
 
       {loading ? <p className="text-sm text-slate-400">Carregando...</p> : ordens.length===0 ? (<div className="card text-center py-12"><p className="text-sm text-slate-400">Nenhuma OS encontrada.</p></div>) : (
         <div className="card overflow-x-auto"><table className="w-full text-sm">
-          <thead><tr className="border-b border-slate-100"><th className="text-left py-2.5 px-3 text-xs font-medium text-slate-500 uppercase">OS</th><th className="text-left py-2.5 px-3 text-xs font-medium text-slate-500 uppercase">Cliente</th><th className="text-left py-2.5 px-3 text-xs font-medium text-slate-500 uppercase">Moto</th><th className="text-left py-2.5 px-3 text-xs font-medium text-slate-500 uppercase">Servico</th><th className="text-left py-2.5 px-3 text-xs font-medium text-slate-500 uppercase">Mecanico</th><th className="text-left py-2.5 px-3 text-xs font-medium text-slate-500 uppercase">Status</th><th className="text-right py-2.5 px-3 text-xs font-medium text-slate-500 uppercase">Valor</th><th className="text-right py-2.5 px-3 text-xs font-medium text-slate-500 uppercase">NF</th></tr></thead>
+          <thead><tr className="border-b border-slate-100"><th className="text-left py-2.5 px-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">OS</th><th className="text-left py-2.5 px-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Cliente</th><th className="text-left py-2.5 px-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Moto</th><th className="text-left py-2.5 px-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Servico</th><th className="text-left py-2.5 px-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Mecanico</th><th className="text-left py-2.5 px-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Status</th><th className="text-right py-2.5 px-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Valor</th><th className="text-right py-2.5 px-3 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">NF</th></tr></thead>
           <tbody>{ordens.map(os => {
             const st = getStatusDisplay(os);
             return (
@@ -103,16 +103,16 @@ export default function OrdensPage() {
               <td className="py-2 px-3 text-slate-500 text-xs">{os.mecanico?.name||'-'}</td>
               <td className="py-2 px-3"><span className={`inline-block px-2 py-0.5 rounded text-[11px] font-medium border ${st.color}`}>{st.label}</span></td>
               <td className="py-2 px-3 text-right font-medium text-slate-700">{formatMoney(Number(os.valorTotal))}</td>
-              <td className="py-2 px-3 text-right text-xs">{os.notaFiscal?<span className="text-emerald-600 font-medium">#{os.notaFiscal.numero}</span>:<span className="text-slate-300">-</span>}</td>
+              <td className="py-2 px-3 text-right text-xs whitespace-nowrap">{os.notaFiscal?<span className="text-emerald-600 font-medium">#{os.notaFiscal.numero}</span>:<span className="text-slate-300">-</span>}</td>
             </tr>
           )})}</tbody>
         </table></div>
       )}
 
       {modal.open && modal.tipo==='nova' && (
-        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-xl border border-slate-200 shadow-xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
-            <h2 className="text-base font-semibold text-slate-800 mb-4">Nova Ordem de Servico</h2>
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-[2px] flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
+            <h2 className="text-[17px] font-semibold text-slate-900 tracking-tight mb-4">Nova Ordem de Servico</h2>
             {msg&&<div className="bg-red-50 border border-red-200 text-red-700 px-3 py-2 rounded text-xs mb-4">{msg}</div>}
             <div className="grid grid-cols-2 gap-3">
               <div className="col-span-2"><label className="text-xs font-medium text-slate-600">Nome do cliente *</label><input value={form.nomeCliente} onChange={e=>setForm({...form,nomeCliente:e.target.value})} className="input-field mt-1"/></div>
@@ -254,8 +254,8 @@ function DetalheOS({ os, onClose }: { os: OS; onClose: () => void }) {
   const qtdCompativeis=pecas.filter(p=>getCompatBadge(p,dados.modeloMoto).label!=='Adaptada').length;
 
   return (
-    <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl border border-slate-200 shadow-xl w-full max-w-2xl max-h-[85vh] flex flex-col">
+    <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-[2px] flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col">
         <div className="p-5 border-b border-slate-100 flex items-center justify-between flex-shrink-0">
           <div>
             <h2 className="text-base font-semibold text-slate-800">OS #{dados.numero}</h2>

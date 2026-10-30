@@ -1,4 +1,3 @@
-import { atendimentoDemo } from '@/lib/atendimento-demo';
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { jwtVerify } from 'jose';
@@ -78,7 +77,6 @@ function nextWithHeaders(request: NextRequest): NextResponse {
 }
 
 export async function middleware(request: NextRequest) {
- if (atendimentoDemo() && ['/balcao/atendimento','/balcao/recebimento'].includes(request.nextUrl.pathname) && ['localhost','127.0.0.1'].includes(request.nextUrl.hostname)) return NextResponse.next();
 	const { pathname, hostname } = request.nextUrl;
 
 	// Allow static and public

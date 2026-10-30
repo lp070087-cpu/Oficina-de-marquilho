@@ -314,7 +314,7 @@ export default function EstoquePage() {
             {categoriaSelecionada&&(<><svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7"/></svg><button onClick={()=>{setSubcategoriaSelecionada(null);setView('subcategorias');setBusca('');}} className="hover:text-brand-600 transition-colors font-medium">{categoriaSelecionada.nome}</button></>)}
             {subcategoriaSelecionada&&(<><svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7"/></svg><span className="text-slate-600 font-medium">{labelSubcategoria}</span></>)}
           </div>
-          <h1 className="text-xl font-bold text-slate-800 tracking-tight">{view==='categorias'?'ESTOQUE DE PECAS':view==='subcategorias'?categoriaSelecionada?.nome.toUpperCase():labelSubcategoria?.toUpperCase()}</h1>
+          <h1 className="text-xl sm:text-2xl font-semibold text-slate-900 tracking-tight">{view==='categorias'?'Estoque de peças':view==='subcategorias'?categoriaSelecionada?.nome.toUpperCase():labelSubcategoria?.toUpperCase()}</h1>
         </div>
         <div className="flex items-center gap-5">
           <div className="flex items-center gap-5 text-xs">
@@ -390,7 +390,7 @@ export default function EstoquePage() {
               ):(
                 <div className="card-table"><div className="overflow-auto">
                   <table className="w-full text-sm">
-                    <thead><tr className="border-b border-slate-100 bg-slate-50/60"><th className="text-left py-3 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">SKU</th><th className="text-left py-3 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Peca</th><th className="text-left py-3 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Marca</th><th className="text-left py-3 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Compativel</th><th className="text-left py-3 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Preco</th><th className="text-center py-3 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Estoque</th><th className="text-center py-3 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Status</th><th className="text-right py-3 px-4 text-xs font-semibold text-slate-500 uppercase tracking-wider">Acoes</th></tr></thead>
+                    <thead><tr className="border-b border-slate-100 bg-slate-50/60"><th className="text-left py-3 px-4 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">SKU</th><th className="text-left py-3 px-4 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Peca</th><th className="text-left py-3 px-4 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Marca</th><th className="text-left py-3 px-4 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Compativel</th><th className="text-left py-3 px-4 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Preco</th><th className="text-center py-3 px-4 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Estoque</th><th className="text-center py-3 px-4 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Status</th><th className="text-right py-3 px-4 text-[11px] font-semibold text-slate-500 uppercase tracking-wider">Acoes</th></tr></thead>
                     <tbody>
                       {pecasNivel.map((p,i)=>(
                         <tr key={p.id} className={`border-b border-slate-50 hover:bg-slate-50/50 transition-colors ${i%2===0?'bg-white':'bg-slate-50/20'} ${p.quantidade<=p.estoqueMinimo?'bg-amber-50/20':''}`}>
@@ -442,9 +442,9 @@ export default function EstoquePage() {
       )}
 
       {modal.open&&(
-        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
-            <h2 className="text-base font-bold text-slate-800 mb-5">{modal.peca?'Editar peca':'Nova peca'}</h2>
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-[2px] flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto">
+            <h2 className="text-[17px] font-semibold text-slate-900 tracking-tight mb-5">{modal.peca?'Editar peca':'Nova peca'}</h2>
             {msg&&<div className="bg-red-50 border border-red-200 text-red-700 px-4 py-2.5 rounded-xl text-xs mb-4">{msg}</div>}
             <div className="grid grid-cols-2 gap-4">
               <div className="col-span-2"><label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Nome</label><input value={form.nome} onChange={e=>setForm({...form,nome:e.target.value})} className="input-field mt-1.5"/></div>
@@ -493,8 +493,8 @@ export default function EstoquePage() {
 
       {/* AJUSTE 6 — MODAL EXPORTAR (1º: Estoque baixo | Todo estoque → 2º: CSV | PDF | Imprimir) */}
       {exportModal && !exportEscopo && (
-        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4" onClick={() => setExportModal(false)}>
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-xl w-full max-w-sm p-6 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()} style={{animation: 'scaleIn 0.2s ease-out'}}>
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-[2px] flex items-center justify-center z-50 p-4" onClick={() => setExportModal(false)}>
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-sm p-6 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()} style={{animation: 'scaleIn 0.2s ease-out'}}>
             <h2 className="text-base font-bold text-slate-800 mb-1">Exportar Estoque</h2>
             <p className="text-xs text-slate-500 mb-5">Qual lista deseja gerar?</p>
             <div className="space-y-3">
@@ -520,8 +520,8 @@ export default function EstoquePage() {
 
       {/* AJUSTE 6 — MODAL ESCOLHA FORMATO (CSV | PDF | Imprimir) */}
       {exportModal && exportEscopo && (
-        <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4" onClick={() => setExportModal(false)}>
-          <div className="bg-white rounded-2xl border border-slate-200 shadow-xl w-full max-w-sm p-6 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()} style={{animation: 'scaleIn 0.2s ease-out'}}>
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-[2px] flex items-center justify-center z-50 p-4" onClick={() => setExportModal(false)}>
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-sm p-6 max-h-[90vh] overflow-y-auto" onClick={e => e.stopPropagation()} style={{animation: 'scaleIn 0.2s ease-out'}}>
             <h2 className="text-base font-bold text-slate-800 mb-1">{exportEscopo === 'baixo' ? 'Estoque Baixo' : 'Todo o Estoque'}</h2>
             <p className="text-xs text-slate-500 mb-5">Escolha o formato:</p>
             <div className="space-y-3">

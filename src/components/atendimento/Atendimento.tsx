@@ -12,7 +12,6 @@ const button = 'rounded-lg bg-orange-600 px-5 py-3 font-semibold text-white hove
 const secondary = 'rounded-lg border border-slate-300 bg-white px-4 py-3 font-medium hover:bg-slate-50 disabled:opacity-40';
 
 async function api(url: string, init?: RequestInit) {
-  if (process.env.NODE_ENV === 'development' && process.env.NEXT_PUBLIC_ATENDIMENTO_DEMO === '1') return (await import('./demo')).demoApi(url, init);
   const response = await fetch(url, { ...init, cache: 'no-store' });
   if (response.redirected) throw new Error('Sua sessão expirou. Entre novamente.');
   const body = await response.json().catch(() => { throw new Error('Resposta inválida do servidor. Tente novamente.'); });
@@ -69,6 +68,24 @@ export default function Atendimento({ modo, podeReceber }: { modo: 'atendimento'
   useEffect(() => {
     if (pedido?.id) secaoPedido.current?.scrollIntoView({ block: 'start' });
   }, [pedido?.id, venda?.id]);
+
+  // Itens enviados pelo botão Vender do Estoque da Loja (mesma chave usada pelo PDV anterior).
+  useEffect(() => {
+    if (caixa) return;
+    let enviados: any[] = [];
+    try { enviados = JSON.parse(sessionStorage.getItem('pdv_preload') || '[]'); sessionStorage.removeItem('pdv_preload'); } catch { return; }
+    if (!Array.isArray(enviados) || !enviados.length) return;
+    (async () => {
+      for (const item of enviados) {
+        try {
+          const achadas: Peca[] = await api(`/api/pecas?q=${encodeURIComponent(item.codigo)}`);
+          const peca = achadas.find(p => p.id === item.pecaId);
+          if (!peca || peca.quantidadeLoja <= 0 || Number(peca.precoVenda) <= 0) { setErro(`${item.nome} indisponível para venda.`); continue; }
+          setCarrinho(old => old.some(i => i.peca.id === peca.id) ? old : [...old, { peca, quantidade: Math.min(Number(item.quantidade) || 1, peca.quantidadeLoja) }]);
+        } catch (e) { setErro((e as Error).message); }
+      }
+    })();
+  }, [caixa]);
 
   function adicionar(peca: Peca) {
     setErro('');

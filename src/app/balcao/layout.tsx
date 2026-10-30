@@ -1,7 +1,4 @@
 import Link from 'next/link';
-import { atendimentoDemo } from '@/lib/atendimento-demo';
-import { demoPerfil } from '@/lib/atendimento-demo-perfil';
-import DemoShell from '@/components/atendimento/DemoShell';
 import { Suspense } from 'react';
 import { requireAuth } from '@/lib/auth';
 import prisma from '@/lib/prisma';
@@ -9,7 +6,6 @@ import AppShell from '@/components/AppShell';
 import EntradaBalcao from '@/components/atendimento/EntradaBalcao';
 
 export default async function BalcaoLayout({ children }: { children: React.ReactNode }) {
-  if (atendimentoDemo()) return <DemoShell perfil={await demoPerfil()}>{children}</DemoShell>;
   const session = await requireAuth(['BALCAO', 'DONO']);
   const user = await prisma.user.findUnique({ where: { id: session.id }, select: { name: true } });
   return (
