@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getSession } from '@/lib/auth';
 import { emitEvent } from '@/lib/event-bus';
+import { podeReceber } from '@/lib/operacao-pedidos';
 
 // FASE 5 — Status válidos conforme enum StatusOS do Prisma
 // LAVAGEM removido da lista de status válidos (BLOCO 8) — não pode mais ser
@@ -18,6 +19,12 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     const body = await req.json();
     const { status, mecanicoId, diagnostico, valorMaoDeObra, statusPagamento, valorPago, formaPagamento, dataPagamento,
       garantiaDias, dataAgendamento, horaAgendamento, previsaoEntrega, kmAtual, tempoEstimado } = body;
+    let recebimento: any = null;
+    if (session.role === 'BALCAO' && (statusPagamento === 'PAGO' || valorPago !== undefined || dataPagamento !== undefined)) {
+      if (!podeReceber(session)) return NextResponse.json({ error: 'Somente o caixa confirma recebimentos' }, { status: 403 });
+      recebimento = await prisma.venda.findFirst({ where: { status: 'PAGA', pedido: { ordemServicoId: id, status: 'PAGO' } }, orderBy: { createdAt: 'desc' } });
+      if (!recebimento) return NextResponse.json({ error: 'Confirme o recebimento pelo caixa antes de marcar a OS como paga' }, { status: 409 });
+    }
     const data: any = {};
     if (status !== undefined) {
       // FASE 5 — validar status contra o enum StatusOS do Prisma
@@ -54,6 +61,11 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     }
     if (valorPago !== undefined) data.valorPago = valorPago;
 
+    if (recebimento) {
+      data.valorPago = recebimento.total;
+      data.dataPagamento = recebimento.createdAt;
+      data.usuarioPagamento = recebimento.operadorNome;
+    }
     // FASE 15-F: Oficina Premium fields
     if (garantiaDias !== undefined) {
       data.garantiaDias = garantiaDias;

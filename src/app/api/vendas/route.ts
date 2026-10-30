@@ -2,11 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getSession } from '@/lib/auth';
 import { emitEvent } from '@/lib/event-bus';
+import { podeReceber, PENDENTES, centavos, OperacaoErro } from '@/lib/operacao-pedidos';
 
 // POST: Pagar pedido → gera Venda → baixa estoque → registra historico
 export async function POST(req: NextRequest) {
   const session = await getSession();
-  if (!session || !['DONO', 'BALCAO'].includes(session.role)) {
+  if (!session || !podeReceber(session)) {
     return NextResponse.json({ error: 'Nao autorizado' }, { status: 403 });
   }
 
@@ -14,8 +15,8 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { pedidoId, pagamentos } = body;
 
-    if (!pedidoId) return NextResponse.json({ error: 'pedidoId obrigatorio' }, { status: 400 });
-    if (!pagamentos || !Array.isArray(pagamentos) || pagamentos.length === 0) {
+    if (typeof pedidoId !== 'string' || !pedidoId) return NextResponse.json({ error: 'pedidoId obrigatorio' }, { status: 400 });
+    if (!pagamentos || !Array.isArray(pagamentos) || pagamentos.length === 0 || pagamentos.length > 20) {
       return NextResponse.json({ error: 'Pagamentos obrigatorios' }, { status: 400 });
     }
 
@@ -28,13 +29,19 @@ export async function POST(req: NextRequest) {
 
     // Cada pagamento precisa ter valor finito > 0
     for (const pg of pagamentos) {
-      const v = parseFloat(pg?.valor);
+      if (!['DINHEIRO', 'PIX', 'CARTAO_DEBITO', 'CARTAO_CREDITO'].includes(pg?.tipo)) throw new OperacaoErro('Forma de pagamento invalida');
+      const troco = centavos(pg.troco ?? 0);
+      if (troco < 0 || (troco > 0 && pg.tipo !== 'DINHEIRO')) throw new OperacaoErro('Troco invalido');
+      if (pg.parcelas != null && (!Number.isInteger(Number(pg.parcelas)) || Number(pg.parcelas) < 1 || Number(pg.parcelas) > 24 || pg.tipo !== 'CARTAO_CREDITO')) throw new OperacaoErro('Parcelamento invalido');
+      const v = centavos(pg?.valor) / 100;
+      pg.valor = v; pg.troco = troco / 100;
       if (!Number.isFinite(v) || v <= 0) {
         return NextResponse.json({ error: 'Cada pagamento deve ter valor maior que zero' }, { status: 400 });
       }
     }
 
     const venda = await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM "Pedido" WHERE id = ${pedidoId} FOR UPDATE`;
       // BLOCO 2 — NENHUMA venda sem sessão de caixa ABERTA. Dupla proteção com o
       // frontend (balcao/pdv e balcao/venda): aqui é o bloqueio definitivo.
       // Não auto-abre caixa e não altera vendas antigas — apenas recusa novas.
@@ -43,18 +50,42 @@ export async function POST(req: NextRequest) {
         orderBy: { abertoEm: 'desc' },
       });
       if (!sessao) throw new Error('SEM_CAIXA_ABERTO');
+      await tx.$queryRaw`SELECT id FROM "SessaoCaixa" WHERE id = ${sessao.id} FOR UPDATE`;
+      const sessaoAtual = await tx.sessaoCaixa.findUnique({ where: { id: sessao.id } });
+      if (sessaoAtual?.status !== 'ABERTA') throw new Error('SEM_CAIXA_ABERTO');
 
       const pedido = await tx.pedido.findUnique({
         where: { id: pedidoId },
         include: { itens: { include: { peca: true } } },
       });
 
-      if (!pedido) throw new Error('Pedido nao encontrado');
-      if (pedido.status === 'CANCELADO') throw new Error('Pedido cancelado');
-      if (pedido.status === 'PAGO') throw new Error('Pedido ja pago');
+      if (!pedido) throw new OperacaoErro('Pedido nao encontrado', 404);
+      if (!PENDENTES.includes(pedido.status)) throw new OperacaoErro('Pedido ja pago ou encerrado', 409);
+      if (await tx.venda.findUnique({ where: { pedidoId } })) throw new OperacaoErro('Pedido ja recebido', 409);
+      if (centavos(String(pedido.total)) <= 0) throw new OperacaoErro('Pedido sem valor');
+      if (pedido.tipo === 'ORDEM_SERVICO') {
+        if (!pedido.ordemServicoId) throw new OperacaoErro('OS obrigatoria');
+        await tx.$queryRaw`SELECT id FROM "OrdemServico" WHERE id = ${pedido.ordemServicoId} FOR UPDATE`;
+        const os = await tx.ordemServico.findUnique({ where: { id: pedido.ordemServicoId }, include: { itens: true } });
+        if (!os || os.status === 'CANCELADA') throw new OperacaoErro('OS indisponivel');
+        if (['PAGO', 'PAGA'].includes(os.statusPagamento || '')) throw new OperacaoErro('OS ja paga', 409);
+        const totalOS = os.itens.reduce((n, i) => n + centavos(String(i.precoUnitario)) * i.quantidade, 0) + centavos(String(os.valorMaoDeObra));
+        if (totalOS !== centavos(String(pedido.total))) throw new OperacaoErro('OS alterada depois do pedido. Revise o pedido antes de receber');
+      }
 
+      if (pedido.tipo !== 'ORDEM_SERVICO') {
+        let bruto = 0, liquido = 0;
+        for (const i of pedido.itens) {
+          const preco = centavos(String(i.precoOriginal));
+          const desc = Math.round(preco * Number(i.descontoPercent) / 100) + centavos(String(i.descontoReais));
+          const vendido = centavos(String(i.precoVendido));
+          if (desc < 0 || vendido <= 0 || vendido !== preco - desc || centavos(String(i.subtotal)) !== vendido * i.quantidade) throw new OperacaoErro('Valores inconsistentes no pedido');
+          bruto += preco * i.quantidade; liquido += vendido * i.quantidade;
+        }
+        if (!pedido.itens.length || liquido !== centavos(String(pedido.total)) || bruto !== centavos(String(pedido.subtotal)) || bruto - liquido !== centavos(String(pedido.descontoTotal))) throw new OperacaoErro('Totais inconsistentes no pedido');
+      }
       // Validar estoque ANTES de qualquer escrita
-      for (const item of pedido.itens) {
+      for (const item of pedido.tipo === 'ORDEM_SERVICO' ? [] : pedido.itens) {
         const qtd = item.quantidade;
         if (!Number.isFinite(qtd) || qtd <= 0 || !Number.isInteger(qtd)) {
           throw new Error(`Quantidade invalida para ${item.peca.nome}: ${qtd}`);
@@ -126,10 +157,11 @@ export async function POST(req: NextRequest) {
         // C1: Para pedidos ORDEM_SERVICO o estoque já foi baixado ao adicionar
         // peças à OS (POST /api/ordens/[id]/itens) com MovimentacaoEstoque USO_OS.
         if (pedido.tipo !== 'ORDEM_SERVICO') {
-          await tx.peca.update({
-            where: { id: item.pecaId },
+          const baixa = await tx.peca.updateMany({
+            where: { id: item.pecaId, quantidadeLoja: { gte: item.quantidade } },
             data: { quantidadeLoja: { decrement: item.quantidade } },
           });
+          if (baixa.count !== 1) throw new OperacaoErro('Estoque insuficiente na Loja');
 
           // Registrar movimentacao
           await tx.movimentacaoEstoque.create({
@@ -180,6 +212,9 @@ export async function POST(req: NextRequest) {
         },
       });
 
+      if (pedido.tipo === 'ORDEM_SERVICO' && pedido.ordemServicoId) {
+        await tx.ordemServico.update({ where: { id: pedido.ordemServicoId }, data: { statusPagamento: 'PAGO', valorPago: pedido.total, dataPagamento: new Date(), usuarioPagamento: session.name, formaPagamento: pagamentos.map((p: any) => p.tipo).join(', ') } });
+      }
       // ============================================================
       // EMISSÃO AUTOMÁTICA DE NOTA NO PAGAMENTO
       //  - ORDEM_SERVICO → Nota de Serviço (ligada à OS)
@@ -256,7 +291,7 @@ export async function POST(req: NextRequest) {
           notaFiscal: { select: { numero: true } },
         },
       });
-    });
+    }, { timeout: 15000 });
 
     // FASE 15-J: Emitir evento de venda concretizada
     if (venda) {
@@ -272,6 +307,8 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json(venda, { status: 201 });
   } catch (e: any) {
+    if (e instanceof OperacaoErro) return NextResponse.json({ error: e.message }, { status: e.status });
+    if (e?.code === 'P2002' || e?.code === 'P2034') return NextResponse.json({ error: 'Conflito no recebimento. Consulte o pedido antes de tentar novamente.' }, { status: 409 });
     const msg = e?.message || 'Erro ao processar venda';
     if (msg === 'SEM_CAIXA_ABERTO') {
       return NextResponse.json({ error: 'Nenhum caixa aberto. Abra o caixa antes de realizar uma venda.' }, { status: 400 });
@@ -297,6 +334,7 @@ export async function GET(req: NextRequest) {
     const limit = parseInt(req.nextUrl.searchParams.get('limit') || '50');
 
     const where: any = {};
+    if (!podeReceber(session)) where.pedido = { criadoPorId: session.id };
     if (data) {
       const inicio = new Date(data);
       inicio.setHours(0, 0, 0, 0);

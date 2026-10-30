@@ -19,10 +19,12 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
       include: {
         itens: { include: { peca: { select: { nome: true, codigo: true, codigoBarras: true, imagemUrl: true, marca: true } } } },
         pagamentos: true,
+        pedido: { select: { numero: true, criadoPorId: true } },
       },
     });
 
     if (!venda) return NextResponse.json({ error: 'Venda nao encontrada' }, { status: 404 });
+    if (session.role === 'BALCAO' && session.tipoBalcao !== 'SERVICOS' && venda.pedido.criadoPorId !== session.id) return NextResponse.json({ error: 'Nao autorizado' }, { status: 403 });
     return NextResponse.json(venda);
   } catch (e: any) {
     console.error('Erro ao buscar venda:', e);
@@ -32,7 +34,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ id: 
 
 export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const session = await getSession();
-  if (!session || !['DONO', 'BALCAO'].includes(session.role)) {
+  if (!session || session.role !== 'DONO') {
     return NextResponse.json({ error: 'Nao autorizado' }, { status: 403 });
   }
 

@@ -1,3 +1,4 @@
+import { atendimentoDemo } from '@/lib/atendimento-demo';
 import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 import { jwtVerify } from 'jose';
@@ -77,6 +78,7 @@ function nextWithHeaders(request: NextRequest): NextResponse {
 }
 
 export async function middleware(request: NextRequest) {
+ if (atendimentoDemo() && ['/balcao/atendimento','/balcao/recebimento'].includes(request.nextUrl.pathname) && ['localhost','127.0.0.1'].includes(request.nextUrl.hostname)) return NextResponse.next();
 	const { pathname, hostname } = request.nextUrl;
 
 	// Allow static and public
@@ -127,7 +129,7 @@ export async function middleware(request: NextRequest) {
 
 		// Role-based routing
 		for (const [prefix, roles] of Object.entries(roleRoutes)) {
-			if (pathname.startsWith(prefix) && !roles.includes(role)) {
+			if (pathname.startsWith(prefix) && !roles.includes(role) && !(role === 'DONO' && ['/balcao/recebimento', '/balcao/caixa'].includes(pathname))) {
 				const redirectMap: Record<string, string> = {
 					DONO: '/dono', BALCAO: '/balcao', ESTOQUE: '/estoque',
 				};
@@ -139,7 +141,8 @@ export async function middleware(request: NextRequest) {
 		if (role === 'BALCAO' && pathname.startsWith('/balcao')) {
 			const tipoBalcao = payload.tipoBalcao as string | undefined;
 			// Rotas restritas a VENDA_LOJA (PDV, venda avulsa, caixa)
-			const vendaOnlyRoutes = ['/balcao/pdv', '/balcao/venda', '/balcao/caixa'];
+			const vendaOnlyRoutes = ['/balcao/pdv', '/balcao/venda', '/balcao/atendimento'];
+			if (tipoBalcao !== 'SERVICOS' && ['/balcao/caixa', '/balcao/recebimento'].some(r => pathname.startsWith(r))) return applySecurityHeaders(NextResponse.redirect(new URL('/balcao', request.url)));
 			if (tipoBalcao === 'SERVICOS' && vendaOnlyRoutes.some(r => pathname.startsWith(r))) {
 				return applySecurityHeaders(NextResponse.redirect(new URL('/balcao', request.url)));
 			}

@@ -45,10 +45,10 @@ export async function requireAuth(allowedRoles?: string[]): Promise<SessionUser>
   return session;
 }
 
-export function roleToPath(role: string): string {
+export function roleToPath(role: string, tipoBalcao?: string | null): string {
   switch (role) {
     case 'DONO': return '/dono';
-    case 'BALCAO': return '/balcao';
+    case 'BALCAO': return tipoBalcao === 'VENDA_LOJA' ? '/balcao/atendimento' : tipoBalcao === 'SERVICOS' ? '/balcao/recebimento' : '/balcao';
     case 'ESTOQUE': return '/estoque';
     default: return '/';
   }

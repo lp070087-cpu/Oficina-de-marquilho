@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getSession } from '@/lib/auth';
+import { podeReceber } from '@/lib/operacao-pedidos';
 
 // GET: status do caixa + sessoes + resumo diario
 export async function GET(req: NextRequest) {
@@ -70,7 +71,7 @@ export async function GET(req: NextRequest) {
 // POST: operacoes de caixa (com sessoes)
 export async function POST(req: NextRequest) {
   const session = await getSession();
-  if (!session || !['DONO', 'BALCAO'].includes(session.role)) {
+  if (!session || !podeReceber(session)) {
     return NextResponse.json({ error: 'Nao autorizado' }, { status: 403 });
   }
 

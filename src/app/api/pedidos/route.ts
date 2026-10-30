@@ -1,250 +1,133 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getSession } from '@/lib/auth';
+import { PENDENTES, podeAtender, podeReceber, codigoPedido, OperacaoErro, centavos, quantidadeValida } from '@/lib/operacao-pedidos';
 
-// Helper: registra HistoricoPedido
-async function registrarHistorico(
-  pedidoId: string, tipo: string, descricao: string, usuario: string, usuarioId?: string
-) {
-  await prisma.historicoPedido.create({
-    data: { pedidoId, tipo, descricao, usuario, usuarioId: usuarioId || null },
-  });
+const include = {
+  itens: { include: { peca: { select: { nome: true, codigo: true, imagemUrl: true, quantidadeLoja: true } } } },
+  venda: { select: { id: true, numero: true, status: true, operadorNome: true } },
+  historico: { orderBy: { createdAt: 'desc' as const }, take: 10 },
+};
+function erro(e: unknown) {
+  if (e instanceof OperacaoErro) return NextResponse.json({ error: e.message }, { status: e.status });
+  console.error('Operacao de pedido:', e);
+  return NextResponse.json({ error: 'Erro ao salvar ou consultar pedido' }, { status: 500 });
 }
-
-// GET: listar pedidos
 export async function GET(req: NextRequest) {
-  const session = await getSession();
-  if (!session || !['DONO', 'BALCAO'].includes(session.role)) {
-    return NextResponse.json({ error: 'Nao autorizado' }, { status: 403 });
-  }
-
+  const s = await getSession();
+  if (!podeAtender(s) && !podeReceber(s)) return NextResponse.json({ error: 'Nao autorizado' }, { status: 403 });
   try {
-    const status = req.nextUrl.searchParams.get('status');
-    const tipo = req.nextUrl.searchParams.get('tipo');
     const where: any = {};
-    if (status) where.status = status.toUpperCase();
-    else where.status = { in: ['ABERTO', 'RESERVADO', 'SEPARADO', 'AGUARDANDO_PAGAMENTO'] };
-    if (tipo) where.tipo = tipo.toUpperCase();
-
-    const pedidos = await prisma.pedido.findMany({
-      where,
-      include: {
-        itens: { include: { peca: { select: { nome: true, codigo: true, imagemUrl: true, quantidadeLoja: true } } } },
-        venda: { select: { id: true, numero: true, status: true, origem: true, operadorNome: true } },
-        historico: { orderBy: { createdAt: 'desc' }, take: 10 },
-      },
-      orderBy: { createdAt: 'desc' },
-      take: 50,
-    });
-
-    return NextResponse.json(pedidos);
-  } catch (e: any) {
-    console.error('Erro ao listar pedidos:', e);
-    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
-  }
+    if (!podeReceber(s)) where.criadoPorId = s!.id;
+    const codigo = req.nextUrl.searchParams.get('codigo');
+    if (codigo) {
+      if (!/^(MP-)?\d+$/i.test(codigo.trim())) throw new OperacaoErro('Codigo de pedido invalido');
+      const numero = Number(codigo.trim().replace(/^MP-/i, ''));
+      if (!Number.isSafeInteger(numero) || numero < 1 || numero > 2147483647) throw new OperacaoErro('Codigo de pedido invalido');
+      where.numero = numero;
+    } else {
+      const status = req.nextUrl.searchParams.get('status');
+      where.status = status === 'TODOS' ? undefined : status || { in: PENDENTES };
+    }
+    const tipo = req.nextUrl.searchParams.get('tipo');
+    if (tipo) where.tipo = tipo;
+    const pedidos = await prisma.pedido.findMany({ where, include, orderBy: { createdAt: 'desc' }, take: 50 });
+    return NextResponse.json(pedidos.map(p => ({ ...p, codigo: codigoPedido(p.numero) })));
+  } catch (e) { return erro(e); }
 }
-
-// POST: criar pedido (carrinho → pedido) — atômico com $transaction
 export async function POST(req: NextRequest) {
-  const session = await getSession();
-  if (!session || !['DONO', 'BALCAO'].includes(session.role)) {
-    return NextResponse.json({ error: 'Nao autorizado' }, { status: 403 });
-  }
-
+  const s = await getSession();
+  if (!podeAtender(s) && !podeReceber(s)) return NextResponse.json({ error: 'Nao autorizado' }, { status: 403 });
   try {
-    const body = await req.json();
-    const {
-      itens, clienteNome, clienteTelefone, clienteCpf, observacoes,
-      tipo, origem, ordemServicoId,
-    } = body;
-
-    if (!itens || !Array.isArray(itens) || itens.length === 0) {
-      return NextResponse.json({ error: 'Itens obrigatorios' }, { status: 400 });
-    }
-
-    const tipoPedido = tipo || 'VENDA';
-    const origemPedido = origem || 'PDV';
-    const operador = session.name || 'Sistema';
-
-    const result = await prisma.$transaction(async (tx) => {
-      let subtotal = 0;
-      let descontoTotal = 0;
-
-      const pedido = await tx.pedido.create({
-        data: {
-          tipo: tipoPedido,
-          origem: origemPedido,
-          ordemServicoId: ordemServicoId || null,
-          clienteNome: clienteNome || null,
-          clienteTelefone: clienteTelefone || null,
-          clienteCpf: clienteCpf || null,
-          observacoes: observacoes || null,
-          subtotal: 0,
-          descontoTotal: 0,
-          total: 0,
-          status: 'ABERTO',
-          criadoPor: session.name || session.id,
-          criadoPorId: session.id,
-        },
-      });
-
-      // Historico: criacao
-      await tx.historicoPedido.create({
-        data: {
-          pedidoId: pedido.id,
-          tipo: 'CRIADO',
-          descricao: `Pedido #${pedido.numero} criado (${tipoPedido})`,
-          usuario: operador,
-          usuarioId: session.id || null,
-        },
-      });
-
-      for (const item of itens) {
-        const qtd = Math.max(1, parseInt(item.quantidade) || 1);
-        const precoOrig = parseFloat(item.precoOriginal) || parseFloat(item.precoUnitario) || 0;
-        const descPct = parseFloat(item.descontoPercent) || 0;
-        const descReais = parseFloat(item.descontoReais) || parseFloat(item.desconto) || 0;
-        const precoVend = precoOrig - (precoOrig * descPct / 100) - descReais;
-        const sub = Math.max(0, precoVend * qtd);
-
-        await tx.pedidoItem.create({
-          data: {
-            pedidoId: pedido.id,
-            pecaId: item.pecaId,
-            quantidade: qtd,
-            precoOriginal: precoOrig,
-            descontoPercent: descPct,
-            descontoReais: descReais,
-            precoVendido: precoVend,
-            subtotal: sub,
-            reservado: item.reservado || false,
-            observacao: item.observacao || null,
-          },
-        });
-
-        subtotal += sub;
-        descontoTotal += descReais + (precoOrig * descPct / 100) * qtd;
+    const b = await req.json();
+    const tipo = b.tipo || 'VENDA';
+    if (!['VENDA', 'ORCAMENTO', 'ORDEM_SERVICO'].includes(tipo)) throw new OperacaoErro('Tipo de pedido invalido');
+    if (tipo === 'ORDEM_SERVICO' && !podeReceber(s)) throw new OperacaoErro('Somente o balcao de servicos pode receber OS', 403);
+    if (tipo !== 'ORDEM_SERVICO' && !podeAtender(s)) throw new OperacaoErro('Utilize o atendimento para montar pedidos', 403);
+    const pedido = await prisma.$transaction(async tx => {
+      let rows: any[] = [];
+      let subtotalCent = 0;
+      let descontoCent = 0;
+      let clienteNome = b.clienteNome || null;
+      let clienteTelefone = b.clienteTelefone || null;
+      if (tipo === 'ORDEM_SERVICO') {
+        // OS supplies prices, quantities and labour. A client cannot spoof an OS to skip stock.
+        if (!b.ordemServicoId) throw new OperacaoErro('OS obrigatoria');
+        await tx.$queryRaw`SELECT id FROM "OrdemServico" WHERE id = ${b.ordemServicoId} FOR UPDATE`;
+        const os = await tx.ordemServico.findUnique({ where: { id: b.ordemServicoId }, include: { itens: true } });
+        if (!os || os.status === 'CANCELADA') throw new OperacaoErro('OS indisponivel');
+        if (os.statusPagamento === 'PAGO' || os.statusPagamento === 'PAGA') throw new OperacaoErro('OS ja paga', 409);
+        const existente = await tx.pedido.findFirst({ where: { ordemServicoId: os.id, status: { in: [...PENDENTES, 'PAGO'] } }, include });
+        if (existente) return existente;
+        clienteNome = os.nomeCliente; clienteTelefone = os.telefoneCliente;
+        for (const i of os.itens) {
+          const preco = centavos(String(i.precoUnitario));
+          rows.push({ pecaId: i.pecaId, quantidade: i.quantidade, precoOriginal: preco / 100, precoVendido: preco / 100, subtotal: preco * i.quantidade / 100 });
+          subtotalCent += preco * i.quantidade;
+        }
+        subtotalCent += centavos(String(os.valorMaoDeObra));
+      } else {
+        if (!Array.isArray(b.itens) || !b.itens.length || b.itens.length > 200) throw new OperacaoErro('Informe de 1 a 200 itens');
+        const ids = new Set<string>();
+        for (const i of b.itens) {
+          if (typeof i.pecaId !== 'string' || ids.has(i.pecaId)) throw new OperacaoErro('Peca invalida ou repetida');
+          ids.add(i.pecaId);
+          const qtd = quantidadeValida(i.quantidade);
+          const p = await tx.peca.findUnique({ where: { id: i.pecaId } });
+          if (!p?.ativo) throw new OperacaoErro('Peca indisponivel');
+          if (p.quantidadeLoja < qtd) throw new OperacaoErro(`Estoque insuficiente para ${p.nome}`);
+          const preco = centavos(String(p.precoVenda));
+          if (preco <= 0) throw new OperacaoErro(`Peca sem preco: ${p.nome}`);
+          const pct = Number(i.descontoPercent ?? 0);
+          const reais = centavos(i.descontoReais ?? i.desconto ?? 0);
+          if (!Number.isFinite(pct) || pct < 0 || pct > 100 || reais < 0) throw new OperacaoErro('Desconto invalido');
+          if ((pct || reais) && s!.role !== 'DONO') throw new OperacaoErro('Desconto requer autorizacao da administracao', 403);
+          const desc = Math.round(preco * pct / 100) + reais;
+          if (desc >= preco) throw new OperacaoErro('Desconto deve ser menor que o preco');
+          subtotalCent += preco * qtd; descontoCent += desc * qtd;
+          rows.push({ pecaId: p.id, quantidade: qtd, precoOriginal: preco / 100, descontoPercent: pct, descontoReais: reais / 100, precoVendido: (preco - desc) / 100, subtotal: (preco - desc) * qtd / 100, observacao: typeof i.observacao === 'string' ? i.observacao.slice(0, 1000) : null });
+        }
       }
-
-      const total = subtotal;
-      await tx.pedido.update({
-        where: { id: pedido.id },
-        data: { subtotal, descontoTotal, total },
-      });
-
-      return tx.pedido.findUnique({
-        where: { id: pedido.id },
-        include: {
-          itens: { include: { peca: { select: { nome: true, codigo: true, imagemUrl: true, quantidadeLoja: true } } } },
-          historico: { orderBy: { createdAt: 'desc' } },
-        },
-      });
+      if (subtotalCent - descontoCent <= 0) throw new OperacaoErro('Pedido sem valor');
+      return tx.pedido.create({ data: {
+        tipo, origem: tipo === 'ORDEM_SERVICO' ? 'ORDEM_SERVICO' : 'ATENDIMENTO',
+        ordemServicoId: tipo === 'ORDEM_SERVICO' ? b.ordemServicoId : null,
+        clienteNome, clienteTelefone, clienteCpf: b.clienteCpf || null,
+        observacoes: typeof b.observacoes === 'string' ? b.observacoes.slice(0, 2000) : null,
+        subtotal: subtotalCent / 100, descontoTotal: descontoCent / 100, total: (subtotalCent - descontoCent) / 100,
+        status: 'AGUARDANDO_PAGAMENTO', criadoPor: s!.name, criadoPorId: s!.id,
+        itens: { create: rows }, historico: { create: { tipo: 'CRIADO', descricao: 'Pedido salvo; aguardando pagamento no caixa', usuario: s!.name, usuarioId: s!.id } },
+      }, include });
     });
-
-    return NextResponse.json(result, { status: 201 });
-  } catch (e: any) {
-    console.error('Erro ao criar pedido:', e);
-    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
-  }
+    return NextResponse.json({ ...pedido, codigo: codigoPedido(pedido.numero) }, { status: 201 });
+  } catch (e) { return erro(e); }
 }
-
-// PUT: atualizar status (reservar, separar, cancelar, etc) — gera historico
 export async function PUT(req: NextRequest) {
-  const session = await getSession();
-  if (!session || !['DONO', 'BALCAO'].includes(session.role)) {
-    return NextResponse.json({ error: 'Nao autorizado' }, { status: 403 });
-  }
-
+  const s = await getSession();
+  if (!podeAtender(s) && !podeReceber(s)) return NextResponse.json({ error: 'Nao autorizado' }, { status: 403 });
   try {
-    const body = await req.json();
-    const { id, status, observacoes, clienteNome, clienteTelefone } = body;
-
-    if (!id) return NextResponse.json({ error: 'id obrigatorio' }, { status: 400 });
-
-    const operador = session.name || session.id;
-
-    // CANCELADO: atômico — desreserva + historico + update em $transaction
-    if (status === 'CANCELADO') {
-      const pedido = await prisma.$transaction(async (tx) => {
-        // Liberar reservas
-        await tx.pedidoItem.updateMany({
-          where: { pedidoId: id, reservado: true },
-          data: { reservado: false },
-        });
-
-        await tx.historicoPedido.create({
-          data: {
-            pedidoId: id,
-            tipo: 'CANCELADO',
-            descricao: `Pedido cancelado por ${operador}${observacoes ? ': ' + observacoes : ''}`,
-            usuario: operador,
-            usuarioId: session.id || null,
-          },
-        });
-
-        return tx.pedido.update({
-          where: { id },
-          data: {
-            status: 'CANCELADO',
-            canceladoPor: operador,
-            canceladoEm: new Date(),
-            ...(observacoes ? { observacoes } : {}),
-          },
-          include: {
-            itens: { include: { peca: { select: { nome: true, codigo: true } } } },
-            historico: { orderBy: { createdAt: 'desc' } },
-          },
-        });
-      });
-
-      return NextResponse.json(pedido);
-    }
-
-    // Atualização parcial: só altera os campos que vierem no body.
-    // status é opcional — permite salvar cliente/observações sem mudar o status.
-    const data: any = {};
-
-    if (status) {
-      data.status = status;
-
-      if (status === 'RESERVADO') {
-        await prisma.pedidoItem.updateMany({
-          where: { pedidoId: id },
-          data: { reservado: true },
-        });
-        await registrarHistorico(id, 'RESERVADO', `Pecas reservadas por ${operador}`, operador, session.id);
+    const b = await req.json();
+    if (typeof b.id !== 'string') throw new OperacaoErro('Pedido obrigatorio');
+    if (b.status && ![...PENDENTES, 'CANCELADO'].includes(b.status)) throw new OperacaoErro('Status nao permitido. Pagamento somente pelo caixa', 403);
+    const pedido = await prisma.$transaction(async tx => {
+      await tx.$queryRaw`SELECT id FROM "Pedido" WHERE id = ${b.id} FOR UPDATE`;
+      const atual = await tx.pedido.findUnique({ where: { id: b.id } });
+      if (!atual) throw new OperacaoErro('Pedido nao encontrado', 404);
+      if (!podeReceber(s) && atual.criadoPorId !== s!.id) throw new OperacaoErro('Nao autorizado', 403);
+      if (!PENDENTES.includes(atual.status)) throw new OperacaoErro('Pedido encerrado nao pode ser alterado', 409);
+      const transicoes: Record<string, string[]> = { ABERTO: ['RESERVADO','SEPARADO','AGUARDANDO_PAGAMENTO','CANCELADO'], RESERVADO: ['SEPARADO','AGUARDANDO_PAGAMENTO','CANCELADO'], SEPARADO: ['AGUARDANDO_PAGAMENTO','CANCELADO'], AGUARDANDO_PAGAMENTO: ['CANCELADO'] };
+      if (b.status && b.status !== atual.status && !transicoes[atual.status]?.includes(b.status)) throw new OperacaoErro('Transicao de status nao permitida', 409);
+      const data: any = {};
+      for (const field of ['observacoes','clienteNome','clienteTelefone']) if (b[field] !== undefined) { if (typeof b[field] !== 'string') throw new OperacaoErro('Dados do cliente invalidos'); data[field] = b[field].slice(0, 2000); }
+      if (b.status) {
+        data.status = b.status;
+        if (b.status === 'CANCELADO') { data.canceladoPor = s!.name; data.canceladoEm = new Date(); }
+        if (['RESERVADO','CANCELADO'].includes(b.status)) await tx.pedidoItem.updateMany({ where: { pedidoId: b.id }, data: { reservado: b.status === 'RESERVADO' } });
       }
-
-      if (status === 'SEPARADO') {
-        // Separado: itens fisicamente separados, mas estoque ainda nao baixado
-        await registrarHistorico(id, 'SEPARADO', `Pecas separadas por ${operador}`, operador, session.id);
-      }
-
-      if (status === 'AGUARDANDO_PAGAMENTO') {
-        await registrarHistorico(id, 'AGUARDANDO_PAGAMENTO', `Aguardando pagamento — ${operador}`, operador, session.id);
-      }
-    }
-
-    if (observacoes) data.observacoes = observacoes;
-    if (clienteNome) data.clienteNome = clienteNome;
-    if (clienteTelefone) data.clienteTelefone = clienteTelefone;
-
-    if (Object.keys(data).length === 0) {
-      return NextResponse.json({ error: 'Nenhum campo para atualizar' }, { status: 400 });
-    }
-
-    const pedido = await prisma.pedido.update({
-      where: { id },
-      data,
-      include: {
-        itens: { include: { peca: { select: { nome: true, codigo: true } } } },
-        historico: { orderBy: { createdAt: 'desc' } },
-      },
+      if (!Object.keys(data).length) throw new OperacaoErro('Nenhum campo para atualizar');
+      await tx.historicoPedido.create({ data: { pedidoId: b.id, tipo: b.status || 'ATUALIZADO', usuario: s!.name, usuarioId: s!.id, descricao: 'Atualizacao autorizada do pedido' } });
+      return tx.pedido.update({ where: { id: b.id }, data, include });
     });
-
-    return NextResponse.json(pedido);
-  } catch (e: any) {
-    console.error('Erro ao atualizar pedido:', e);
-    return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
-  }
+    return NextResponse.json({ ...pedido, codigo: codigoPedido(pedido.numero) });
+  } catch (e) { return erro(e); }
 }

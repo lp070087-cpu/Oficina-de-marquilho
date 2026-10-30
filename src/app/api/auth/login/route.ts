@@ -96,7 +96,7 @@ export async function POST(request: Request) {
 
     const response = NextResponse.json({
       success: true,
-      redirectTo: roleToPath(user.role),
+      redirectTo: roleToPath(user.role, user.tipoBalcao),
       user: { id: user.id, name: user.name, role: user.role },
     });
 
