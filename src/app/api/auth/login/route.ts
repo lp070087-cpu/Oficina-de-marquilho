@@ -90,6 +90,7 @@ export async function POST(request: Request) {
       data: { lastLoginAt: new Date(), failedLoginAttempts: 0, lockedUntil: null },
     });
 
+    const trocarSenha = user.role !== 'DONO' && user.mustChangePassword;
     const token = await createToken({
       id: user.id,
       name: user.name,
@@ -97,10 +98,12 @@ export async function POST(request: Request) {
       role: user.role,
       tipoBalcao: user.tipoBalcao,
       emAlmoco: user.emAlmoco,
+      trocarSenha,
     });
 
     const response = NextResponse.json({
       success: true,
+      mustChangePassword: trocarSenha,
       redirectTo: roleToPath(user.role, user.tipoBalcao),
       user: { id: user.id, name: user.name, role: user.role },
     });

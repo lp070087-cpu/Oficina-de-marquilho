@@ -119,6 +119,12 @@ export async function middleware(request: NextRequest) {
 		const { payload } = await jwtVerify(token, JWT_SECRET);
 		const role = payload.role as string;
 
+			// Senha temporária: nada abre antes da troca obrigatória.
+			if (payload.trocarSenha && pathname !== '/trocar-senha' && !pathname.startsWith('/api/auth/')) {
+				if (pathname.startsWith('/api/')) return applySecurityHeaders(NextResponse.json({ error: 'Troque a senha para continuar' }, { status: 403 }));
+				return applySecurityHeaders(NextResponse.redirect(new URL('/trocar-senha', request.url)));
+			}
+
 			// Atendente: somente a tela de Atendimento e as APIs que ela usa.
 			if (role === 'BALCAO' && payload.tipoBalcao === 'VENDA_LOJA') {
 				const permitida = ['/api/pedidos', '/api/pecas', '/api/servicos', '/api/auth', '/api/notificacoes'].some(p => pathname === p || pathname.startsWith(p + '/'))

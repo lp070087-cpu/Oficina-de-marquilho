@@ -11,15 +11,18 @@ export interface SessionUser {
   role: 'DONO' | 'BALCAO' | 'MECANICO' | 'ESTOQUE';
   tipoBalcao?: string | null;
   emAlmoco?: boolean;
+  trocarSenha?: boolean;
   iat?: number;
 }
 
 const ehAtendente = (u: SessionUser) => u.role === 'BALCAO' && u.tipoBalcao === 'VENDA_LOJA';
 
-// Sessões de atendente caem assim que a DONA revoga o acesso ou troca a senha.
-async function sessaoAtendenteValida(s: SessionUser): Promise<boolean> {
-  const u = await prisma.user.findUnique({ where: { id: s.id }, select: { active: true, deletedAt: true, tipoBalcao: true, passwordUpdatedAt: true } });
-  if (!u?.active || u.deletedAt || u.tipoBalcao !== 'VENDA_LOJA') return false;
+// Sessões de funcionário caem assim que a DONA bloqueia, revoga o acesso ou troca a senha.
+// A trava curta de tentativas erradas não derruba quem já está trabalhando.
+async function sessaoFuncionarioValida(s: SessionUser): Promise<boolean> {
+  const u = await prisma.user.findUnique({ where: { id: s.id }, select: { active: true, deletedAt: true, tipoBalcao: true, lockedUntil: true, passwordUpdatedAt: true } });
+  if (!u?.active || u.deletedAt || (ehAtendente(s) && u.tipoBalcao !== 'VENDA_LOJA')) return false;
+  if (u.lockedUntil && u.lockedUntil.getTime() - Date.now() > 24 * 60 * 60 * 1000) return false;
   return !u.passwordUpdatedAt || Math.floor(u.passwordUpdatedAt.getTime() / 1000) <= (s.iat ?? 0);
 }
 
@@ -46,7 +49,7 @@ export async function getSession(): Promise<SessionUser | null> {
   const token = cookieStore.get('token')?.value;
   if (!token) return null;
   const session = await verifyToken(token);
-  if (session && ehAtendente(session) && !(await sessaoAtendenteValida(session))) return null;
+  if (session && session.role !== 'DONO' && !(await sessaoFuncionarioValida(session))) return null;
   return session;
 }
 

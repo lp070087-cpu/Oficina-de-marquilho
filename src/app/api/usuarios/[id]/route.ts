@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getSession } from '@/lib/auth';
 import bcrypt from 'bcryptjs';
+import { OperacaoErro } from '@/lib/operacao-pedidos';
+import { SENHA_MINIMA, validarSenhaAtendente } from '@/lib/atendimento-acesso';
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -76,6 +78,8 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     // Password (Ajuste 4) — vazio mantém hash atual; preenchido gera novo hash.
     // NUNCA retornar senha/hash, salvar texto puro ou logar.
     if (body.password) {
+      if (String(body.password).length < SENHA_MINIMA) return NextResponse.json({ error: `A senha deve ter ao menos ${SENHA_MINIMA} caracteres` }, { status: 400 });
+      if (user.role === 'BALCAO' && (body.tipoBalcao ?? user.tipoBalcao) === 'VENDA_LOJA') await validarSenhaAtendente(String(body.password), id);
       data.password = await bcrypt.hash(body.password, 10);
       data.passwordUpdatedAt = new Date();
     }
@@ -102,6 +106,7 @@ export async function PUT(req: NextRequest, { params }: { params: Promise<{ id: 
     });
     return NextResponse.json(updated);
   } catch (e: any) {
+    if (e instanceof OperacaoErro) return NextResponse.json({ error: e.message }, { status: e.status });
     console.error('Erro ao atualizar usuario:', e);
     return NextResponse.json({ error: 'Erro interno do servidor' }, { status: 500 });
   }

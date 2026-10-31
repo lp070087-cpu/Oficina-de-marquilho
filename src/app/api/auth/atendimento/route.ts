@@ -18,8 +18,8 @@ export async function POST(request: Request) {
     if (!user) return NextResponse.json({ error: 'Senha invalida.' }, { status: 401 });
 
     await prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
-    const token = await createToken({ id: user.id, name: user.name, email: user.email, role: user.role, tipoBalcao: user.tipoBalcao, emAlmoco: user.emAlmoco });
-    const response = NextResponse.json({ success: true, redirectTo: '/balcao/atendimento' });
+    const token = await createToken({ id: user.id, name: user.name, email: user.email, role: user.role, tipoBalcao: user.tipoBalcao, emAlmoco: user.emAlmoco, trocarSenha: user.mustChangePassword });
+    const response = NextResponse.json({ success: true, redirectTo: user.mustChangePassword ? '/trocar-senha' : '/balcao/atendimento' });
     response.cookies.set('token', token, { httpOnly: true, secure: process.env.NODE_ENV !== 'development', sameSite: 'lax', maxAge: 60 * 60 * 12 });
     return response;
   } catch (error) {

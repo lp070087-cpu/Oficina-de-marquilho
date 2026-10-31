@@ -2,7 +2,13 @@
 
 import { useState, useEffect } from 'react';
 
-interface User { id:string;name:string;email:string;username?:string;role:string;active:boolean;tipoBalcao?:string;lastLoginAt?:string;mustChangePassword?:boolean;lockedUntil?:string; }
+interface User { id:string;name:string;email:string;username?:string;role:string;active:boolean;tipoBalcao?:string;lastLoginAt?:string;mustChangePassword?:boolean;lockedUntil?:string;deletedAt?:string; }
+
+const ehAtendente = (u:User) => u.role==='BALCAO' && u.tipoBalcao==='VENDA_LOJA';
+const estaBloqueado = (u:User) => !!u.lockedUntil && new Date(u.lockedUntil) > new Date();
+const BLOQUEIO_SEM_PRAZO = '2100-01-01T00:00:00.000Z';
+const atualizarUsuario = (id:string, corpo:object) => fetch(`/api/usuarios/${id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(corpo) });
+const acessoAtendente = (id:string, method:string, corpo?:object) => fetch(`/api/atendentes/${id}/acesso`, { method, headers:{'Content-Type':'application/json'}, body: corpo ? JSON.stringify(corpo) : undefined });
 
 function gerarSenhaTemporaria(): string {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789';
@@ -17,18 +23,22 @@ export default function BalcoesPage() {
   const [busca, setBusca] = useState('');
   const [modal, setModal] = useState(false);
   const [modalReset, setModalReset] = useState<User | null>(null);
+  const [modalRevogar, setModalRevogar] = useState<User | null>(null);
   const [editando, setEditando] = useState<User|null>(null);
   const [form, setForm] = useState({ name:'',email:'',username:'',password:'',tipoBalcao:'' });
   const [novaSenha, setNovaSenha] = useState('');
   const [forcarTroca, setForcarTroca] = useState(false);
   const [msg, setMsg] = useState('');
+  const [erroLista, setErroLista] = useState('');
+  const [aviso, setAviso] = useState('');
   const [mostrarSenha, setMostrarSenha] = useState(false);
   const [mostrarSenhaReset, setMostrarSenhaReset] = useState(false);
 
   async function fetchUsers() {
     const res = await fetch('/api/usuarios');
     const data = await res.json();
-    setUsers(data.filter((u:User) => (u.role==='BALCAO'||u.role==='ESTOQUE') && u.active));
+    // Perfil revogado continua na lista para a DONA poder reativar.
+    setUsers(data.filter((u:User) => (u.role==='BALCAO'||u.role==='ESTOQUE') && !u.deletedAt && (u.active||!!u.tipoBalcao)));
     setLoading(false);
   }
   useEffect(()=>{fetchUsers();},[]);
@@ -38,46 +48,50 @@ export default function BalcoesPage() {
   function abrirReset(u:User) { setModalReset(u); setNovaSenha(''); setForcarTroca(false); setMsg(''); }
 
   async function salvar() {
-    if (!form.name||!form.email) { setMsg('Preencha nome e email.'); return; }
+    const paraAtendente = form.tipoBalcao==='VENDA_LOJA';
+    if (!form.name||(!form.email&&!paraAtendente)) { setMsg(paraAtendente?'Preencha o nome.':'Preencha nome e email.'); return; }
     if (editando) {
       // Ajuste 3/5/6 — email alterado de verdade: normaliza, envia no body,
       // e o PUT valida duplicidade no servidor.
       const body:any = { name:form.name, email:form.email.trim().toLowerCase(), username:form.username||null, tipoBalcao:form.tipoBalcao||null };
-      if (form.password) body.password = form.password;
       const res = await fetch(`/api/usuarios/${editando.id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
-      if (res.ok) { setModal(false); fetchUsers(); }
+      if (res.ok) { setModal(false); setAviso(`Cadastro de ${form.name} salvo.`); fetchUsers(); }
       else { const e = await res.json(); setMsg(e.error||'Erro.'); }
     } else {
       if (!form.password) { setMsg('Defina uma senha.'); return; }
       let role = 'BALCAO';
       if (form.tipoBalcao === 'ESTOQUE_CENTRAL') role = 'ESTOQUE';
       const res = await fetch('/api/usuarios', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({...form, role, createdBy:'DONO' }) });
-      if (res.ok) { setModal(false); setForm({ name:'',email:'',username:'',password:'',tipoBalcao:'' }); fetchUsers(); }
+      if (res.ok) { setModal(false); setAviso(`Acesso de ${form.name} criado.`); setForm({ name:'',email:'',username:'',password:'',tipoBalcao:'' }); fetchUsers(); }
       else { const e = await res.json(); setMsg(e.error||'Erro.'); }
     }
   }
 
-  async function toggleActive(id:string) {
-    await fetch(`/api/usuarios/${id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ active: false }) });
+  async function toggleBlock(u:User) {
+    setErroLista(''); setAviso('');
+    const bloquear = !estaBloqueado(u);
+    const res = ehAtendente(u)
+      ? await acessoAtendente(u.id, 'PATCH', { bloqueado: bloquear })
+      : await atualizarUsuario(u.id, { lockedUntil: bloquear ? BLOQUEIO_SEM_PRAZO : null, failedLoginAttempts: 0 });
+    if (res.ok) setAviso(`${u.name} ${bloquear?'bloqueado':'desbloqueado'}.`);
+    else { const e = await res.json().catch(()=>null); setErroLista(e?.error||'Erro ao alterar o bloqueio.'); }
     fetchUsers();
   }
 
-  async function toggleBlock(u:User) {
-    if (u.lockedUntil) {
-      await fetch(`/api/usuarios/${u.id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ lockedUntil: null, failedLoginAttempts: 0 }) });
-    } else {
-      await fetch(`/api/usuarios/${u.id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ lockedUntil: new Date(Date.now()+30*60000).toISOString() }) });
-    }
-    fetchUsers();
+  async function revogar() {
+    if (!modalRevogar) return;
+    const res = ehAtendente(modalRevogar) ? await acessoAtendente(modalRevogar.id, 'DELETE') : await atualizarUsuario(modalRevogar.id, { active: false });
+    if (res.ok) { setAviso(`Acesso de ${modalRevogar.name} revogado.`); setModalRevogar(null); fetchUsers(); }
+    else { const e = await res.json().catch(()=>null); setMsg(e?.error||'Erro.'); }
   }
 
   async function redefinirSenha() {
     if (!modalReset||!novaSenha) { setMsg('Digite a nova senha.'); return; }
-    const body:any = { password: novaSenha };
-    if (forcarTroca) body.mustChangePassword = true;
-    const res = await fetch(`/api/usuarios/${modalReset.id}`, { method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
-    if (res.ok) { setModalReset(null); fetchUsers(); }
-    else { const e = await res.json(); setMsg(e.error||'Erro.'); }
+    const res = ehAtendente(modalReset)
+      ? await acessoAtendente(modalReset.id, 'PUT', { senha: novaSenha, forcarTroca })
+      : await atualizarUsuario(modalReset.id, { password: novaSenha, mustChangePassword: forcarTroca, active: true, lockedUntil: null, failedLoginAttempts: 0 });
+    if (res.ok) { setAviso(`Senha de ${modalReset.name} salva. As sessoes antigas foram encerradas.`); setModalReset(null); fetchUsers(); }
+    else { const e = await res.json().catch(()=>null); setMsg(e?.error||'Erro.'); }
   }
 
   function gerarESalvar() {
@@ -86,18 +100,22 @@ export default function BalcoesPage() {
     setMsg('');
   }
 
-  const tipoLabel: Record<string,string> = { SERVICOS:'Balcao Servicos', ESTOQUE_CENTRAL:'Estoque Central', VENDA_LOJA:'Balcao Venda' };
+  const tipoLabel: Record<string,string> = { SERVICOS:'Caixa', ESTOQUE_CENTRAL:'Estoque Central', VENDA_LOJA:'Atendimento' };
+  const editandoAtendente = form.tipoBalcao==='VENDA_LOJA';
   const filter = users.filter(u=>!busca||u.name.toLowerCase().includes(busca.toLowerCase())||(u.email||'').includes(busca));
   const ativos = users.filter(u=>u.active).length;
 
   return (
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
-        <div><h1 className="text-xl font-bold text-slate-800 tracking-tight">BALCOES</h1><p className="text-sm text-slate-500 mt-0.5">{ativos} ativos &middot; Gerencia logins, permissoes e acessos dos balcoes</p></div>
+        <div><h1 className="text-xl font-bold text-slate-800 tracking-tight">BALCOES</h1><p className="text-sm text-slate-500 mt-0.5">{ativos} ativos &middot; Atendimento, Caixa e Estoque Central</p></div>
         <button onClick={abrirNovo} className="btn-primary inline-flex items-center gap-2 text-xs"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>Novo balcao</button>
       </div>
 
       <input value={busca} onChange={e=>setBusca(e.target.value)} placeholder="Buscar..." className="input-field max-w-md mb-4"/>
+
+      {aviso&&<div className="bg-emerald-50 border border-emerald-200 text-emerald-700 px-4 py-2.5 rounded-xl text-xs mb-4" role="status">{aviso}</div>}
+      {erroLista&&<div className="bg-red-50 border border-red-200 text-red-700 px-4 py-2.5 rounded-xl text-xs mb-4" role="alert">{erroLista}</div>}
 
       {loading?<p className="text-sm text-slate-400">Carregando...</p>:filter.length===0?(<div className="card text-center py-12"><p className="text-sm text-slate-400">Nenhum balcao cadastrado.</p></div>):(
         <div className="card overflow-x-auto">
@@ -113,21 +131,21 @@ export default function BalcoesPage() {
             <tbody>{filter.map(u=>(
               <tr key={u.id} className={`border-b border-slate-50 hover:bg-slate-50/50 ${!u.active?'opacity-50':''}`}>
                 <td className="py-2.5 px-3"><p className="font-medium text-slate-700">{u.name}</p>{u.mustChangePassword&&<span className="text-[10px] bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded font-medium">Trocar senha</span>}</td>
-                <td className="py-2.5 px-3 text-xs text-slate-500">{u.email}</td>
-                <td className="py-2.5 px-3 text-xs"><span className="bg-slate-50 text-slate-600 px-2 py-0.5 rounded text-[10px] font-medium">{tipoLabel[u.tipoBalcao||'']||u.role}</span></td>
+                <td className="py-2.5 px-3 text-xs text-slate-500">{ehAtendente(u)?'Senha individual':u.email}</td>
+                <td className="py-2.5 px-3 text-xs"><span className="bg-slate-50 text-slate-600 px-2 py-0.5 rounded text-[10px] font-medium">{tipoLabel[u.tipoBalcao||'']||(u.role==='ESTOQUE'?'Estoque Central':'Sem perfil')}</span></td>
                 <td className="py-2.5 px-3 text-xs text-slate-400">{u.lastLoginAt?new Date(u.lastLoginAt).toLocaleDateString('pt-BR'):'-'}</td>
                 <td className="py-2.5 px-3 text-center">
-                  <span className={`inline-flex items-center gap-1.5 ${u.lockedUntil?'text-red-500':u.active?'text-emerald-600':'text-slate-400'}`}>
-                    <span className={`w-1.5 h-1.5 rounded-full ${u.lockedUntil?'bg-red-500':u.active?'bg-emerald-500':'bg-slate-300'}`}/>
-                    <span className="text-xs font-medium">{u.lockedUntil?'Bloqueado':u.active?'Ativo':'Inativo'}</span>
+                  <span className={`inline-flex items-center gap-1.5 ${!u.active?'text-slate-400':estaBloqueado(u)?'text-red-500':'text-emerald-600'}`}>
+                    <span className={`w-1.5 h-1.5 rounded-full ${!u.active?'bg-slate-300':estaBloqueado(u)?'bg-red-500':'bg-emerald-500'}`}/>
+                    <span className="text-xs font-medium">{!u.active?'Revogado':estaBloqueado(u)?'Bloqueado':'Ativo'}</span>
                   </span>
                 </td>
                 <td className="py-2.5 px-3 text-right">
                   <div className="flex items-center justify-end gap-1 flex-wrap">
                     <button onClick={()=>abrirEditar(u)} className="text-xs text-brand-600 hover:text-brand-700 font-medium px-1.5 py-1 rounded hover:bg-brand-50">Editar</button>
-                    <button onClick={()=>abrirReset(u)} className="text-xs text-amber-600 hover:text-amber-700 font-medium px-1.5 py-1 rounded hover:bg-amber-50">Senha</button>
-                    <button onClick={()=>toggleBlock(u)} className={`text-xs font-medium px-1.5 py-1 rounded ${u.lockedUntil?'text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50':'text-orange-600 hover:text-orange-700 hover:bg-orange-50'}`}>{u.lockedUntil?'Desbloq.':'Bloq.'}</button>
-                    <button onClick={()=>toggleActive(u.id)} className={`text-xs font-medium px-1.5 py-1 rounded ${u.active?'text-red-500 hover:text-red-700 hover:bg-red-50':'text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50'}`}>{u.active?'Desat.':'Ativar'}</button>
+                    <button onClick={()=>abrirReset(u)} className="text-xs text-amber-600 hover:text-amber-700 font-medium px-1.5 py-1 rounded hover:bg-amber-50">{u.active?'Senha':'Reativar'}</button>
+                    {u.active&&<button onClick={()=>toggleBlock(u)} className={`text-xs font-medium px-1.5 py-1 rounded ${estaBloqueado(u)?'text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50':'text-orange-600 hover:text-orange-700 hover:bg-orange-50'}`}>{estaBloqueado(u)?'Desbloq.':'Bloq.'}</button>}
+                    {u.active&&<button onClick={()=>{setModalRevogar(u);setMsg('');}} className="text-xs font-medium px-1.5 py-1 rounded text-red-500 hover:text-red-700 hover:bg-red-50">Revogar</button>}
                   </div>
                 </td>
               </tr>
@@ -144,21 +162,23 @@ export default function BalcoesPage() {
             {msg&&<div className="bg-red-50 border border-red-200 text-red-700 px-4 py-2.5 rounded-xl text-xs mb-4">{msg}</div>}
             <div className="space-y-4">
               <div><label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Nome *</label><input value={form.name} onChange={e=>setForm({...form,name:e.target.value})} className="input-field mt-1.5" placeholder="Ex: Joao Silva" autoFocus/></div>
-              <div><label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Email de login *</label><input value={form.email} onChange={e=>setForm({...form,email:e.target.value})} className="input-field mt-1.5" placeholder="email@exemplo.com" autoComplete="off"/></div>
-              <div><label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Usuario (opcional)</label><input value={form.username} onChange={e=>setForm({...form,username:e.target.value})} className="input-field mt-1.5" placeholder="Nome de usuario"/></div>
+              {!editandoAtendente&&<div><label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Email de login *</label><input value={form.email} onChange={e=>setForm({...form,email:e.target.value})} className="input-field mt-1.5" placeholder="email@exemplo.com" autoComplete="off"/></div>}
+              {!editandoAtendente&&<div><label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Usuario (opcional)</label><input value={form.username} onChange={e=>setForm({...form,username:e.target.value})} className="input-field mt-1.5" placeholder="Nome de usuario"/></div>}
               <div>
                 <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Perfil *</label>
                 <select value={form.tipoBalcao} onChange={e=>setForm({...form,tipoBalcao:e.target.value})} className="input-field mt-1.5">
                   <option value="">Selecionar perfil...</option>
-                  <option value="SERVICOS">Balcao de Servicos</option>
-                  <option value="VENDA_LOJA">Balcao de Venda</option>
+                  <option value="SERVICOS">Caixa</option>
+                  <option value="VENDA_LOJA">Atendimento</option>
                   <option value="ESTOQUE_CENTRAL">Estoque Central</option>
                 </select>
               </div>
-              <div>
-                <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">{editando?'Nova senha (deixe vazio para manter)':'Senha de acesso *'}</label>
+              {editandoAtendente&&<p className="text-[11px] text-slate-500">{editando?'O atendente entra sem e-mail.':'O atendente entra sem e-mail, so com a senha individual: minimo de 8 caracteres e diferente da dos outros atendentes.'}</p>}
+              {editando&&<p className="text-[11px] text-slate-500">Para trocar a senha, use o botao Senha na lista.</p>}
+              {!editando&&<div>
+                <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Senha de acesso *</label>
                 <div className="relative mt-1.5">
-                  <input type={mostrarSenha ? 'text' : 'password'} value={form.password} onChange={e=>setForm({...form,password:e.target.value})} className="input-field pr-10" placeholder={editando?'Manter senha atual':'Defina uma senha'}/>
+                  <input type={mostrarSenha ? 'text' : 'password'} value={form.password} onChange={e=>setForm({...form,password:e.target.value})} className="input-field pr-10" placeholder="Minimo de 8 caracteres" autoComplete="new-password"/>
                   <button type="button" onClick={() => setMostrarSenha(!mostrarSenha)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600" tabIndex={-1}>
                     {mostrarSenha ? (
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/></svg>
@@ -167,11 +187,26 @@ export default function BalcoesPage() {
                     )}
                   </button>
                 </div>
-              </div>
+              </div>}
             </div>
             <div className="flex justify-end gap-2 mt-6 pt-4 border-t border-slate-100">
               <button onClick={()=>setModal(false)} className="btn-secondary text-xs">Cancelar</button>
               <button onClick={salvar} className="btn-primary text-xs">{editando?'Salvar':'Criar'}</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal revogar acesso do atendente */}
+      {modalRevogar && (
+        <div className="fixed inset-0 bg-black/30 flex items-start justify-center z-50 p-4 pt-10 overflow-y-auto" onClick={() => setModalRevogar(null)}>
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-xl w-full max-w-sm p-6 my-4" onClick={e => e.stopPropagation()}>
+            <h2 className="text-base font-bold text-slate-800 mb-1">Revogar acesso de {modalRevogar.name}?</h2>
+            <p className="text-xs text-slate-500 mb-4">A pessoa nao entra mais no sistema e a sessao aberta e encerrada. Para devolver o acesso, defina uma nova senha.</p>
+            {msg&&<div className="bg-red-50 border border-red-200 text-red-700 px-4 py-2.5 rounded-xl text-xs mb-4">{msg}</div>}
+            <div className="flex justify-end gap-2 pt-4 border-t border-slate-100">
+              <button onClick={()=>setModalRevogar(null)} className="btn-secondary text-xs">Cancelar</button>
+              <button onClick={revogar} className="inline-flex items-center rounded-lg bg-red-600 px-4 py-2 text-xs font-semibold text-white hover:bg-red-700">Revogar acesso</button>
             </div>
           </div>
         </div>
@@ -187,7 +222,7 @@ export default function BalcoesPage() {
               <div>
                 <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Nova senha</label>
                 <div className="relative mt-1.5">
-                  <input type={mostrarSenhaReset ? 'text' : 'password'} value={novaSenha} onChange={e=>setNovaSenha(e.target.value)} className="input-field pr-10 font-mono" placeholder="Digite ou gere automaticamente"/>
+                  <input type={mostrarSenhaReset ? 'text' : 'password'} value={novaSenha} onChange={e=>setNovaSenha(e.target.value)} className="input-field pr-10 font-mono" placeholder="Digite ou gere automaticamente" autoComplete="new-password"/>
                   <button type="button" onClick={() => setMostrarSenhaReset(!mostrarSenhaReset)} className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600" tabIndex={-1}>
                     {mostrarSenhaReset ? (
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/></svg>
@@ -197,6 +232,7 @@ export default function BalcoesPage() {
                   </button>
                 </div>
               </div>
+              <p className="text-[11px] text-slate-500">{modalReset.active?'Minimo de 8 caracteres. Ao salvar, a senha antiga para de funcionar e a sessao aberta e encerrada.':'Minimo de 8 caracteres. Salvar uma nova senha devolve o acesso.'}</p>
               <label className="flex items-center gap-2 cursor-pointer text-xs text-slate-600">
                 <input type="checkbox" checked={forcarTroca} onChange={e=>setForcarTroca(e.target.checked)} className="rounded"/> Forcar troca no proximo login
               </label>

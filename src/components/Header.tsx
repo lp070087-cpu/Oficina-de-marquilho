@@ -35,7 +35,7 @@ export default function Header({ userName, userRole, totalItens, maxItens, onMen
   const pathname = usePathname();
   const title = pageTitles[pathname] || 'Marquinho Moto Pecas';
   const isCliente = pathname.startsWith('/cliente');
-  const area = pathname.startsWith('/dono') ? 'Administração' : pathname.startsWith('/balcao') ? 'Balcão' : pathname.startsWith('/estoque') ? 'Estoque Central' : '';
+  const area = pathname.startsWith('/dono') ? 'Administração' : pathname.startsWith('/balcao/atendimento') ? 'Atendimento' : pathname.startsWith('/balcao') ? 'Caixa' : pathname.startsWith('/estoque') ? 'Estoque Central' : '';
 
   // Data calculada só no cliente (evita divergência de fuso/hidratação).
   const [hoje, setHoje] = useState('');
