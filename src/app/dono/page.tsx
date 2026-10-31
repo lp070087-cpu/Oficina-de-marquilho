@@ -101,6 +101,7 @@ export default async function DonoDashboard() {
           <h2 className="text-xl sm:text-2xl font-semibold text-slate-900 tracking-tight mt-1">Painel da oficina</h2>
         </div>
         <div className="grid grid-cols-3 sm:flex sm:flex-wrap gap-2">
+          <Link href="/balcao/recebimento" className="col-span-3 inline-flex items-center justify-center h-9 px-3.5 whitespace-nowrap rounded-lg bg-brand-600 text-[13px] font-semibold text-white hover:bg-brand-700 transition-colors">Ir para o Caixa</Link>
           {atalhos.map(a => (
             <Link key={a.href} href={a.href} className="inline-flex items-center justify-center gap-2 h-9 px-2 sm:px-3.5 whitespace-nowrap rounded-lg bg-white border border-slate-200 text-[13px] font-medium text-slate-700 hover:border-slate-300 hover:bg-slate-50 transition-colors">
               <svg className="hidden min-[400px]:block w-4 h-4 text-slate-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.6} d={a.d} /></svg>

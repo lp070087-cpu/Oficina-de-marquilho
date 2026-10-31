@@ -74,6 +74,9 @@ export async function POST(req: NextRequest) {
       }
 
       if (pedido.tipo !== 'ORDEM_SERVICO') {
+        // Mão de obra lançada no Atendimento fica na OS vinculada ao pedido.
+        const servicos = pedido.ordemServicoId ? await tx.servicoOrdem.findMany({ where: { ordemServicoId: pedido.ordemServicoId } }) : [];
+        const maoDeObra = servicos.reduce((n, s) => n + centavos(String(s.valor)), 0);
         let bruto = 0, liquido = 0;
         for (const i of pedido.itens) {
           const preco = centavos(String(i.precoOriginal));
@@ -82,7 +85,7 @@ export async function POST(req: NextRequest) {
           if (desc < 0 || vendido <= 0 || vendido !== preco - desc || centavos(String(i.subtotal)) !== vendido * i.quantidade) throw new OperacaoErro('Valores inconsistentes no pedido');
           bruto += preco * i.quantidade; liquido += vendido * i.quantidade;
         }
-        if (!pedido.itens.length || liquido !== centavos(String(pedido.total)) || bruto !== centavos(String(pedido.subtotal)) || bruto - liquido !== centavos(String(pedido.descontoTotal))) throw new OperacaoErro('Totais inconsistentes no pedido');
+        if ((!pedido.itens.length && !maoDeObra) || liquido + maoDeObra !== centavos(String(pedido.total)) || bruto + maoDeObra !== centavos(String(pedido.subtotal)) || bruto - liquido !== centavos(String(pedido.descontoTotal))) throw new OperacaoErro('Totais inconsistentes no pedido');
       }
       // Validar estoque ANTES de qualquer escrita
       for (const item of pedido.tipo === 'ORDEM_SERVICO' ? [] : pedido.itens) {
@@ -212,7 +215,7 @@ export async function POST(req: NextRequest) {
         },
       });
 
-      if (pedido.tipo === 'ORDEM_SERVICO' && pedido.ordemServicoId) {
+      if (pedido.ordemServicoId) {
         await tx.ordemServico.update({ where: { id: pedido.ordemServicoId }, data: { statusPagamento: 'PAGO', valorPago: pedido.total, dataPagamento: new Date(), usuarioPagamento: session.name, formaPagamento: pagamentos.map((p: any) => p.tipo).join(', ') } });
       }
       // ============================================================
@@ -291,7 +294,7 @@ export async function POST(req: NextRequest) {
           notaFiscal: { select: { numero: true } },
         },
       });
-    }, { timeout: 15000 });
+    }, { maxWait: 15000, timeout: 30000 });
 
     // FASE 15-J: Emitir evento de venda concretizada
     if (venda) {
@@ -309,6 +312,7 @@ export async function POST(req: NextRequest) {
   } catch (e: any) {
     if (e instanceof OperacaoErro) return NextResponse.json({ error: e.message }, { status: e.status });
     if (e?.code === 'P2002' || e?.code === 'P2034') return NextResponse.json({ error: 'Conflito no recebimento. Consulte o pedido antes de tentar novamente.' }, { status: 409 });
+    if (e?.code === 'P2028') return NextResponse.json({ error: 'Sistema ocupado. O pagamento nao foi registrado; tente novamente.' }, { status: 503 });
     const msg = e?.message || 'Erro ao processar venda';
     if (msg === 'SEM_CAIXA_ABERTO') {
       return NextResponse.json({ error: 'Nenhum caixa aberto. Abra o caixa antes de realizar uma venda.' }, { status: 400 });

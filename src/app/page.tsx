@@ -2,13 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import LogoOficina from '@/components/LogoOficina';
+import LoginLayout from '@/components/LoginLayout';
 
 const PERFIS = [
   { id: 'DONO', label: 'Dono / Administrador', icon: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z' },
-  { id: 'BALCAO_SERVICOS', label: 'Balcao de Servicos', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2' },
+  { id: 'BALCAO_SERVICOS', label: 'Balcão de Serviços', icon: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2' },
   { id: 'ESTOQUE_CENTRAL', label: 'Estoque Central', icon: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4' },
-  { id: 'BALCAO_VENDA', label: 'Balcao de Venda', icon: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4' },
 ];
 
 export default function LoginPage() {
@@ -25,7 +24,7 @@ export default function LoginPage() {
     const savedEmail = localStorage.getItem('marquinho-saved-email');
     if (savedEmail) { setEmail(savedEmail); setLembrarEmail(true); }
     const savedPerfil = localStorage.getItem('marquinho-saved-perfil');
-    if (savedPerfil) { setPerfil(savedPerfil); }
+    if (PERFIS.some(p => p.id === savedPerfil)) { setPerfil(savedPerfil as string); }
   }, []);
 
   async function handleLogin(e: React.FormEvent) {
@@ -48,15 +47,8 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#F3F6FB] p-4">
-      <div className="w-full max-w-[400px]">
-        <div className="text-center mb-8">
-          <LogoOficina className="inline-flex items-center justify-center w-14 h-14 bg-brand-600 rounded-2xl mb-5 shadow-lg shadow-brand-600/25 overflow-hidden" textClassName="text-white font-bold text-lg" />
-          <h1 className="text-xl font-bold text-slate-800">Marquinho Moto Pecas</h1>
-          <p className="text-xs text-slate-500 mt-1">Painel Administrativo</p>
-        </div>
-
-        <form onSubmit={handleLogin} className="bg-white rounded-xl border border-slate-200/60 shadow-sm p-6 space-y-4">
+    <LoginLayout subtitulo="Painel Administrativo">
+        <form onSubmit={handleLogin} className="space-y-4 rounded-xl border border-slate-200/70 border-t-4 border-t-brand-600 bg-white/70 p-6 shadow-sm">
           {error && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-[13px] font-medium">{error}</div>}
 
           {/* Perfil selector */}
@@ -77,11 +69,15 @@ export default function LoginPage() {
                   <span className="text-[11px] font-semibold leading-tight">{p.label}</span>
                 </button>
               ))}
+              <a href="/atendimento" className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white p-2.5 text-left text-slate-600 transition-all hover:border-slate-300">
+                <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 3h2l2 10h10l4-8H6M9 20h.01M17 20h.01" /></svg>
+                <span className="text-[11px] font-semibold leading-tight">Atendimento</span>
+              </a>
             </div>
           </div>
 
           <div>
-            <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Email ou usuario</label>
+            <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">E-mail ou usuário</label>
             <input type="text" value={email} onChange={(e) => setEmail(e.target.value)}
               className="input-field mt-1.5" placeholder="seu@email.com" required autoFocus={!email} />
           </div>
@@ -105,16 +101,13 @@ export default function LoginPage() {
           <label className="flex items-center gap-2 cursor-pointer select-none">
             <input type="checkbox" checked={lembrarEmail} onChange={(e) => setLembrarEmail(e.target.checked)}
               className="w-3.5 h-3.5 rounded border-slate-300 text-brand-600 focus:ring-brand-500" />
-            <span className="text-xs text-slate-500">Lembrar email neste computador</span>
+            <span className="text-xs text-slate-500">Lembrar e-mail neste computador</span>
           </label>
 
           <button type="submit" disabled={loading || !perfil} className="btn-primary w-full">
             {loading ? 'Entrando...' : 'Entrar'}
           </button>
         </form>
-
-        <p className="text-center text-[11px] text-slate-400 mt-6">Sistema de gestao de oficina e estoque</p>
-      </div>
-    </div>
+    </LoginLayout>
   );
 }

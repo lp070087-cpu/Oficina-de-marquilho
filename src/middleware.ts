@@ -22,6 +22,7 @@ const roleRoutes: Record<string, string[]> = {
 const apiPerms: Record<string, string[]> = {
 	'/api/fornecedores': ['DONO'],
 	'/api/usuarios': ['DONO'],
+	'/api/atendentes': ['DONO'],
 	'/api/importar': ['DONO', 'ESTOQUE'],
 	'/api/relatorios': ['DONO', 'ESTOQUE'],
 	'/api/upload': ['DONO', 'BALCAO', 'ESTOQUE'],
@@ -52,7 +53,7 @@ const apiPerms: Record<string, string[]> = {
 };
 
 const publicPaths = [
-	'/api/auth/login', '/api/vitrine', '/api/categorias', '/vitrine',
+	'/api/auth/login', '/api/auth/atendimento', '/atendimento', '/api/vitrine', '/api/categorias', '/vitrine',
 	// C2 — Permitir acesso público ao portal do cliente (login/cadastro via /cliente e /api/cliente)
 	'/api/cliente', '/cliente',
 	'/uploads', '/icon-192.png', '/icon-512.png', '/manifest.json', '/sw.js',
@@ -117,6 +118,16 @@ export async function middleware(request: NextRequest) {
 	try {
 		const { payload } = await jwtVerify(token, JWT_SECRET);
 		const role = payload.role as string;
+
+			// Atendente: somente a tela de Atendimento e as APIs que ela usa.
+			if (role === 'BALCAO' && payload.tipoBalcao === 'VENDA_LOJA') {
+				const permitida = ['/api/pedidos', '/api/pecas', '/api/servicos', '/api/auth', '/api/notificacoes'].some(p => pathname === p || pathname.startsWith(p + '/'))
+					|| (request.method === 'GET' && pathname.startsWith('/api/vendas/'));
+				if (pathname.startsWith('/api/') && !permitida) return applySecurityHeaders(NextResponse.json({ error: 'Nao autorizado' }, { status: 403 }));
+				if (['/balcao', '/dono', '/estoque'].some(p => pathname === p || pathname.startsWith(p + '/')) && !pathname.startsWith('/balcao/atendimento')) {
+					return applySecurityHeaders(NextResponse.redirect(new URL('/balcao/atendimento', request.url)));
+				}
+			}
 
 		// API permission checks
 		for (const [prefix, allowedRoles] of Object.entries(apiPerms)) {

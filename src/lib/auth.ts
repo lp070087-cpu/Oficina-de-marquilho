@@ -2,6 +2,7 @@ import { SignJWT, jwtVerify } from 'jose';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import { JWT_SECRET } from '@/lib/jwt-secret';
+import prisma from '@/lib/prisma';
 
 export interface SessionUser {
   id: string;
@@ -10,12 +11,23 @@ export interface SessionUser {
   role: 'DONO' | 'BALCAO' | 'MECANICO' | 'ESTOQUE';
   tipoBalcao?: string | null;
   emAlmoco?: boolean;
+  iat?: number;
+}
+
+const ehAtendente = (u: SessionUser) => u.role === 'BALCAO' && u.tipoBalcao === 'VENDA_LOJA';
+
+// Sessões de atendente caem assim que a DONA revoga o acesso ou troca a senha.
+async function sessaoAtendenteValida(s: SessionUser): Promise<boolean> {
+  const u = await prisma.user.findUnique({ where: { id: s.id }, select: { active: true, deletedAt: true, tipoBalcao: true, passwordUpdatedAt: true } });
+  if (!u?.active || u.deletedAt || u.tipoBalcao !== 'VENDA_LOJA') return false;
+  return !u.passwordUpdatedAt || Math.floor(u.passwordUpdatedAt.getTime() / 1000) <= (s.iat ?? 0);
 }
 
 export async function createToken(user: SessionUser): Promise<string> {
   const token = await new SignJWT({ ...user })
     .setProtectedHeader({ alg: 'HS256' })
-    .setExpirationTime('24h')
+    .setIssuedAt()
+    .setExpirationTime(ehAtendente(user) ? '12h' : '24h')
     .sign(JWT_SECRET);
   return token;
 }
@@ -33,7 +45,9 @@ export async function getSession(): Promise<SessionUser | null> {
   const cookieStore = await cookies();
   const token = cookieStore.get('token')?.value;
   if (!token) return null;
-  return verifyToken(token);
+  const session = await verifyToken(token);
+  if (session && ehAtendente(session) && !(await sessaoAtendenteValida(session))) return null;
+  return session;
 }
 
 export async function requireAuth(allowedRoles?: string[]): Promise<SessionUser> {

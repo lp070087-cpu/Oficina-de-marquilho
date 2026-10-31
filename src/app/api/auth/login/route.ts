@@ -51,6 +51,11 @@ export async function POST(request: Request) {
       }, { status: 423 });
     }
 
+    // Atendimento tem entrada propria, somente por senha individual.
+    if (user.role === 'BALCAO' && user.tipoBalcao === 'VENDA_LOJA') {
+      return NextResponse.json({ error: 'Use a entrada do Atendimento.' }, { status: 403 });
+    }
+
     // Validate perfil match
     if (perfil) {
       const profileRoleMap: Record<string, { role: string; tipoBalcao?: string }> = {

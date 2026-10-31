@@ -11,7 +11,7 @@ export default async function BalcaoLayout({ children }: { children: React.React
   return (
     <div className="flex h-screen overflow-hidden bg-[#F3F6FB]">
       <AppShell user={session} userName={user?.name || session.name}>
-        {session.role === 'DONO' && <div className="px-6 pt-5"><Link href="/dono" className="inline-flex rounded-lg bg-orange-600 px-5 py-3 font-semibold text-white">Ir para Painel da DONA</Link></div>}<EntradaBalcao tipo={session.tipoBalcao} />
+        {session.role === 'DONO' && <div className="px-6 pt-5"><Link href="/dono" className="inline-flex rounded-lg bg-brand-600 px-5 py-3 font-semibold text-white hover:bg-brand-700">Voltar ao Painel da DONA</Link></div>}<EntradaBalcao tipo={session.tipoBalcao} />
         <Suspense fallback={null}>{children}</Suspense>
       </AppShell>
     </div>

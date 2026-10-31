@@ -8,8 +8,14 @@ const include = {
   venda: { select: { id: true, numero: true, status: true, operadorNome: true } },
   historico: { orderBy: { createdAt: 'desc' as const }, take: 10 },
 };
+async function comServicos<T extends { ordemServicoId: string | null }>(pedidos: T[]) {
+  const ids = [...new Set(pedidos.map(p => p.ordemServicoId).filter(Boolean))] as string[];
+  const servicos = ids.length ? await prisma.servicoOrdem.findMany({ where: { ordemServicoId: { in: ids } } }) : [];
+  return pedidos.map(p => ({ ...p, servicos: servicos.filter(s => s.ordemServicoId === p.ordemServicoId) }));
+}
 function erro(e: unknown) {
   if (e instanceof OperacaoErro) return NextResponse.json({ error: e.message }, { status: e.status });
+  if ((e as { code?: string })?.code === 'P2028') return NextResponse.json({ error: 'Sistema ocupado. O pedido nao foi salvo; tente novamente.' }, { status: 503 });
   console.error('Operacao de pedido:', e);
   return NextResponse.json({ error: 'Erro ao salvar ou consultar pedido' }, { status: 500 });
 }
@@ -32,7 +38,7 @@ export async function GET(req: NextRequest) {
     const tipo = req.nextUrl.searchParams.get('tipo');
     if (tipo) where.tipo = tipo;
     const pedidos = await prisma.pedido.findMany({ where, include, orderBy: { createdAt: 'desc' }, take: 50 });
-    return NextResponse.json(pedidos.map(p => ({ ...p, codigo: codigoPedido(p.numero) })));
+    return NextResponse.json((await comServicos(pedidos)).map(p => ({ ...p, codigo: codigoPedido(p.numero) })));
   } catch (e) { return erro(e); }
 }
 export async function POST(req: NextRequest) {
@@ -50,6 +56,7 @@ export async function POST(req: NextRequest) {
       let descontoCent = 0;
       let clienteNome = b.clienteNome || null;
       let clienteTelefone = b.clienteTelefone || null;
+      let ordemServicoId: string | null = tipo === 'ORDEM_SERVICO' ? b.ordemServicoId : null;
       if (tipo === 'ORDEM_SERVICO') {
         // OS supplies prices, quantities and labour. A client cannot spoof an OS to skip stock.
         if (!b.ordemServicoId) throw new OperacaoErro('OS obrigatoria');
@@ -67,9 +74,11 @@ export async function POST(req: NextRequest) {
         }
         subtotalCent += centavos(String(os.valorMaoDeObra));
       } else {
-        if (!Array.isArray(b.itens) || !b.itens.length || b.itens.length > 200) throw new OperacaoErro('Informe de 1 a 200 itens');
+        const itens = b.itens ?? [];
+        const servicos = b.servicos ?? [];
+        if (!Array.isArray(itens) || !Array.isArray(servicos) || itens.length > 200 || servicos.length > 50 || !(itens.length + servicos.length)) throw new OperacaoErro('Informe de 1 a 200 itens');
         const ids = new Set<string>();
-        for (const i of b.itens) {
+        for (const i of itens) {
           if (typeof i.pecaId !== 'string' || ids.has(i.pecaId)) throw new OperacaoErro('Peca invalida ou repetida');
           ids.add(i.pecaId);
           const qtd = quantidadeValida(i.quantidade);
@@ -87,19 +96,36 @@ export async function POST(req: NextRequest) {
           subtotalCent += preco * qtd; descontoCent += desc * qtd;
           rows.push({ pecaId: p.id, quantidade: qtd, precoOriginal: preco / 100, descontoPercent: pct, descontoReais: reais / 100, precoVendido: (preco - desc) / 100, subtotal: (preco - desc) * qtd / 100, observacao: typeof i.observacao === 'string' ? i.observacao.slice(0, 1000) : null });
         }
+        const linhas: { nome: string; valor: number }[] = [];
+        for (const item of servicos) {
+          const tabelado = item.servicoTabeladoId ? await tx.servicoTabelado.findUnique({ where: { id: String(item.servicoTabeladoId) } }) : null;
+          if (item.servicoTabeladoId && !tabelado?.ativo) throw new OperacaoErro('Servico indisponivel');
+          const nome = String(tabelado?.nome ?? item.nome ?? '').trim().slice(0, 150);
+          const valor = centavos(tabelado ? String(tabelado.valor) : item.valor);
+          if (!nome || valor <= 0) throw new OperacaoErro('Informe descricao e valor do servico');
+          linhas.push({ nome, valor: valor / 100 });
+          subtotalCent += valor;
+        }
+        if (linhas.length) {
+          // Reaproveita OS e ServicoOrdem; as peças seguem no pedido e baixam estoque no pagamento.
+          const maoDeObra = linhas.reduce((n, l) => n + Math.round(l.valor * 100), 0) / 100;
+          const os = await tx.ordemServico.create({ data: { nomeCliente: clienteNome || 'Cliente balcao', telefoneCliente: clienteTelefone || '', modeloMoto: typeof b.moto === 'string' && b.moto.trim() ? b.moto.trim().slice(0, 150) : 'Nao informado', tipoServico: 'ATENDIMENTO', balcaoId: s!.id, valorMaoDeObra: maoDeObra, valorTotal: maoDeObra, servicos: { create: linhas } } });
+          ordemServicoId = os.id;
+        }
       }
       if (subtotalCent - descontoCent <= 0) throw new OperacaoErro('Pedido sem valor');
       return tx.pedido.create({ data: {
         tipo, origem: tipo === 'ORDEM_SERVICO' ? 'ORDEM_SERVICO' : 'ATENDIMENTO',
-        ordemServicoId: tipo === 'ORDEM_SERVICO' ? b.ordemServicoId : null,
+        ordemServicoId,
         clienteNome, clienteTelefone, clienteCpf: b.clienteCpf || null,
         observacoes: typeof b.observacoes === 'string' ? b.observacoes.slice(0, 2000) : null,
         subtotal: subtotalCent / 100, descontoTotal: descontoCent / 100, total: (subtotalCent - descontoCent) / 100,
         status: 'AGUARDANDO_PAGAMENTO', criadoPor: s!.name, criadoPorId: s!.id,
         itens: { create: rows }, historico: { create: { tipo: 'CRIADO', descricao: 'Pedido salvo; aguardando pagamento no caixa', usuario: s!.name, usuarioId: s!.id } },
       }, include });
-    });
-    return NextResponse.json({ ...pedido, codigo: codigoPedido(pedido.numero) }, { status: 201 });
+    }, { maxWait: 10000, timeout: 15000 });
+    const [salvo] = await comServicos([pedido]);
+    return NextResponse.json({ ...salvo, codigo: codigoPedido(pedido.numero) }, { status: 201 });
   } catch (e) { return erro(e); }
 }
 export async function PUT(req: NextRequest) {
@@ -122,12 +148,14 @@ export async function PUT(req: NextRequest) {
       if (b.status) {
         data.status = b.status;
         if (b.status === 'CANCELADO') { data.canceladoPor = s!.name; data.canceladoEm = new Date(); }
+        if (b.status === 'CANCELADO' && atual.tipo !== 'ORDEM_SERVICO' && atual.ordemServicoId) await tx.ordemServico.update({ where: { id: atual.ordemServicoId }, data: { status: 'CANCELADA' } });
         if (['RESERVADO','CANCELADO'].includes(b.status)) await tx.pedidoItem.updateMany({ where: { pedidoId: b.id }, data: { reservado: b.status === 'RESERVADO' } });
       }
       if (!Object.keys(data).length) throw new OperacaoErro('Nenhum campo para atualizar');
       await tx.historicoPedido.create({ data: { pedidoId: b.id, tipo: b.status || 'ATUALIZADO', usuario: s!.name, usuarioId: s!.id, descricao: 'Atualizacao autorizada do pedido' } });
       return tx.pedido.update({ where: { id: b.id }, data, include });
-    });
-    return NextResponse.json({ ...pedido, codigo: codigoPedido(pedido.numero) });
+    }, { maxWait: 10000, timeout: 15000 });
+    const [salvo] = await comServicos([pedido]);
+    return NextResponse.json({ ...salvo, codigo: codigoPedido(pedido.numero) });
   } catch (e) { return erro(e); }
 }
