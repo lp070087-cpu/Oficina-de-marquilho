@@ -51,7 +51,7 @@ export default function AppShell({ user, userName, totalItens, children }: AppSh
         onToggle={() => { if (isMobile) setMobileOpen(prev => !prev); else toggleDesktop(); }}
       />
       <div className="flex-1 flex flex-col overflow-hidden min-w-0">
-        <Header userName={userName} totalItens={totalItens} onMenuToggle={() => { if (isMobile) setMobileOpen(prev => !prev); else toggleDesktop(); }} />
+        <Header userName={userName} userRole={user.role} totalItens={totalItens} onMenuToggle={() => { if (isMobile) setMobileOpen(prev => !prev); else toggleDesktop(); }} />
         <main className="flex-1 overflow-auto">{children}</main>
       </div>
     </>

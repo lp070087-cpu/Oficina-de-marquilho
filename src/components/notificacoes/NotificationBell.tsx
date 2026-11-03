@@ -30,11 +30,14 @@ export default function NotificationBell({ className = '' }: NotificationBellPro
   }, [fetchUnread]);
 
   useEffect(() => {
-    function handleClick(e: MouseEvent) {
+    function handleClick(e: MouseEvent | TouchEvent) {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
     }
+    function handleKey(e: KeyboardEvent) { if (e.key === 'Escape') setOpen(false); }
     document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
+    document.addEventListener('touchstart', handleClick);
+    document.addEventListener('keydown', handleKey);
+    return () => { document.removeEventListener('mousedown', handleClick); document.removeEventListener('touchstart', handleClick); document.removeEventListener('keydown', handleKey); };
   }, []);
 
   async function marcarLida(id: string) {
@@ -58,6 +61,7 @@ export default function NotificationBell({ className = '' }: NotificationBellPro
     <div ref={ref} className={`relative ${className}`}>
       <button
         onClick={() => { setOpen(!open); if (!open) fetchUnread(); }}
+        aria-expanded={open}
         className="relative p-2.5 rounded-lg bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-600 hover:text-slate-800 transition-colors"
         title="Notificações"
       >
@@ -72,7 +76,8 @@ export default function NotificationBell({ className = '' }: NotificationBellPro
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-2 w-[380px] max-w-[90vw] bg-white rounded-xl border border-slate-200 shadow-xl z-50 overflow-hidden">
+        // Painel acima do conteúdo (o Header é z-[60]); no celular ocupa a largura útil sob o cabeçalho.
+        <div role="dialog" aria-label="Notificações" className="fixed inset-x-2 top-16 sm:absolute sm:inset-x-auto sm:right-0 sm:top-full sm:mt-2 sm:w-[380px] max-w-[calc(100vw-1rem)] bg-white rounded-xl border border-slate-200 shadow-xl z-[70] overflow-hidden">
           {/* Header */}
           <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100">
             <span className="text-sm font-extrabold text-slate-700">Notificações</span>
@@ -89,7 +94,7 @@ export default function NotificationBell({ className = '' }: NotificationBellPro
           </div>
 
           {/* Lista */}
-          <div className="max-h-[400px] overflow-y-auto">
+          <div className="max-h-[min(400px,70dvh)] overflow-y-auto overscroll-contain">
             {ultimas.length === 0 ? (
               <div className="py-12 text-center">
                 <div className="text-3xl mb-2">🔔</div>

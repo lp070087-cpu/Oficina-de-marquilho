@@ -14,7 +14,7 @@ interface HeaderProps {
 
 const pageTitles: Record<string, string> = {
   '/dono': 'Painel', '/dono/estoque': 'Estoque', '/dono/categorias': 'Categorias', '/dono/ordens': 'Ordens de Servico',
-  '/dono/notas': 'Nota Fiscal', '/dono/nf-manual': 'Nota Fiscal Manual',
+  '/dono/notas': 'Notas emitidas', '/dono/nf-manual': 'Nota Fiscal',
   '/dono/mecanicos': 'Funcionarios', '/dono/balcoes': 'Balcoes', '/dono/vitrine': 'Vitrine',
   '/dono/fornecedores': 'Fornecedores',
   '/dono/pedidos-loja': 'Pedidos da Loja',
@@ -22,7 +22,8 @@ const pageTitles: Record<string, string> = {
   '/dono/notificacoes': 'Central de Notificações',
   '/dono/eventos': 'Eventos do Sistema',
   '/balcao': 'Painel', '/balcao/estoque': 'Estoque', '/balcao/ordens': 'Ordens de Servico',
-  '/balcao/notas': 'Nota Fiscal', '/balcao/oficina': 'Oficina Premium',
+  '/balcao/notas': 'Nota Fiscal', '/balcao/oficina': 'Oficina Premium', '/balcao/recebimento': 'Receber pedidos', '/balcao/atendimento': 'Atendimento',
+  '/dono/estoque/nomes': 'Revisão de nomes',
   '/balcao/pdv': 'PDV', '/balcao/caixa': 'Caixa',
   '/balcao/retirada-qrcode': 'Retirada QR Code',
   '/estoque': 'Painel Estoque', '/estoque/central': 'Estoque Central', '/estoque/loja': 'Estoque da Loja',
@@ -32,10 +33,11 @@ const pageTitles: Record<string, string> = {
 };
 
 export default function Header({ userName, userRole, totalItens, maxItens, onMenuToggle }: HeaderProps) {
+  const dona = userRole === 'DONO';
   const pathname = usePathname();
   const title = pageTitles[pathname] || 'Marquinho Moto Pecas';
   const isCliente = pathname.startsWith('/cliente');
-  const area = pathname.startsWith('/dono') ? 'Administração' : pathname.startsWith('/balcao/atendimento') ? 'Atendimento' : pathname.startsWith('/balcao') ? 'Caixa' : pathname.startsWith('/estoque') ? 'Estoque Central' : '';
+  const area = pathname.startsWith('/dono') ? 'Administração' : dona && pathname.startsWith('/balcao') ? 'Área da DONA' : pathname.startsWith('/balcao/atendimento') ? 'Atendimento' : pathname.startsWith('/balcao') ? 'Caixa' : pathname.startsWith('/estoque') ? 'Estoque Central' : '';
 
   // Data calculada só no cliente (evita divergência de fuso/hidratação).
   const [hoje, setHoje] = useState('');
@@ -44,7 +46,7 @@ export default function Header({ userName, userRole, totalItens, maxItens, onMen
   }, []);
 
   return (
-    <header className="h-14 bg-white/95 backdrop-blur border-b border-slate-200/80 flex items-center justify-between px-3 sm:px-6 flex-shrink-0">
+    <header className="relative z-[60] h-14 bg-white/95 backdrop-blur border-b border-slate-200/80 flex items-center justify-between px-3 sm:px-6 flex-shrink-0">
       <div className="flex items-center gap-2 min-w-0">
         {/* Hamburger mobile */}
         {onMenuToggle && (
@@ -57,7 +59,7 @@ export default function Header({ userName, userRole, totalItens, maxItens, onMen
         <div className="min-w-0 flex items-center gap-2">
           {area && (
             <>
-              <span className="hidden sm:inline text-[13px] text-slate-400">{area}</span>
+              {dona && area === 'Área da DONA' ? <a href="/dono" className="hidden sm:inline text-[13px] text-slate-500 hover:text-brand-600 hover:underline">{area}</a> : <span className="hidden sm:inline text-[13px] text-slate-400">{area}</span>}
               <svg className="hidden sm:block w-3.5 h-3.5 text-slate-300 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7"/></svg>
             </>
           )}

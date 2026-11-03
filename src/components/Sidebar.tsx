@@ -23,13 +23,13 @@ const donoMenu = [
   { group: 'Operação', label: 'Painel', href: '/dono', d: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1' },
   { group: 'Operação', label: 'Caixa', href: '/balcao/recebimento', d: 'M9 12l2 2 4-4M5 3h14v18H5z' },
   { group: 'Operação', label: 'Ordens de Servico', href: '/dono/ordens', d: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2' },
-  { group: 'Operação', label: 'Nota Fiscal', href: '/dono/notas', d: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' },
-  { group: 'Operação', label: 'NF Manual', href: '/dono/nf-manual', d: 'M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z' },
+  { group: 'Operação', label: 'Notas emitidas', href: '/dono/notas', d: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' },
+  { group: 'Operação', label: 'Nota Fiscal', href: '/dono/nf-manual', d: 'M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z' },
   { group: 'Estoque', label: 'Estoque', href: '/dono/estoque', d: 'M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4' },
   { group: 'Estoque', label: 'Categorias', href: '/dono/categorias', d: 'M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z' },
   { group: 'Estoque', label: 'Fornecedores', href: '/dono/fornecedores', d: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4' },
   { group: 'Loja online', label: 'Vitrine', href: '/dono/vitrine', d: 'M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z' },
-  { group: 'Loja online', label: 'Pedidos da Loja', href: '/dono/pedidos-loja', d: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4' },
+  // 'Pedidos da Loja' saiu do menu (pagina /dono/pedidos-loja, APIs e registros mantidos).
   // Financeiro Premium removido do menu (pagina /dono/financeiro, APIs e dados mantidos — notificacoes ainda apontam para la)
   { group: 'Gestão', label: 'Funcionarios', href: '/dono/mecanicos', d: 'M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z' },
   { group: 'Gestão', label: 'Balcoes', href: '/dono/balcoes', d: 'M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4' },
@@ -38,11 +38,11 @@ const donoMenu = [
 ];
 
 const balcaoServicosMenu = [
-  { label: 'Painel', href: '/balcao', d: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1' },
-  { label: 'Receber pedidos', href: '/balcao/recebimento', d: 'M9 12l2 2 4-4M5 3h14v18H5z' },
-  { label: 'Caixa', href: '/balcao/caixa', d: 'M9 12l2 2 4-4M5 3h14v18H5z' },
-  { label: 'Ordens de Servico', href: '/balcao/ordens', d: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2' },
-  { label: 'Nota Fiscal', href: '/balcao/notas', d: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' },
+  { group: 'Início', label: 'Painel', href: '/balcao', d: 'M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-4 0a1 1 0 01-1-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 01-1 1' },
+  { group: 'Caixa', label: 'Receber pedidos', href: '/balcao/recebimento', d: 'M9 12l2 2 4-4M5 3h14v18H5z' },
+  { group: 'Caixa', label: 'Abertura e fechamento', href: '/balcao/caixa', d: 'M9 12l2 2 4-4M5 3h14v18H5z' },
+  { group: 'Oficina', label: 'Ordens de Servico', href: '/balcao/ordens', d: 'M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2' },
+  { group: 'Documentos', label: 'Nota Fiscal', href: '/balcao/notas', d: 'M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z' },
 ];
 
 const balcaoVendaMenu = [

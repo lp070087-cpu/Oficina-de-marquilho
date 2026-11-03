@@ -3,6 +3,8 @@ import prisma from '@/lib/prisma';
 import { getSession } from '@/lib/auth';
 import { emitEvent } from '@/lib/event-bus';
 import { podeReceber, PENDENTES, centavos, OperacaoErro } from '@/lib/operacao-pedidos';
+import { lerParcelamento, parcelas as dividir } from '@/lib/parcelamento';
+import { formatMoney } from '@/lib/format';
 
 // POST: Pagar pedido → gera Venda → baixa estoque → registra historico
 export async function POST(req: NextRequest) {
@@ -27,12 +29,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Transferencia nao e mais aceita como forma de pagamento em novas vendas' }, { status: 400 });
     }
 
+    const { maxParcelas } = await lerParcelamento();
     // Cada pagamento precisa ter valor finito > 0
     for (const pg of pagamentos) {
       if (!['DINHEIRO', 'PIX', 'CARTAO_DEBITO', 'CARTAO_CREDITO'].includes(pg?.tipo)) throw new OperacaoErro('Forma de pagamento invalida');
       const troco = centavos(pg.troco ?? 0);
       if (troco < 0 || (troco > 0 && pg.tipo !== 'DINHEIRO')) throw new OperacaoErro('Troco invalido');
       if (pg.parcelas != null && (!Number.isInteger(Number(pg.parcelas)) || Number(pg.parcelas) < 1 || Number(pg.parcelas) > 24 || pg.tipo !== 'CARTAO_CREDITO')) throw new OperacaoErro('Parcelamento invalido');
+      if (pg.tipo === 'CARTAO_CREDITO') {
+        // Modalidade: a vista (1x) ou parcelado (2x ate o limite da DONA, conferido abaixo). Sem juros.
+        pg.parcelas = pg.parcelas == null ? 1 : Number(pg.parcelas);
+        if (pg.modalidade === 'PARCELADO' ? pg.parcelas < 2 : pg.parcelas !== 1) throw new OperacaoErro('Parcelamento invalido');
+        if (pg.parcelas > maxParcelas) throw new OperacaoErro(`Parcelamento acima do permitido (${maxParcelas}x)`);
+      }
       const v = centavos(pg?.valor) / 100;
       pg.valor = v; pg.troco = troco / 100;
       if (!Number.isFinite(v) || v <= 0) {
@@ -201,6 +210,7 @@ export async function POST(req: NextRequest) {
             troco: parseFloat(pg.troco) || 0,
             bandeira: pg.bandeira || null,
             parcelas: pg.parcelas ? parseInt(pg.parcelas) : null,
+            observacao: pg.tipo === 'CARTAO_CREDITO' ? (pg.parcelas > 1 ? `Credito parcelado ${pg.parcelas}x de ${formatMoney(dividir(Math.round(valor * 100), pg.parcelas)[0] / 100)} (sem juros)` : 'Credito a vista') : null,
           },
         });
         totalPago += valor;

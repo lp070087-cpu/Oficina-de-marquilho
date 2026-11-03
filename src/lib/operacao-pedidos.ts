@@ -3,7 +3,7 @@ import type { SessionUser } from './auth';
 export const PENDENTES = ['ABERTO', 'RESERVADO', 'SEPARADO', 'AGUARDANDO_PAGAMENTO'];
 export const podeReceber = (s: SessionUser | null) => !!s && (s.role === 'DONO' || (s.role === 'BALCAO' && s.tipoBalcao === 'SERVICOS'));
 export const podeAtender = (s: SessionUser | null) => !!s && (s.role === 'DONO' || (s.role === 'BALCAO' && s.tipoBalcao === 'VENDA_LOJA'));
-export const codigoPedido = (numero: number) => `MP-${String(numero).padStart(6, '0')}`;
+export { codigoPedido } from './codigo-pedido';
 export class OperacaoErro extends Error {
   constructor(message: string, public status = 400) { super(message); }
 }

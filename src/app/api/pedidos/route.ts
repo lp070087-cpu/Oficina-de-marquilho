@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getSession } from '@/lib/auth';
 import { PENDENTES, podeAtender, podeReceber, codigoPedido, OperacaoErro, centavos, quantidadeValida } from '@/lib/operacao-pedidos';
+import { lerCodigoPedido } from '@/lib/codigo-pedido';
 
 const include = {
   itens: { include: { peca: { select: { nome: true, codigo: true, imagemUrl: true, quantidadeLoja: true } } } },
@@ -10,9 +11,13 @@ const include = {
 };
 async function comServicos<T extends { ordemServicoId: string | null }>(pedidos: T[]) {
   const ids = [...new Set(pedidos.map(p => p.ordemServicoId).filter(Boolean))] as string[];
-  const servicos = ids.length ? await prisma.servicoOrdem.findMany({ where: { ordemServicoId: { in: ids } } }) : [];
-  return pedidos.map(p => ({ ...p, servicos: servicos.filter(s => s.ordemServicoId === p.ordemServicoId) }));
+  const [servicos, ordens] = ids.length ? await Promise.all([
+    prisma.servicoOrdem.findMany({ where: { ordemServicoId: { in: ids } } }),
+    prisma.ordemServico.findMany({ where: { id: { in: ids } }, select: { id: true, numero: true, status: true, tipoServico: true, modeloMoto: true, placaMoto: true, anoMoto: true, kmAtual: true, descricaoProblema: true } }),
+  ]) : [[], []];
+  return pedidos.map(p => ({ ...p, servicos: servicos.filter(s => s.ordemServicoId === p.ordemServicoId), ordemServico: ordens.find(o => o.id === p.ordemServicoId) || null }));
 }
+const texto = (v: unknown, max: number) => typeof v === 'string' && v.trim() ? v.trim().slice(0, max) : null;
 function erro(e: unknown) {
   if (e instanceof OperacaoErro) return NextResponse.json({ error: e.message }, { status: e.status });
   if ((e as { code?: string })?.code === 'P2028') return NextResponse.json({ error: 'Sistema ocupado. O pedido nao foi salvo; tente novamente.' }, { status: 503 });
@@ -27,10 +32,14 @@ export async function GET(req: NextRequest) {
     if (!podeReceber(s)) where.criadoPorId = s!.id;
     const codigo = req.nextUrl.searchParams.get('codigo');
     if (codigo) {
-      if (!/^(MP-)?\d+$/i.test(codigo.trim())) throw new OperacaoErro('Codigo de pedido invalido');
-      const numero = Number(codigo.trim().replace(/^MP-/i, ''));
-      if (!Number.isSafeInteger(numero) || numero < 1 || numero > 2147483647) throw new OperacaoErro('Codigo de pedido invalido');
-      where.numero = numero;
+      const consulta = lerCodigoPedido(codigo);
+      if (!consulta) throw new OperacaoErro('Codigo de pedido invalido');
+      if (consulta.exato) where.numero = consulta.numero;
+      else {
+        // Número principal: o pedido exato e os que começam com os mesmos dígitos (o caixa escolhe).
+        const ids = await prisma.$queryRaw<{ numero: number }[]>`SELECT numero FROM "Pedido" WHERE numero = ${consulta.numero} OR numero::text LIKE ${String(consulta.numero) + '%'} ORDER BY (numero = ${consulta.numero}) DESC, "createdAt" DESC LIMIT 20`;
+        where.numero = { in: ids.map(r => r.numero) };
+      }
     } else {
       const status = req.nextUrl.searchParams.get('status');
       where.status = status === 'TODOS' ? undefined : status || { in: PENDENTES };
@@ -38,6 +47,8 @@ export async function GET(req: NextRequest) {
     const tipo = req.nextUrl.searchParams.get('tipo');
     if (tipo) where.tipo = tipo;
     const pedidos = await prisma.pedido.findMany({ where, include, orderBy: { createdAt: 'desc' }, take: 50 });
+    const exato = codigo ? lerCodigoPedido(codigo)?.numero : undefined;
+    if (exato) pedidos.sort((a, b) => Number(b.numero === exato) - Number(a.numero === exato));
     return NextResponse.json((await comServicos(pedidos)).map(p => ({ ...p, codigo: codigoPedido(p.numero) })));
   } catch (e) { return erro(e); }
 }
@@ -106,10 +117,20 @@ export async function POST(req: NextRequest) {
           linhas.push({ nome, valor: valor / 100 });
           subtotalCent += valor;
         }
-        if (linhas.length) {
-          // Reaproveita OS e ServicoOrdem; as peças seguem no pedido e baixam estoque no pagamento.
+        // "Abrir Ordem de Serviço": mesma OS do módulo de Ordens, com dados da moto e do problema.
+        const abrirOS = b.os && typeof b.os === 'object' ? b.os : null;
+        if (abrirOS && (!texto(clienteNome, 150) || !texto(clienteTelefone, 30) || !texto(b.moto, 150))) throw new OperacaoErro('Para abrir a OS informe cliente, telefone e modelo da moto');
+        if (linhas.length || abrirOS) {
+          // Reaproveita OS e ServicoOrdem; as peças seguem no pedido e baixam estoque só no pagamento
+          // (não viram ItemOS, que baixaria o estoque uma segunda vez).
           const maoDeObra = linhas.reduce((n, l) => n + Math.round(l.valor * 100), 0) / 100;
-          const os = await tx.ordemServico.create({ data: { nomeCliente: clienteNome || 'Cliente balcao', telefoneCliente: clienteTelefone || '', modeloMoto: typeof b.moto === 'string' && b.moto.trim() ? b.moto.trim().slice(0, 150) : 'Nao informado', tipoServico: 'ATENDIMENTO', balcaoId: s!.id, valorMaoDeObra: maoDeObra, valorTotal: maoDeObra, servicos: { create: linhas } } });
+          const solicitados = abrirOS ? texto(abrirOS.servicosSolicitados, 2000) : null;
+          const os = await tx.ordemServico.create({ data: {
+            nomeCliente: texto(clienteNome, 150) || 'Cliente balcao', telefoneCliente: texto(clienteTelefone, 30) || '', modeloMoto: texto(b.moto, 150) || 'Nao informado',
+            tipoServico: abrirOS ? 'ORDEM_SERVICO' : 'ATENDIMENTO', balcaoId: s!.id, valorMaoDeObra: maoDeObra, valorTotal: maoDeObra, servicos: { create: linhas },
+            ...(abrirOS ? { placaMoto: texto(abrirOS.placa, 10)?.toUpperCase() || null, anoMoto: texto(abrirOS.ano, 10), kmAtual: texto(abrirOS.km, 20), descricaoProblema: texto(abrirOS.problema, 2000), observacoes: [solicitados && `Serviços solicitados: ${solicitados}`, rows.length ? `Peças no pedido (baixa no pagamento): ${rows.length} item(ns)` : null].filter(Boolean).join('\n') || null } : {}),
+          } });
+          if (abrirOS) await tx.historicoOS.create({ data: { ordemServicoId: os.id, tipo: 'CRIACAO', descricao: `OS #${os.numero} aberta no Atendimento para ${os.nomeCliente} — ${os.modeloMoto}`, usuario: s!.name, usuarioId: s!.id } });
           ordemServicoId = os.id;
         }
       }

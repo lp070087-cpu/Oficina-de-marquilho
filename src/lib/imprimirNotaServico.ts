@@ -21,16 +21,8 @@
 // NotaFiscal.dataServico.
 // ============================================================================
 
-export const DADOS_EMPRESA = {
-  fantasia: 'MARQUINHO MOTO PEÇAS',
-  razao: 'MARCOS BRITO MOUZINHO EXPRESSO',
-  cnpj: '24.585.668/0001-06',
-  ie: '066967163',
-  endereco: 'ESTRADA DE ÁGUAS COMPRIDAS, 630 — ÁGUAS COMPRIDAS',
-  cidade: 'OLINDA - PE',
-  telefone1: '(81) 9814-3879',
-  telefone2: '(81) 8706-9882',
-} as const;
+import { DADOS_EMPRESA } from './dados-empresa';
+export { DADOS_EMPRESA };
 
 // CSS único das Notas do Cliente (OS + Venda) e NF Manual
 export const CSS_NOTA_CLIENTE = `
@@ -453,7 +445,7 @@ export interface NfManualParaImprimir {
 }
 
 export function imprimirNfManual(opts: NfManualParaImprimir): void {
-  const w = abrirJanela('Nota Fiscal Manual');
+  const w = abrirJanela('Nota Fiscal');
   if (!w) return;
   // AJUSTE 2: data + horário do documento no formato único dd/MM/yyyy - HH:mm.
   // A NF Manual não é persistida — o horário é o do instante de emissão,
@@ -466,12 +458,12 @@ export function imprimirNfManual(opts: NfManualParaImprimir): void {
     `<tr><td>${esc(i.codigo)}</td><td>${esc(rotuloProduto(i.nome, i.marca))}</td><td class="center">${i.quantidade}</td><td class="right">${fm(i.valorUnitario)}</td><td class="right">${fm(i.valorUnitario * i.quantidade)}</td></tr>`
   ).join('');
 
-  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>NF Manual ${esc(String(opts.numero))}</title><style>
+  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Nota Fiscal ${esc(String(opts.numero))}</title><style>
     ${CSS_NOTA_CLIENTE}
     ${autoPrint ? '' : '.btn-print{position:fixed;top:12px;right:12px;z-index:99;background:#2563eb;color:#fff;border:none;border-radius:8px;padding:10px 18px;font-size:13px;font-weight:700;cursor:pointer;box-shadow:0 4px 12px rgba(37,99,235,.35)}@media print{.btn-print{display:none}}'}
   </style></head><body>
     ${autoPrint ? '' : '<button class="btn-print" onclick="window.print()">🖨 Imprimir / Salvar PDF</button>'}
-    ${headerHtml('Nota Fiscal Manual')}
+    ${headerHtml('Nota Fiscal')}
     <div class="info">
       <div><span>NF:</span> ${esc(String(opts.numero))}</div>
       <div><span>Data:</span> ${dataEmissaoStr}</div>
@@ -501,7 +493,7 @@ export function imprimirNfManual(opts: NfManualParaImprimir): void {
       <tr class="total"><td class="right">TOTAL</td><td class="right">${fm(opts.total)}</td></tr>
     </table></div>
     ${opts.observacoes ? `<div class="section-title">Observações</div><p style="font-size:12px;color:#555">${esc(opts.observacoes)}</p>` : ''}
-    ${footerHtml()}
+    ${footerHtml('<strong>DOCUMENTO INTERNO SEM VALOR FISCAL</strong> — não é NF-e nem NFC-e')}
     ${autoPrint ? '<script>setTimeout(function(){window.print();},300);</script>' : ''}
   </body></html>`);
   w.document.close();

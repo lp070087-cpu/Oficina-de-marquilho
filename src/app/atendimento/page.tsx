@@ -22,14 +22,15 @@ export default function EntradaAtendimento() {
 
   return (
     <LoginLayout subtitulo="Atendimento">
-      <form onSubmit={entrar} className="space-y-4 rounded-xl border border-slate-200/70 border-t-4 border-t-brand-600 bg-white/70 p-6 shadow-sm">
+      <form onSubmit={entrar} className="space-y-4 rounded-2xl border border-slate-200 border-t-4 border-t-brand-600 bg-white p-6 text-center shadow-lg shadow-slate-900/5 sm:p-7">
         {erro && <p role="alert" className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-[13px] font-medium text-red-700">{erro}</p>}
         <div>
-          <label htmlFor="senha-atendimento" className="text-xs font-semibold uppercase tracking-wider text-slate-600">Sua senha individual</label>
+          <label htmlFor="senha-atendimento" className="block text-xs font-semibold uppercase tracking-wider text-slate-600">Sua senha individual</label>
           <input id="senha-atendimento" type="password" autoComplete="current-password" autoFocus value={senha} onChange={e => setSenha(e.target.value)} className="input-field mt-1.5" placeholder="Digite sua senha" />
         </div>
         <button disabled={entrando || !senha} className="btn-primary w-full">{entrando ? 'Entrando...' : 'Entrar'}</button>
         <a href="/" className="block text-center text-[13px] font-medium text-brand-600 hover:underline">Acesso administrativo</a>
+        <p className="text-[12px] text-slate-500">Esqueceu a senha? Peça à administração (DONA) para redefinir seu acesso.</p>
       </form>
     </LoginLayout>
   );

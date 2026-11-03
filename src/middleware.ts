@@ -48,6 +48,7 @@ const apiPerms: Record<string, string[]> = {
 	'/api/vendas': ['DONO', 'BALCAO'],
 	'/api/pedidos': ['DONO', 'BALCAO'],
 	'/api/caixa': ['DONO', 'BALCAO'],
+	'/api/comprovantes': ['DONO', 'BALCAO'],
 	'/api/ordens': ['DONO', 'BALCAO'],
 	'/api/estoque': ['DONO', 'ESTOQUE', 'BALCAO'],
 };
@@ -56,6 +57,8 @@ const publicPaths = [
 	'/api/auth/login', '/api/auth/atendimento', '/atendimento', '/api/vitrine', '/api/categorias', '/vitrine',
 	// C2 — Permitir acesso público ao portal do cliente (login/cadastro via /cliente e /api/cliente)
 	'/api/cliente', '/cliente',
+	// Link temporario e assinado do comprovante enviado ao cliente (token validado na rota).
+	'/comprovante',
 	'/uploads', '/icon-192.png', '/icon-512.png', '/manifest.json', '/sw.js',
 ];
 

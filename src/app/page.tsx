@@ -48,12 +48,12 @@ export default function LoginPage() {
 
   return (
     <LoginLayout subtitulo="Painel Administrativo">
-        <form onSubmit={handleLogin} className="space-y-4 rounded-xl border border-slate-200/70 border-t-4 border-t-brand-600 bg-white/70 p-6 shadow-sm">
-          {error && <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-[13px] font-medium">{error}</div>}
+        <form onSubmit={handleLogin} className="space-y-4 rounded-2xl border border-slate-200 border-t-4 border-t-brand-600 bg-white p-6 text-center shadow-lg shadow-slate-900/5 sm:p-7">
+          {error && <div role="alert" className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-[13px] font-medium text-center">{error}</div>}
 
           {/* Perfil selector */}
           <div>
-            <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2 block">Selecione o perfil</label>
+            <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider mb-2 block text-center">Selecione o perfil</label>
             <div className="grid grid-cols-2 gap-2">
               {PERFIS.map(p => (
                 <button key={p.id} type="button"
@@ -77,18 +77,18 @@ export default function LoginPage() {
           </div>
 
           <div>
-            <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">E-mail ou usuário</label>
-            <input type="text" value={email} onChange={(e) => setEmail(e.target.value)}
+            <label htmlFor="login-email" className="block text-xs font-semibold text-slate-600 uppercase tracking-wider">E-mail ou usuário</label>
+            <input id="login-email" type="text" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)}
               className="input-field mt-1.5" placeholder="seu@email.com" required autoFocus={!email} />
           </div>
 
           <div>
-            <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider">Senha</label>
+            <label htmlFor="login-senha" className="block text-xs font-semibold text-slate-600 uppercase tracking-wider">Senha</label>
             <div className="relative mt-1.5">
-              <input type={mostrarSenha ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)}
+              <input id="login-senha" autoComplete="current-password" type={mostrarSenha ? 'text' : 'password'} value={password} onChange={(e) => setPassword(e.target.value)}
                 className="input-field pr-10" placeholder="Sua senha" required autoFocus={!!email} />
               <button type="button" onClick={() => setMostrarSenha(!mostrarSenha)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600" tabIndex={-1}>
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600" tabIndex={-1} aria-label={mostrarSenha ? 'Ocultar senha' : 'Mostrar senha'}>
                 {mostrarSenha ? (
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M13.875 18.825A10.05 10.05 0 0112 19c-4.478 0-8.268-2.943-9.543-7a9.97 9.97 0 011.563-3.029m5.858.908a3 3 0 114.243 4.243M9.878 9.878l4.242 4.242M9.88 9.88l-3.29-3.29m7.532 7.532l3.29 3.29M3 3l3.59 3.59m0 0A9.953 9.953 0 0112 5c4.478 0 8.268 2.943 9.543 7a10.025 10.025 0 01-4.132 5.411m0 0L21 21"/></svg>
                 ) : (
@@ -98,7 +98,7 @@ export default function LoginPage() {
             </div>
           </div>
 
-          <label className="flex items-center gap-2 cursor-pointer select-none">
+          <label className="flex items-center justify-center gap-2 cursor-pointer select-none">
             <input type="checkbox" checked={lembrarEmail} onChange={(e) => setLembrarEmail(e.target.checked)}
               className="w-3.5 h-3.5 rounded border-slate-300 text-brand-600 focus:ring-brand-500" />
             <span className="text-xs text-slate-500">Lembrar e-mail neste computador</span>
@@ -107,6 +107,7 @@ export default function LoginPage() {
           <button type="submit" disabled={loading || !perfil} className="btn-primary w-full">
             {loading ? 'Entrando...' : 'Entrar'}
           </button>
+          <p className="text-[12px] text-slate-500">Esqueceu a senha? Peça à administração (DONA) para redefinir seu acesso.</p>
         </form>
     </LoginLayout>
   );
