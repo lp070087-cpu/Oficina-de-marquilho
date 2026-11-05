@@ -23,15 +23,13 @@ export function validarNumeroWhatsApp(entrada: unknown): string | null {
   d = d.replace(/^\+/, '').replace(/[\s().-]/g, '');
   if (d.startsWith('00')) d = d.slice(2);
   if (!/^\d+$/.test(d)) return null;
-  if (d.startsWith('55')) {
-    const ddd = Number(d.slice(2, 4)), resto = d.slice(4);
-    if (!DDD_BR.has(ddd)) return null;
-    if (resto.length === 9 && resto[0] === '9') return d;
-    if (resto.length === 8 && /^[2-5]/.test(resto)) return d;
-    return null;
-  }
-  // Outros países: E.164 (DDI + número), 10 a 15 dígitos, sem zero inicial.
-  return /^[1-9]\d{9,14}$/.test(d) ? d : null;
+  // Oficina no Brasil: o DDI 55 é obrigatório (sem ele "81 9…" seria lido como outro país).
+  if (!d.startsWith('55')) return null;
+  const ddd = Number(d.slice(2, 4)), resto = d.slice(4);
+  if (!DDD_BR.has(ddd)) return null;
+  if (resto.length === 9 && resto[0] === '9') return d;
+  if (resto.length === 8 && /^[2-5]/.test(resto)) return d;
+  return null;
 }
 
 export function formatarNumero(d: string): string {
