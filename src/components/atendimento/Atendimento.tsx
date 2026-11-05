@@ -313,7 +313,7 @@ export default function Atendimento({ modo, podeReceber, podeConfigurar = false 
     </header>
     {erro && <div role="alert" className="sticky top-2 z-30 rounded-lg border border-red-200 bg-red-50 p-4 text-red-800 shadow-sm">{erro}<button className="ml-4 underline" onClick={() => setErro('')}>Fechar</button></div>}
     {aviso && <div role="status" className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-emerald-800">{aviso}<button className="ml-4 underline" onClick={() => setAviso('')}>Fechar</button></div>}
-    {!caixa && <div className="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,1fr)_390px]">
+    {!caixa && <div className="grid min-w-0 gap-6 xl:grid-cols-[minmax(0,1fr)_320px] 2xl:grid-cols-[minmax(0,1fr)_390px]">
       <section className="min-w-0"><div className="mb-3 flex flex-wrap gap-2">{(['pecas', 'servicos'] as const).map(a => <button key={a} onClick={() => setAba(a)} aria-pressed={aba === a} className={`rounded-lg px-4 py-2 text-sm font-semibold ${aba === a ? 'bg-slate-900 text-white' : 'border border-slate-300 bg-white'}`}>{a === 'pecas' ? 'Peças' : 'Serviços / mão de obra'}</button>)}{abrirOS && <span className="self-center rounded-full bg-orange-100 px-3 py-1 text-xs font-bold text-orange-800">Ordem de Serviço em abertura</span>}</div>
         {aba === 'servicos' && <div className="space-y-4">
           <div className={`rounded-xl border-2 p-4 ${abrirOS ? 'border-orange-500 bg-orange-50/60' : 'border-orange-200 bg-white'}`}>
