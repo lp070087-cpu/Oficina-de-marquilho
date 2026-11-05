@@ -1,10 +1,18 @@
-// Código visível do pedido: número primeiro, letras e zeros depois (58 → "58-MP0000").
-// Derivado só de Pedido.numero (único, autoincremento): nada é renumerado nem gravado.
+// Código visível do pedido.
+//  • Pedidos novos: Pedido.codigoNumero, gerado no banco pela sequência "Pedido_codigoNumero_seq"
+//    (nextval é atômico: dois atendentes ao mesmo tempo nunca recebem o mesmo número; valores
+//    de pedidos cancelados ou de transações desfeitas nunca são reutilizados) → "6700-MP".
+//  • Pedidos antigos (sem codigoNumero): continuam com o código derivado de Pedido.numero
+//    ("58-MP0000"; o formato mais antigo "MP-000058" também é aceito na busca).
 // Sem dependências de servidor — usado pelo navegador e pelas APIs.
 const LARGURA = 6;
 
-export function codigoPedido(numero: number): string {
-  const n = String(numero);
+export type PedidoComCodigo = { numero: number; codigoNumero?: number | null };
+
+export function codigoPedido(pedido: PedidoComCodigo | number): string {
+  const p = typeof pedido === 'number' ? { numero: pedido, codigoNumero: null } : pedido;
+  if (p.codigoNumero) return `${p.codigoNumero}-MP`;
+  const n = String(p.numero);
   return `${n}-MP${'0'.repeat(Math.max(0, LARGURA - n.length))}`;
 }
 
@@ -14,11 +22,12 @@ export const codigoPedidoAntigo = (numero: number) => `MP-${String(numero).padSt
 export type ConsultaCodigo = { numero: number; exato: boolean } | null;
 
 /**
- * Aceita o formato novo (58-MP0000, 58MP), o antigo (MP-000058, MP58) e o número puro (58, 000058).
- * `exato` = o operador digitou um código completo; número puro também permite localizar por prefixo.
+ * Aceita o formato atual (6700-MP, 6700MP), o intermediário (58-MP0000), o antigo (MP-000058, MP58)
+ * e o número puro (6700, 58). `exato` = o operador digitou um código completo; número puro também
+ * localiza por prefixo (o caixa escolhe quando houver mais de um).
  */
 export function lerCodigoPedido(texto: string): ConsultaCodigo {
-  const t = texto.trim().toUpperCase().replace(/\s+/g, '');
+  const t = texto.trim().toUpperCase().replace(/\s+/g, '').replace(/^PEDIDO/, '');
   let m = /^(\d{1,10})-?MP0*$/.exec(t);
   if (m) return valido(m[1], true);
   m = /^MP-?(\d{1,10})$/.exec(t);

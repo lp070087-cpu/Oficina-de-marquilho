@@ -686,6 +686,8 @@ model CompatibilidadeVeiculo {
 model Pedido {
   id                String            @id @default(cuid())
   numero            Int               @unique @default(autoincrement())
+  /// Código visível "6700-MP": sequência própria no banco (início 6700). Nulo nos pedidos antigos.
+  codigoNumero      Int?              @unique @default(dbgenerated("nextval('\"Pedido_codigoNumero_seq\"'::regclass)"))
   tipo              String            @default("VENDA")
   status            String            @default("ABERTO")
   origem            String?

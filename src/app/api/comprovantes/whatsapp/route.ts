@@ -29,13 +29,13 @@ export async function POST(req: NextRequest) {
   const b = await req.json().catch(() => ({}));
   if (b.autorizado !== true) return NextResponse.json({ error: 'Confirme que o cliente autorizou receber o comprovante pelo WhatsApp' }, { status: 400 });
   if (typeof b.vendaId !== 'string') return NextResponse.json({ error: 'Venda obrigatoria' }, { status: 400 });
-  const venda = await prisma.venda.findUnique({ where: { id: b.vendaId }, include: { pedido: { select: { numero: true, clienteTelefone: true } } } });
+  const venda = await prisma.venda.findUnique({ where: { id: b.vendaId }, include: { pedido: { select: { numero: true, codigoNumero: true, clienteTelefone: true } } } });
   if (!venda || venda.status !== 'PAGA') return NextResponse.json({ error: 'Comprovante disponivel somente para venda paga' }, { status: 404 });
   const telefone = telefoneWhatsApp(typeof b.telefone === 'string' && b.telefone.trim() ? b.telefone : venda.pedido.clienteTelefone);
   if (!telefone) return NextResponse.json({ error: 'Telefone do cliente invalido' }, { status: 400 });
   const { token } = await assinarLinkComprovante(venda.id);
   const url = `${req.nextUrl.origin}/comprovante/${token}`;
-  const log = await prisma.whatsAppLog.create({ data: { telefone, tipo: 'COMPROVANTE', mensagem: `Comprovante ${codigoPedido(venda.pedido.numero)} via API oficial por ${s!.name}`, status: 'ENVIANDO' } });
+  const log = await prisma.whatsAppLog.create({ data: { telefone, tipo: 'COMPROVANTE', mensagem: `Comprovante ${codigoPedido(venda.pedido)} via API oficial por ${s!.name}`, status: 'ENVIANDO' } });
   try {
     const r = await fetch(`https://graph.facebook.com/v20.0/${encodeURIComponent(cfg.numero)}/messages`, {
       method: 'POST',

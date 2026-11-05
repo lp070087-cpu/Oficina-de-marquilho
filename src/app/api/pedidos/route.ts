@@ -34,12 +34,13 @@ export async function GET(req: NextRequest) {
     if (codigo) {
       const consulta = lerCodigoPedido(codigo);
       if (!consulta) throw new OperacaoErro('Codigo de pedido invalido');
-      if (consulta.exato) where.numero = consulta.numero;
-      else {
-        // Número principal: o pedido exato e os que começam com os mesmos dígitos (o caixa escolhe).
-        const ids = await prisma.$queryRaw<{ numero: number }[]>`SELECT numero FROM "Pedido" WHERE numero = ${consulta.numero} OR numero::text LIKE ${String(consulta.numero) + '%'} ORDER BY (numero = ${consulta.numero}) DESC, "createdAt" DESC LIMIT 20`;
-        where.numero = { in: ids.map(r => r.numero) };
-      }
+      // Código atual (codigoNumero) ou, nos pedidos antigos, o número interno. Número puro também
+      // localiza por prefixo; havendo mais de um, o caixa escolhe na lista.
+      const n = consulta.numero, prefixo = String(n) + '%';
+      const ids = consulta.exato
+        ? await prisma.$queryRaw<{ id: string }[]>`SELECT id FROM "Pedido" WHERE "codigoNumero" = ${n} OR ("codigoNumero" IS NULL AND numero = ${n}) LIMIT 20`
+        : await prisma.$queryRaw<{ id: string }[]>`SELECT id FROM "Pedido" WHERE "codigoNumero" = ${n} OR "codigoNumero"::text LIKE ${prefixo} OR ("codigoNumero" IS NULL AND (numero = ${n} OR numero::text LIKE ${prefixo})) ORDER BY "createdAt" DESC LIMIT 20`;
+      where.id = { in: ids.map(r => r.id) };
     } else {
       const status = req.nextUrl.searchParams.get('status');
       where.status = status === 'TODOS' ? undefined : status || { in: PENDENTES };
@@ -48,8 +49,9 @@ export async function GET(req: NextRequest) {
     if (tipo) where.tipo = tipo;
     const pedidos = await prisma.pedido.findMany({ where, include, orderBy: { createdAt: 'desc' }, take: 50 });
     const exato = codigo ? lerCodigoPedido(codigo)?.numero : undefined;
-    if (exato) pedidos.sort((a, b) => Number(b.numero === exato) - Number(a.numero === exato));
-    return NextResponse.json((await comServicos(pedidos)).map(p => ({ ...p, codigo: codigoPedido(p.numero) })));
+    const igual = (p: { numero: number; codigoNumero: number | null }) => Number((p.codigoNumero ?? p.numero) === exato);
+    if (exato) pedidos.sort((a, b) => igual(b) - igual(a));
+    return NextResponse.json((await comServicos(pedidos)).map(p => ({ ...p, codigo: codigoPedido(p) })));
   } catch (e) { return erro(e); }
 }
 export async function POST(req: NextRequest) {
@@ -146,7 +148,7 @@ export async function POST(req: NextRequest) {
       }, include });
     }, { maxWait: 10000, timeout: 15000 });
     const [salvo] = await comServicos([pedido]);
-    return NextResponse.json({ ...salvo, codigo: codigoPedido(pedido.numero) }, { status: 201 });
+    return NextResponse.json({ ...salvo, codigo: codigoPedido(pedido) }, { status: 201 });
   } catch (e) { return erro(e); }
 }
 export async function PUT(req: NextRequest) {
@@ -177,6 +179,6 @@ export async function PUT(req: NextRequest) {
       return tx.pedido.update({ where: { id: b.id }, data, include });
     }, { maxWait: 10000, timeout: 15000 });
     const [salvo] = await comServicos([pedido]);
-    return NextResponse.json({ ...salvo, codigo: codigoPedido(pedido.numero) });
+    return NextResponse.json({ ...salvo, codigo: codigoPedido(pedido) });
   } catch (e) { return erro(e); }
 }

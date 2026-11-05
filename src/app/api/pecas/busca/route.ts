@@ -9,7 +9,7 @@ type Vendas = Map<string, { recente: number; total: number }>;
 let cacheVendas: { em: number; dados: Vendas } | null = null;
 // Catálogo indexado por poucos segundos: a digitação não repete a consulta a cada tecla.
 // Estoque e preço são conferidos de novo no servidor ao salvar o pedido.
-const selecao = { id: true, nome: true, codigo: true, marca: true, codigoBarras: true, imagemUrl: true, precoVenda: true, quantidadeLoja: true, subcategoria: true, compatibilidade: true, descricao: true } as const;
+const selecao = { id: true, nome: true, codigo: true, marca: true, codigoBarras: true, imagemUrl: true, precoVenda: true, quantidadeLoja: true, categoriaId: true, subcategoria: true, compatibilidade: true, descricao: true } as const;
 type PecaCatalogo = Awaited<ReturnType<typeof carregarCatalogo>>[number];
 let cacheCatalogo: { em: number; dados: PecaCatalogo[] } | null = null;
 async function carregarCatalogo() {
@@ -20,6 +20,15 @@ async function catalogo(): Promise<PecaCatalogo[]> {
   if (cacheCatalogo && Date.now() - cacheCatalogo.em < 10_000) return cacheCatalogo.dados;
   const dados = await carregarCatalogo();
   cacheCatalogo = { em: Date.now(), dados };
+  return dados;
+}
+// Categorias do cadastro (nomes reais); a contagem vem das peças ativas encontradas.
+let cacheCategorias: { em: number; dados: Map<string, { nome: string; ordem: number }> } | null = null;
+async function categorias() {
+  if (cacheCategorias && Date.now() - cacheCategorias.em < 60_000) return cacheCategorias.dados;
+  const linhas = await prisma.categoria.findMany({ select: { id: true, nome: true, ordem: true } });
+  const dados = new Map(linhas.map(c => [c.id, { nome: c.nome, ordem: c.ordem }]));
+  cacheCategorias = { em: Date.now(), dados };
   return dados;
 }
 
@@ -45,13 +54,18 @@ export async function GET(req: NextRequest) {
   try {
     const q = (req.nextUrl.searchParams.get('q') || '').slice(0, 100);
     const offset = Math.max(0, Math.min(100000, Number(req.nextUrl.searchParams.get('offset')) || 0));
+    const categoria = (req.nextUrl.searchParams.get('categoria') || '').slice(0, 60);
     const limite = Math.max(1, Math.min(60, Number(req.nextUrl.searchParams.get('limite')) || 36));
-    const [pecas, vendas] = await Promise.all([catalogo(), vendasConfirmadas()]);
+    const [pecas, vendas, cats] = await Promise.all([catalogo(), vendasConfirmadas(), categorias()]);
     const termo = q.trim();
+    const porCategoria = new Map<string, number>();
     const ranqueadas = [] as { p: (typeof pecas)[number]; rel: number; recente: number; total: number }[];
     for (const p of pecas) {
       const rel = termo ? relevancia(termo, p.indice) : 0;
       if (termo && rel <= 0) continue;
+      // Contagem por categoria considera a pesquisa, mas não a categoria escolhida (para trocar de faixa).
+      porCategoria.set(p.categoriaId, (porCategoria.get(p.categoriaId) || 0) + 1);
+      if (categoria && p.categoriaId !== categoria) continue;
       const v = vendas.get(p.id);
       ranqueadas.push({ p, rel, recente: v?.recente || 0, total: v?.total || 0 });
     }
@@ -63,7 +77,10 @@ export async function GET(req: NextRequest) {
       id: p.id, nome: p.nome, codigo: p.codigo, marca: p.marca, codigoBarras: p.codigoBarras, imagemUrl: p.imagemUrl,
       precoVenda: p.precoVenda, quantidadeLoja: p.quantidadeLoja, vendidosRecentes: recente, vendidosTotal: total,
     }));
-    return NextResponse.json({ itens, total: ranqueadas.length, offset, proximo: offset + itens.length < ranqueadas.length ? offset + itens.length : null });
+    const listaCategorias = [...porCategoria].filter(([id]) => cats.has(id))
+      .map(([id, total]) => ({ id, nome: cats.get(id)!.nome, total }))
+      .sort((a, b) => b.total - a.total || a.nome.localeCompare(b.nome, 'pt-BR'));
+    return NextResponse.json({ itens, categorias: listaCategorias, totalGeral: [...porCategoria.values()].reduce((a, b) => a + b, 0), total: ranqueadas.length, offset, proximo: offset + itens.length < ranqueadas.length ? offset + itens.length : null });
   } catch (e) {
     console.error('Busca de pecas:', e);
     return NextResponse.json({ error: 'Erro ao pesquisar pecas' }, { status: 500 });
