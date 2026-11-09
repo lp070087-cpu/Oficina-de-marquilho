@@ -19,12 +19,13 @@ export function codigoPedido(pedido: PedidoComCodigo | number): string {
 /** Código antigo (MP-000058), mantido para consulta e documentos já impressos. */
 export const codigoPedidoAntigo = (numero: number) => `MP-${String(numero).padStart(LARGURA, '0')}`;
 
-export type ConsultaCodigo = { numero: number; exato: boolean } | null;
+/** `digitos`: o que o operador digitou (com zeros à esquerda), usado na busca pelos últimos dígitos. */
+export type ConsultaCodigo = { numero: number; exato: boolean; digitos: string } | null;
 
 /**
  * Aceita o formato atual (6700-MP, 6700MP), o intermediário (58-MP0000), o antigo (MP-000058, MP58)
- * e o número puro (6700, 58). `exato` = o operador digitou um código completo; número puro também
- * localiza por prefixo (o caixa escolhe quando houver mais de um).
+ * e o número puro (6709, 709, 09). `exato` = o operador digitou um código completo; número puro
+ * localiza pelos últimos dígitos (o caixa escolhe quando houver mais de um).
  */
 export function lerCodigoPedido(texto: string): ConsultaCodigo {
   const t = texto.trim().toUpperCase().replace(/\s+/g, '').replace(/^PEDIDO/, '');
@@ -33,12 +34,16 @@ export function lerCodigoPedido(texto: string): ConsultaCodigo {
   m = /^MP-?(\d{1,10})$/.exec(t);
   if (m) return valido(m[1], true);
   m = /^(\d{1,10})$/.exec(t);
-  if (m) return valido(m[1], false);
+  if (m) {
+    if (/^0+$/.test(m[1])) return null;
+    const numero = Number(m[1]);
+    return numero <= 2147483647 ? { numero, exato: false, digitos: m[1] } : null;
+  }
   return null;
 }
 
 function valido(digitos: string, exato: boolean): ConsultaCodigo {
   const numero = Number(digitos);
   if (!Number.isSafeInteger(numero) || numero < 1 || numero > 2147483647) return null;
-  return { numero, exato };
+  return { numero, exato, digitos };
 }
