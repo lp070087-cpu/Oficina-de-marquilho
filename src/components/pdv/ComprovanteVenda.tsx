@@ -126,7 +126,7 @@ export default function ComprovanteVenda({ venda, onFechar }: ComprovanteVendaPr
       <div>PAGAMENTO</div>
       ${linhasPg}
       <hr class="sep">
-      <div class="footer">Marquinho Moto Peças — ${dataHoraStr}<br>Obrigado pela preferência!</div>
+      <div class="footer">${dataHoraStr}<br>Obrigado pela preferência. Marquinho Moto Peças</div>
       <script>setTimeout(function(){window.print();},300);</script>
     </body></html>`;
   }

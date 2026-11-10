@@ -299,6 +299,8 @@ export default function Atendimento({ modo, podeReceber, podeConfigurar = false 
       setPedido(result); setVenda(null); setCarrinho([]); setServicos([]); setMoto(''); setNome(''); setTelefone(''); setCopiado(false);
       if (abrirOS) setAviso(`OS nº ${result.ordemServico?.numero ?? ''} aberta e encaminhada ao Caixa com o pedido ${codigoPedido(result)}.`);
       setAbrirOS(false); setOS({ placa: '', ano: '', km: '', problema: '', servicosSolicitados: '' });
+      try { await imprimirPedido(result, undefined, { formato: 'termica' }); }
+      catch { setAviso('Pedido salvo. Não foi possível abrir a impressão automática. Use Imprimir código do pedido para tentar novamente.'); }
       await listar();
     } catch (e) { setErro((e as Error).message); }
     finally { trava.current = false; setOcupado(false); }
@@ -347,12 +349,12 @@ export default function Atendimento({ modo, podeReceber, podeConfigurar = false 
     } catch (e) { setErro((e as Error).message); }
     finally { trava.current = false; setOcupado(false); }
   }
-  function imprimir(formato: 'a4' | 'termica' = 'a4') {
-    try { imprimirPedido(pedido, venda, { segundaVia: viaEmitida.current, formato }); if (venda) viaEmitida.current = true; } catch (e) { setErro((e as Error).message); }
+  async function imprimir(formato: 'a4' | 'termica' = 'a4') {
+    try { await imprimirPedido(pedido, venda, { segundaVia: viaEmitida.current, formato }); if (venda) viaEmitida.current = true; } catch (e) { setErro((e as Error).message); }
   }
   // Atendimento imprime no mesmo comprovante térmico (80 mm) do Caixa.
-  function imprimirAtendimento(p: any) {
-    try { imprimirPedido(p, undefined, { formato: 'termica' }); } catch (e) { setErro((e as Error).message); }
+  async function imprimirAtendimento(p: any) {
+    try { await imprimirPedido(p, undefined, { formato: 'termica' }); } catch (e) { setErro((e as Error).message); }
   }
   async function enviarWhatsApp() {
     if (!venda?.id) return;
