@@ -125,8 +125,8 @@ export function headerEmpresaCompacto(titulo?: string): string {
   </div>`;
 }
 
-function footerHtml(extra?: string): string {
-  return `<div class="footer">${extra ? extra + '<br>' : ''}Obrigado pela preferência. Marquinho Moto Peças<br>Documento interno — sem integração SEFAZ</div>`;
+function footerHtml(): string {
+  return `<div class="footer">Obrigado pela preferência. Marquinho Moto Peças</div>`;
 }
 
 function abrirJanela(titulo: string): Window | null {
@@ -493,7 +493,7 @@ export function imprimirNfManual(opts: NfManualParaImprimir): void {
       <tr class="total"><td class="right">TOTAL</td><td class="right">${fm(opts.total)}</td></tr>
     </table></div>
     ${opts.observacoes ? `<div class="section-title">Observações</div><p style="font-size:12px;color:#555">${esc(opts.observacoes)}</p>` : ''}
-    ${footerHtml('<strong>DOCUMENTO INTERNO SEM VALOR FISCAL</strong> — não é NF-e nem NFC-e')}
+    ${footerHtml()}
     ${autoPrint ? '<script>setTimeout(function(){window.print();},300);</script>' : ''}
   </body></html>`);
   w.document.close();
