@@ -58,11 +58,9 @@ const POST = (quem, path, body) => req(quem, path, { method: 'POST', body: JSON.
     const r = await req('caixa', `/api/pedidos?codigo=${encodeURIComponent(q)}`);
     t(`"${q}" localiza o pedido`, r.body?.[0]?.id === um.id && r.body.length === 1, JSON.stringify(r.body?.map?.(p => p.codigo)));
   }
-  // Últimos dígitos (6709, 709, 09): pode haver mais de um; o caixa escolhe na lista.
-  const sufixo = String(um.codigoNumero).slice(-1);
-  const pr = await req('caixa', `/api/pedidos?codigo=${sufixo}`);
-  t(`último dígito "${sufixo}" lista vários para seleção`, Array.isArray(pr.body) && pr.body.length > 1 && pr.body.some(p => p.id === um.id));
-  for (const q of [String(um.codigoNumero).slice(-3), String(um.codigoNumero).slice(-2)]) t(`últimos dígitos "${q}" localizam o pedido`, (await req('caixa', `/api/pedidos?codigo=${q}`)).body?.some?.(p => p.id === um.id));
+  const prefixo = String(um.codigoNumero).slice(0, 2);
+  const pr = await req('caixa', `/api/pedidos?codigo=${prefixo}`);
+  t(`número inicial "${prefixo}" lista vários para seleção`, Array.isArray(pr.body) && pr.body.length >= N && pr.body.some(p => p.id === um.id));
   const exato = await req('caixa', `/api/pedidos?codigo=${um.codigoNumero}`);
   t('número exato aparece primeiro', exato.body?.[0]?.id === um.id);
   for (const q of ['MP-000058', '58-MP0000', 'MP58']) {

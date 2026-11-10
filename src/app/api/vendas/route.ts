@@ -70,8 +70,6 @@ export async function POST(req: NextRequest) {
 
       if (!pedido) throw new OperacaoErro('Pedido nao encontrado', 404);
       if (!PENDENTES.includes(pedido.status)) throw new OperacaoErro('Pedido ja pago ou encerrado', 409);
-      // OS aberta no Atendimento ainda pode mudar: só é recebida depois de "Finalizar OS".
-      if (pedido.origem === 'ATENDIMENTO' && pedido.status === 'ABERTO') throw new OperacaoErro('OS ainda aberta no Atendimento. Finalize a OS antes de receber.', 409);
       if (await tx.venda.findUnique({ where: { pedidoId } })) throw new OperacaoErro('Pedido ja recebido', 409);
       if (centavos(String(pedido.total)) <= 0) throw new OperacaoErro('Pedido sem valor');
       if (pedido.tipo === 'ORDEM_SERVICO') {
@@ -228,13 +226,7 @@ export async function POST(req: NextRequest) {
       });
 
       if (pedido.ordemServicoId) {
-        // OS aberta no Atendimento: encerrada somente aqui, com o pagamento confirmado.
-        const osAtendimento = pedido.tipo !== 'ORDEM_SERVICO' && pedido.origem === 'ATENDIMENTO'
-          ? await tx.ordemServico.findUnique({ where: { id: pedido.ordemServicoId }, select: { numero: true, tipoServico: true, status: true } })
-          : null;
-        const encerrar = osAtendimento?.tipoServico === 'ORDEM_SERVICO' && osAtendimento.status !== 'CANCELADA';
-        await tx.ordemServico.update({ where: { id: pedido.ordemServicoId }, data: { statusPagamento: 'PAGO', valorPago: pedido.total, dataPagamento: new Date(), usuarioPagamento: session.name, formaPagamento: pagamentos.map((p: any) => p.tipo).join(', '), ...(encerrar ? { status: 'CONCLUIDA' as const } : {}) } });
-        if (encerrar) await tx.historicoOS.create({ data: { ordemServicoId: pedido.ordemServicoId, tipo: 'ENCERRADA', descricao: `OS #${osAtendimento!.numero} encerrada: pagamento confirmado no Caixa (Venda #${v.numero})`, usuario: session.name, usuarioId: session.id } });
+        await tx.ordemServico.update({ where: { id: pedido.ordemServicoId }, data: { statusPagamento: 'PAGO', valorPago: pedido.total, dataPagamento: new Date(), usuarioPagamento: session.name, formaPagamento: pagamentos.map((p: any) => p.tipo).join(', ') } });
       }
       // ============================================================
       // EMISSÃO AUTOMÁTICA DE NOTA NO PAGAMENTO

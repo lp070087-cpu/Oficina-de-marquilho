@@ -10,7 +10,7 @@ export { dinheiro, formas, maoDeObra, descreverPagamento, htmlComprovante } from
  * (não depende de pop-up liberado). A impressão física depende da impressora escolhida
  * pelo usuário nessa caixa — o sistema não afirma que algo foi impresso.
  */
-export function imprimirPedido(pedido: any, venda?: any, opcoes: OpcoesComprovante = {}) {
+export async function imprimirPedido(pedido: any, venda?: any, opcoes: OpcoesComprovante = {}) {
   const frame = document.createElement('iframe');
   frame.setAttribute('aria-hidden', 'true');
   frame.style.cssText = 'position:fixed;right:0;bottom:0;width:0;height:0;border:0;visibility:hidden';
@@ -19,8 +19,7 @@ export function imprimirPedido(pedido: any, venda?: any, opcoes: OpcoesComprovan
   if (!doc || !frame.contentWindow) { frame.remove(); throw new Error('Não foi possível preparar a impressão neste navegador.'); }
   doc.open(); doc.write(htmlComprovante(pedido, venda, opcoes)); doc.close();
   const win = frame.contentWindow;
-  setTimeout(() => {
-    win.focus(); win.print();
-    setTimeout(() => frame.remove(), 60_000);
-  }, 250);
+  await new Promise(resolve => setTimeout(resolve, 250));
+  try { win.focus(); win.print(); }
+  finally { setTimeout(() => frame.remove(), 60_000); }
 }

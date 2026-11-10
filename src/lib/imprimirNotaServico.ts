@@ -126,7 +126,7 @@ export function headerEmpresaCompacto(titulo?: string): string {
 }
 
 function footerHtml(extra?: string): string {
-  return `<div class="footer">${extra ? extra + '<br>' : ''}Marquinho Moto Peças — Obrigado pela preferência!<br>Documento interno — sem integração SEFAZ</div>`;
+  return `<div class="footer">${extra ? extra + '<br>' : ''}Obrigado pela preferência. Marquinho Moto Peças<br>Documento interno — sem integração SEFAZ</div>`;
 }
 
 function abrirJanela(titulo: string): Window | null {
