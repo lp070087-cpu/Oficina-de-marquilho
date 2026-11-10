@@ -163,7 +163,7 @@ export default function NFManualPage() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-xl sm:text-2xl font-semibold text-slate-900 tracking-tight">Nota Fiscal</h1>
-          <p className="text-sm text-slate-500 mt-0.5">Controle interno - sem integracao fiscal</p>
+          <p className="text-sm text-slate-500 mt-0.5">Obrigado pela preferência. Marquinho Moto Peças</p>
         </div>
       </div>
 

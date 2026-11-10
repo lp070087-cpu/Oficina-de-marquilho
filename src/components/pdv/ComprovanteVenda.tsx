@@ -147,7 +147,7 @@ export default function ComprovanteVenda({ venda, onFechar }: ComprovanteVendaPr
 
   function enviarWhatsApp() {
     const linhas = itens.map(i => `• ${i.nome} (${i.codigo}) — ${i.quantidade}x ${fm(i.precoUnitario)} = ${fm(i.subtotal)}`).join('\n');
-    const texto = `🧾 *MARQUINHO MOTO PEÇAS*\n*Venda #${venda.numero}*\n${dataHoraStr}\n\n${venda.clienteNome ? `*Cliente:* ${venda.clienteNome}\n` : ''}${venda.clienteTelefone ? `*Tel:* ${venda.clienteTelefone}\n` : ''}\n*Itens:*\n${linhas}\n\n${venda.descontoTotal > 0 ? `*Descontos:* −${fm(Number(venda.descontoTotal))}\n` : ''}*TOTAL: ${fm(Number(venda.total))}*\n\nObrigado pela preferencia! 🏍️`;
+    const texto = `🧾 *MARQUINHO MOTO PEÇAS*\n*Venda #${venda.numero}*\n${dataHoraStr}\n\n${venda.clienteNome ? `*Cliente:* ${venda.clienteNome}\n` : ''}${venda.clienteTelefone ? `*Tel:* ${venda.clienteTelefone}\n` : ''}\n*Itens:*\n${linhas}\n\n${venda.descontoTotal > 0 ? `*Descontos:* −${fm(Number(venda.descontoTotal))}\n` : ''}*TOTAL: ${fm(Number(venda.total))}*\n\nObrigado pela preferência. Marquinho Moto Peças`;
     const url = `https://wa.me/?text=${encodeURIComponent(texto)}`;
     window.open(url, '_blank');
   }
