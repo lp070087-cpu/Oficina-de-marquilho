@@ -1,0 +1,24 @@
+{
+  "id": "/atendimento",
+  "name": "Marquinho — Atendimento",
+  "short_name": "Atendimento",
+  "description": "Acesso dos atendentes da Marquinho Moto Peças",
+  "start_url": "/atendimento",
+  "display": "standalone",
+  "background_color": "#0F1A2E",
+  "theme_color": "#2563eb",
+  "orientation": "any",
+  "icons": [
+    {
+      "src": "/atendimento/icone/192",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/atendimento/icone/512",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ],
+  "scope": "/"
+}

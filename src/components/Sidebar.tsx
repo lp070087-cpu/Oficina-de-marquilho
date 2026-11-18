@@ -99,7 +99,11 @@ export default function Sidebar({ user, collapsed, mobileOpen, isMobile, onToggl
             : []; // role desconhecida: menu vazio (seguro)
 
   async function handleLogout() {
-    await fetch('/api/auth/logout', { method: 'POST' });
+    const response = await fetch('/api/auth/logout', { method: 'POST' });
+    if (isBalcao && tb === 'VENDA_LOJA') {
+      if (response.ok) window.location.replace('/atendimento');
+      return;
+    }
     router.push('/');
   }
 

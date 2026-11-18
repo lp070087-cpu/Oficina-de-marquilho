@@ -12,6 +12,9 @@ const STORE_ONLY_ROUTES = ['/vitrine', '/api/vitrine/clientes', '/api/vitrine/or
 // Routes that require admin panel domain
 const PANEL_REQUIRED_ROUTES = ['/dono', '/balcao', '/estoque'];
 
+const ATENDIMENTO_PATH = '/balcao/atendimento';
+const ATENDIMENTO_LOGIN_PATH = '/atendimento';
+
 const roleRoutes: Record<string, string[]> = {
 	'/dono': ['DONO'],
 	'/balcao': ['BALCAO'],
@@ -59,7 +62,7 @@ const publicPaths = [
 	'/api/cliente', '/cliente',
 	// Link temporario e assinado do comprovante enviado ao cliente (token validado na rota).
 	'/comprovante',
-	'/uploads', '/icon-192.png', '/icon-512.png', '/manifest.json', '/sw.js',
+	'/uploads', '/icon-192.png', '/icon-512.png', '/manifest.json', '/manifest-atendimento.webmanifest', '/sw.js',
 ];
 
 // Security headers applied to all responses
@@ -82,6 +85,8 @@ function nextWithHeaders(request: NextRequest): NextResponse {
 
 export async function middleware(request: NextRequest) {
 	const { pathname, hostname } = request.nextUrl;
+	const isAtendimento = pathname === ATENDIMENTO_PATH;
+	const loginUrl = new URL(isAtendimento ? ATENDIMENTO_LOGIN_PATH : '/', request.url);
 
 	// Allow static and public
 	if (pathname.startsWith('/_next') || publicPaths.includes(pathname)) {
@@ -96,7 +101,7 @@ export async function middleware(request: NextRequest) {
 		const isStoreDomain = hostname === STORE_DOMAIN || hostname === 'www.' + STORE_DOMAIN;
 		const isPanelDomain = hostname === PANEL_DOMAIN;
 
-		if (isStoreDomain && PANEL_REQUIRED_ROUTES.some(r => pathname.startsWith(r))) {
+		if (isStoreDomain && !isAtendimento && PANEL_REQUIRED_ROUTES.some(r => pathname.startsWith(r))) {
 			const panelUrl = new URL(pathname, 'https://' + PANEL_DOMAIN);
 			return applySecurityHeaders(NextResponse.redirect(panelUrl));
 		}
@@ -115,7 +120,7 @@ export async function middleware(request: NextRequest) {
 		if (pathname.startsWith('/vitrine') || pathname.startsWith('/api/vitrine/clientes') || pathname.startsWith('/api/vitrine/orcamentos') || pathname.startsWith('/api/categorias')) {
 			return nextWithHeaders(request);
 		}
-		return applySecurityHeaders(NextResponse.redirect(new URL('/', request.url)));
+		return applySecurityHeaders(NextResponse.redirect(loginUrl));
 	}
 
 	try {
@@ -166,9 +171,17 @@ export async function middleware(request: NextRequest) {
 			}
 		}
 
+		if (pathname.startsWith('/balcao')) {
+			const requestHeaders = new Headers(request.headers);
+			// Identifica a rota para o layout redirecionar uma sessão revogada ao login correto.
+			requestHeaders.delete('x-marquinho-atendimento');
+			if (isAtendimento) requestHeaders.set('x-marquinho-atendimento', '1');
+			return applySecurityHeaders(NextResponse.next({ request: { headers: requestHeaders } }));
+		}
+
 		return nextWithHeaders(request);
 	} catch {
-		return applySecurityHeaders(NextResponse.redirect(new URL('/', request.url)));
+		return applySecurityHeaders(NextResponse.redirect(loginUrl));
 	}
 }
 

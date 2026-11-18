@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { headers } from 'next/headers';
 import { Suspense } from 'react';
 import { requireAuth } from '@/lib/auth';
 import prisma from '@/lib/prisma';
@@ -6,7 +7,8 @@ import AppShell from '@/components/AppShell';
 import EntradaBalcao from '@/components/atendimento/EntradaBalcao';
 
 export default async function BalcaoLayout({ children }: { children: React.ReactNode }) {
-  const session = await requireAuth(['BALCAO', 'DONO']);
+  const isAtendimento = (await headers()).get('x-marquinho-atendimento') === '1';
+  const session = await requireAuth(['BALCAO', 'DONO'], isAtendimento ? '/atendimento' : '/');
   const user = await prisma.user.findUnique({ where: { id: session.id }, select: { name: true } });
   return (
     <div className="flex h-screen overflow-hidden bg-[#F3F6FB]">

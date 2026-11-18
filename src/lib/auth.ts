@@ -53,9 +53,9 @@ export async function getSession(): Promise<SessionUser | null> {
   return session;
 }
 
-export async function requireAuth(allowedRoles?: string[]): Promise<SessionUser> {
+export async function requireAuth(allowedRoles?: string[], loginPath = '/'): Promise<SessionUser> {
   const session = await getSession();
-  if (!session) redirect('/');
+  if (!session) redirect(loginPath);
   if (allowedRoles && !allowedRoles.includes(session.role)) {
     redirect('/');
   }
