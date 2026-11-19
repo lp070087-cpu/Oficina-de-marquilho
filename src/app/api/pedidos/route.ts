@@ -107,7 +107,33 @@ export async function GET(req: NextRequest) {
     if (req.nextUrl.searchParams.get('os') === '1') {
       // Aba "Ordens de Serviço" do Atendimento: OS abertas no Atendimento (mais recentes primeiro).
       const filtro = status && status !== 'TODOS' ? Prisma.sql`AND p.status = ${status}` : Prisma.sql`AND p.status <> 'CANCELADO'`;
-      const linhas = await prisma.$queryRaw<{ id: string }[]>`SELECT p.id FROM "Pedido" p JOIN "OrdemServico" o ON o.id = p."ordemServicoId" WHERE p.origem = 'ATENDIMENTO' AND o."tipoServico" = 'ORDEM_SERVICO' ${filtro} ${autor} ORDER BY p."createdAt" DESC, p.numero DESC LIMIT 60`;
+      const termo = (req.nextUrl.searchParams.get('q') || '').trim().slice(0, 150);
+      const numeroOS = /^os\s*(?:n[º°o.]?\s*)?#?\s*(\d{1,10})$/i.exec(termo);
+      const consulta = lerCodigoPedido(numeroOS?.[1] || termo);
+      const filtroCodigo = consulta && !numeroOS
+        ? Prisma.sql`OR COALESCE(p."codigoNumero", p.numero) = ${consulta.numero}`
+        : Prisma.empty;
+      const filtroNumeroOS = consulta && !consulta.exato
+        ? Prisma.sql`OR o.numero = ${consulta.numero}`
+        : Prisma.empty;
+      const placa = termo.toUpperCase().replace(/[^A-Z0-9]/g, '');
+      const filtroPlaca = /[A-Z]/.test(placa) && /[0-9]/.test(placa)
+        ? Prisma.sql`OR strpos(regexp_replace(upper(o."placaMoto"), '[^A-Z0-9]', '', 'g'), ${placa}) > 0`
+        : Prisma.empty;
+      const telefone = /^[+()\d.\s-]+$/.test(termo) ? termo.replace(/\D/g, '') : '';
+      const filtroTelefone = telefone.length >= 4
+        ? Prisma.sql`OR strpos(regexp_replace(p."clienteTelefone", '[^0-9]', '', 'g'), ${telefone}) > 0`
+        : Prisma.empty;
+      const busca = termo ? Prisma.sql`AND (
+        strpos(lower(p."clienteNome"), lower(${termo})) > 0
+        OR strpos(lower(o."modeloMoto"), lower(${termo})) > 0
+        OR strpos(lower(o."placaMoto"), lower(${termo})) > 0
+        ${filtroCodigo} ${filtroNumeroOS} ${filtroPlaca} ${filtroTelefone}
+      )` : Prisma.empty;
+      const linhas = await prisma.$queryRaw<{ id: string }[]>`
+        SELECT p.id FROM "Pedido" p JOIN "OrdemServico" o ON o.id = p."ordemServicoId"
+        WHERE p.origem = 'ATENDIMENTO' AND o."tipoServico" = 'ORDEM_SERVICO' ${filtro} ${autor} ${busca}
+        ORDER BY p."createdAt" DESC, p.numero DESC LIMIT 60`;
       ordem = linhas.map(r => r.id);
     } else if (codigo) {
       const consulta = lerCodigoPedido(codigo);
