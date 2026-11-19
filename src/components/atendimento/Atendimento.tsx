@@ -54,6 +54,9 @@ export default function Atendimento({ modo, podeReceber, podeConfigurar = false 
   const [salvoOS, setSalvoOS] = useState('');
   const [ordens, setOrdens] = useState<any[]>([]);
   const [filtroOS, setFiltroOS] = useState('ABERTO');
+  const [textoBuscaOS, setTextoBuscaOS] = useState('');
+  const [buscaOS, setBuscaOS] = useState('');
+  const versaoListaOS = useRef(0);
   const [ordensCarregadas, setOrdensCarregadas] = useState(false);
   const [catalogoServicos, setCatalogoServicos] = useState<Servico[]>([]);
   const [servicos, setServicos] = useState<LinhaServico[]>([]);
@@ -129,10 +132,19 @@ export default function Atendimento({ modo, podeReceber, podeConfigurar = false 
   const alterado = !!osEdicao && assinatura(carrinho, servicos) !== salvoOS;
   const listarOS = useCallback(async () => {
     if (caixa) return;
-    try { setOrdens(await api(`/api/pedidos?os=1&status=${filtroOS}`)); }
-    catch (e) { setErro((e as Error).message); }
-    finally { setOrdensCarregadas(true); }
-  }, [caixa, filtroOS]);
+    const versao = ++versaoListaOS.current;
+    const params = new URLSearchParams({ os: '1', status: filtroOS });
+    if (buscaOS) params.set('q', buscaOS);
+    setOrdensCarregadas(false);
+    try {
+      const resultado = await api(`/api/pedidos?${params}`);
+      if (versao === versaoListaOS.current) setOrdens(resultado);
+    } catch (e) {
+      if (versao === versaoListaOS.current) { setOrdens([]); setErro((e as Error).message); }
+    } finally {
+      if (versao === versaoListaOS.current) setOrdensCarregadas(true);
+    }
+  }, [caixa, filtroOS, buscaOS]);
   useEffect(() => { if (aba === 'os') listarOS(); }, [aba, listarOS]);
   /** Carrega a OS no carrinho para continuar o atendimento (mesma OS, sem novo pedido). */
   function carregarOS(p: any) {
@@ -145,12 +157,24 @@ export default function Atendimento({ modo, podeReceber, podeConfigurar = false 
   function continuarOS(p: any) {
     if (alterado && osEdicao?.id !== p.id && !window.confirm('A OS atual tem alterações não salvas. Descartar e abrir outra?')) return;
     if (!osEdicao && !vazio && !window.confirm('O pedido em montagem será descartado. Continuar a OS?')) return;
-    setErro(''); setAviso(`Continuando a OS nº ${p.ordemServico?.numero ?? ''}. Adicione peças e serviços e clique em Salvar OS.`);
+    setErro(''); setAviso(`Continuando a OS nº ${p.ordemServico?.numero ?? ''}. Adicione peças e serviços e clique em Sair da OS (e salvar) para guardar as alterações.`);
     carregarOS(p); setAba('pecas');
   }
-  function sairDaOS() {
-    if (alterado && !window.confirm('Há alterações não salvas nesta OS. Sair mesmo assim?')) return;
-    setOsEdicao(null); setSalvoOS(''); setCarrinho([]); setServicos([]); setNome(''); setTelefone(''); setMoto(''); setAviso('');
+  function sairDaEdicaoOS() {
+    setOsEdicao(null); setSalvoOS(''); setCarrinho([]); setServicos([]);
+    setNome(''); setTelefone(''); setMoto(''); setErro('');
+    setAba('os');
+  }
+  function sairSemSalvarOS() {
+    if (trava.current) return;
+    if (alterado && !window.confirm('Sair sem salvar as últimas alterações? A OS fica aberta com os dados já salvos.')) return;
+    sairDaEdicaoOS();
+    setAviso('');
+  }
+  function sairESalvarOS() {
+    if (ocupado || trava.current) return;
+    if (alterado) void salvarOS('SALVAR');
+    else sairDaEdicaoOS();
   }
   const corpoItens = () => ({ itens: carrinho.map(i => ({ pecaId: i.peca.id, quantidade: i.quantidade })), servicos: servicos.map(({ servicoOrdemId, servicoTabeladoId, nome, valor }) => servicoOrdemId ? { id: servicoOrdemId } : servicoTabeladoId ? { servicoTabeladoId } : { nome, valor }) });
   async function salvarOS(acao: 'SALVAR' | 'FINALIZAR', alvo?: any) {
@@ -167,8 +191,9 @@ export default function Atendimento({ modo, podeReceber, podeConfigurar = false 
         setPedido(result); setVenda(null); setCopiado(false);
         setAviso(`OS nº ${result.ordemServico?.numero ?? ''} finalizada e enviada ao Caixa com o pedido ${codigoPedido(result)} · Total ${dinheiro(result.total)}.`);
       } else {
-        carregarOS(result);
-        setAviso(`OS nº ${result.ordemServico?.numero ?? ''} salva e mantida aberta · Total ${dinheiro(result.total)}.`);
+        if (result?.id !== os.id || result.status !== 'ABERTO') throw new Error('O servidor não confirmou que a OS foi salva. Confira as alterações antes de sair.');
+        sairDaEdicaoOS();
+        setAviso(`OS nº ${result.ordemServico?.numero ?? ''} · Código ${codigoPedido(result)} · Salva e mantida aberta · Total ${dinheiro(result.total)}.`);
       }
       await Promise.all([listar(), aba === 'os' ? listarOS() : Promise.resolve()]);
     } catch (e) { setErro((e as Error).message); }
@@ -252,6 +277,7 @@ export default function Atendimento({ modo, podeReceber, podeConfigurar = false 
 
   const vendivel = (p: Peca) => p.quantidadeLoja > 0 && Number(p.precoVenda) > 0;
   function adicionar(peca: Peca) {
+    if (osEdicao && trava.current) return;
     setErro('');
     if (!vendivel(peca)) { setErro(`${peca.nome} indisponível para venda.`); return; }
     setCarrinho(old => {
@@ -267,14 +293,17 @@ export default function Atendimento({ modo, podeReceber, podeConfigurar = false 
     else if (e.key === 'Escape') setBusca('');
   }
   function quantidade(id: string, value: number) {
+    if (osEdicao && trava.current) return;
     if (!Number.isInteger(value) || value < 1) return;
     setCarrinho(old => old.map(i => i.peca.id === id ? { ...i, quantidade: Math.min(value, i.peca.quantidadeLoja) } : i));
   }
   function adicionarServico(s: Servico) {
+    if (osEdicao && trava.current) return;
     setErro('');
     setServicos(old => old.some(l => l.servicoTabeladoId === s.id) ? old : [...old, { chave: s.id, servicoTabeladoId: s.id, nome: s.nome, valor: Number(s.valor) }]);
   }
   function adicionarAvulso() {
+    if (osEdicao && trava.current) return;
     const centavos = paraCentavos(avulsoValor);
     if (!avulsoNome.trim() || !centavos || Number.isNaN(centavos) || centavos <= 0) { setErro('Informe a descrição e o valor da mão de obra.'); return; }
     setErro('');
@@ -292,7 +321,7 @@ export default function Atendimento({ modo, podeReceber, podeConfigurar = false 
         if (!result?.id || result.status !== 'ABERTO') throw new Error('O servidor não confirmou a abertura da OS. Consulte a aba Ordens de Serviço antes de tentar novamente.');
         setOS({ placa: '', ano: '', km: '', problema: '', servicosSolicitados: '' });
         carregarOS(result);
-        setAviso(`OS nº ${result.ordemServico?.numero ?? ''} aberta e mantida em aberto. Continue adicionando peças e serviços; ela só vai ao Caixa ao clicar em Finalizar OS.`);
+        setAviso(`OS nº ${result.ordemServico?.numero ?? ''} aberta · Código ${codigoPedido(result)}. Continue adicionando peças e serviços; ela só vai ao Caixa ao clicar em Finalizar OS.`);
         return;
       }
       if (!result?.id || !Number.isInteger(result.numero) || result.status !== 'AGUARDANDO_PAGAMENTO') throw new Error('O servidor não confirmou a criação do pedido. Consulte o histórico antes de tentar novamente.');
@@ -403,10 +432,27 @@ export default function Atendimento({ modo, podeReceber, podeConfigurar = false 
       <section className="min-w-0"><div className="mb-3 flex flex-wrap gap-2">{(['pecas', 'servicos', 'os'] as const).map(a => <button key={a} onClick={() => setAba(a)} aria-pressed={aba === a} className={`rounded-lg px-4 py-2 text-sm font-semibold ${aba === a ? 'bg-slate-900 text-white' : 'border border-slate-300 bg-white'}`}>{a === 'pecas' ? 'Peças' : a === 'servicos' ? 'Serviços / mão de obra' : 'Ordens de Serviço'}</button>)}{abrirOS && <span className="self-center rounded-full bg-orange-100 px-3 py-1 text-xs font-bold text-orange-800">Ordem de Serviço em abertura</span>}{osEdicao && <span className="self-center rounded-full bg-orange-100 px-3 py-1 text-xs font-bold text-orange-800">Editando OS nº {osEdicao.ordemServico?.numero} · em aberto</span>}</div>
         {aba === 'os' && <div className="space-y-4">
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border-2 border-orange-200 bg-white p-4"><div><h2 className="text-lg font-bold">Ordens de Serviço do Atendimento</h2><p className="text-sm text-slate-600">A OS aberta continua recebendo peças e serviços. Só vai ao Caixa ao clicar em Finalizar OS.</p></div><button type="button" className={button} disabled={ocupado || !!osEdicao} onClick={() => { setAbrirOS(true); setAba('servicos'); }}>Abrir nova OS</button></div>
-          <div className="flex flex-wrap gap-2" role="group" aria-label="Filtrar OS">{[['ABERTO', 'Abertas'], ['AGUARDANDO_PAGAMENTO', 'Enviadas ao Caixa'], ['PAGO', 'Encerradas']].map(([v, l]) => <button key={v} type="button" aria-pressed={filtroOS === v} onClick={() => { setFiltroOS(v); setOrdensCarregadas(false); }} className={`rounded-lg border px-3 py-1.5 text-xs font-semibold ${filtroOS === v ? 'border-orange-600 bg-orange-600 text-white' : 'border-slate-200 bg-white text-slate-700 hover:bg-orange-50'}`}>{l}</button>)}<button type="button" onClick={listarOS} className="rounded-lg border bg-white px-3 py-1.5 text-xs">Atualizar</button></div>
-          {!ordens.length && <p className="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-500">{ordensCarregadas ? 'Nenhuma OS neste status.' : 'Carregando OS…'}</p>}
-          {ordens.map(p => { const o = p.ordemServico || {}; const aberta = p.status === 'ABERTO'; const editando = osEdicao?.id === p.id; return <article key={p.id} className={`rounded-xl border bg-white p-4 ${editando ? 'border-orange-500 ring-2 ring-orange-500' : 'border-slate-200'}`}>
-            <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-lg font-bold">OS nº {o.numero} <span className="ml-1 font-mono text-sm text-slate-500">{codigoPedido(p)}</span></p><p className="text-sm text-slate-600">{p.clienteNome || 'Cliente não informado'}{p.clienteTelefone ? ` · ${p.clienteTelefone}` : ''}{o.modeloMoto && o.modeloMoto !== 'Nao informado' ? ` · ${o.modeloMoto}` : ''}{o.placaMoto ? ` · ${o.placaMoto}` : ''}</p><p className="text-xs text-slate-500">Aberta em {new Date(o.createdAt || p.createdAt).toLocaleString('pt-BR', { timeZone: 'America/Recife' })}{p.entradaCaixa ? ` · Enviada ao Caixa em ${new Date(p.entradaCaixa).toLocaleString('pt-BR', { timeZone: 'America/Recife' })}` : ''}</p></div><span className={`rounded-full px-3 py-1 text-xs font-bold ${aberta ? 'bg-orange-100 text-orange-800' : p.status === 'PAGO' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>{aberta ? 'OS aberta' : p.status === 'PAGO' ? 'Paga · encerrada' : 'Aguardando pagamento no Caixa'}</span></div>
+          <form className="rounded-xl border border-slate-200 bg-white p-4" onSubmit={e => {
+            e.preventDefault();
+            const termo = textoBuscaOS.trim();
+            if (!termo) return;
+            if (termo === buscaOS && filtroOS === 'TODOS') void listarOS();
+            else { setBuscaOS(termo); setFiltroOS('TODOS'); }
+          }}>
+            <label htmlFor="busca-os" className="mb-2 block text-sm font-semibold">Pesquisar ordem de serviço</label>
+            <div className="flex flex-wrap gap-2">
+              <input id="busca-os" type="search" maxLength={150} value={textoBuscaOS} onChange={e => setTextoBuscaOS(e.target.value)} className={`${input} min-w-0 sm:flex-1`} placeholder="Código, nº da OS, cliente, placa, telefone ou moto" />
+              <button type="submit" className={button} disabled={!textoBuscaOS.trim()}>Pesquisar</button>
+              {buscaOS && <button type="button" className={secondary} onClick={() => {
+                setTextoBuscaOS(''); setBuscaOS('');
+                if (filtroOS === 'TODOS') setFiltroOS('ABERTO');
+              }}>Limpar</button>}
+            </div>
+          </form>
+          <div className="flex flex-wrap gap-2" role="group" aria-label="Filtrar OS">{[...(buscaOS ? [['TODOS', 'Todos os status']] : []), ['ABERTO', 'Abertas'], ['AGUARDANDO_PAGAMENTO', 'Enviadas ao Caixa'], ['PAGO', 'Encerradas']].map(([v, l]) => <button key={v} type="button" aria-pressed={filtroOS === v} onClick={() => setFiltroOS(v)} className={`rounded-lg border px-3 py-1.5 text-xs font-semibold ${filtroOS === v ? 'border-orange-600 bg-orange-600 text-white' : 'border-slate-200 bg-white text-slate-700 hover:bg-orange-50'}`}>{l}</button>)}<button type="button" onClick={listarOS} className="rounded-lg border bg-white px-3 py-1.5 text-xs">Atualizar</button></div>
+          {(!ordensCarregadas || !ordens.length) && <p role="status" className="rounded-xl border border-slate-200 bg-white p-6 text-sm text-slate-500">{!ordensCarregadas ? 'Carregando OS…' : buscaOS ? 'Nenhuma OS encontrada para esta busca.' : 'Nenhuma OS neste status.'}</p>}
+          {ordensCarregadas && ordens.map(p => { const o = p.ordemServico || {}; const aberta = p.status === 'ABERTO'; const editando = osEdicao?.id === p.id; return <article key={p.id} className={`rounded-xl border bg-white p-4 ${editando ? 'border-orange-500 ring-2 ring-orange-500' : 'border-slate-200'}`}>
+            <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-lg font-bold">OS nº {o.numero} <span className="ml-1 text-sm text-slate-600">Código <span className="font-mono">{codigoPedido(p)}</span></span></p><p className="text-sm text-slate-600">{p.clienteNome || 'Cliente não informado'}{p.clienteTelefone ? ` · ${p.clienteTelefone}` : ''}{o.modeloMoto && o.modeloMoto !== 'Nao informado' ? ` · ${o.modeloMoto}` : ''}{o.placaMoto ? ` · ${o.placaMoto}` : ''}</p><p className="text-xs text-slate-500">Aberta em {new Date(o.createdAt || p.createdAt).toLocaleString('pt-BR', { timeZone: 'America/Recife' })}{p.entradaCaixa ? ` · Enviada ao Caixa em ${new Date(p.entradaCaixa).toLocaleString('pt-BR', { timeZone: 'America/Recife' })}` : ''}</p></div><span className={`rounded-full px-3 py-1 text-xs font-bold ${aberta ? 'bg-orange-100 text-orange-800' : p.status === 'PAGO' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>{aberta ? 'OS aberta' : p.status === 'PAGO' ? 'Paga · encerrada' : 'Aguardando pagamento no Caixa'}</span></div>
             <div className="mt-3 overflow-x-auto"><table className="w-full text-sm"><thead><tr className="border-b text-left text-xs uppercase text-slate-400"><th className="py-2">Item</th><th className="px-2">Qtd.</th><th className="px-2 text-right">Unitário</th><th className="text-right">Valor</th></tr></thead><tbody>{(p.itens || []).map((i: any) => <tr key={i.id} className="border-b border-slate-100"><td className="py-2"><p className="font-medium">{i.peca?.nome}</p><span className="text-xs text-slate-400">{i.peca?.codigo} · Peça</span></td><td className="px-2">{i.quantidade}</td><td className="whitespace-nowrap px-2 text-right">{dinheiro(i.precoVendido)}</td><td className="whitespace-nowrap text-right font-semibold">{dinheiro(i.subtotal)}</td></tr>)}{(p.servicos || []).map((x: any) => <tr key={x.id} className="border-b border-slate-100"><td className="py-2"><p className="font-medium">{x.nome}</p><span className="text-xs text-slate-400">Serviço / mão de obra</span></td><td className="px-2">1</td><td className="whitespace-nowrap px-2 text-right">{dinheiro(x.valor)}</td><td className="whitespace-nowrap text-right font-semibold">{dinheiro(x.valor)}</td></tr>)}{!(p.itens?.length || p.servicos?.length) && <tr><td colSpan={4} className="py-3 text-slate-400">Nenhum item lançado ainda.</td></tr>}</tbody></table></div>
             <div className="mt-3 flex flex-wrap items-center justify-between gap-3"><p className="text-xl font-bold">Total {dinheiro(p.total)}</p><div className="flex flex-wrap gap-2">{aberta ? <><button className={secondary} disabled={ocupado || editando} onClick={() => continuarOS(p)}>{editando ? 'Em edição' : 'Continuar OS'}</button><button className={button} disabled={ocupado || Number(p.total) <= 0 || (editando && alterado)} title={editando && alterado ? 'Salve ou finalize pela OS em edição' : undefined} onClick={() => salvarOS('FINALIZAR', p)}>Finalizar OS</button></> : <button className={secondary} disabled={ocupado} onClick={() => selecionar(p)}>Abrir</button>}<button className={secondary} onClick={() => imprimirAtendimento(p)}>Imprimir</button></div></div>
           </article>; })}
@@ -443,7 +489,7 @@ export default function Atendimento({ modo, podeReceber, podeConfigurar = false 
         : abrirOS ? <div className="rounded-lg bg-orange-50 p-3 text-sm"><p className="font-semibold">{nome || 'Cliente não informado'}{telefone ? ` · ${telefone}` : ''}</p><p className="text-slate-600">{moto || 'Moto não informada'}{os.placa ? ` · ${os.placa}` : ''}{os.ano ? ` · ${os.ano}` : ''}{os.km ? ` · ${os.km} km` : ''}</p><button className="mt-1 text-xs font-semibold text-orange-700 underline" onClick={() => setAba('servicos')}>Editar dados da OS</button></div>
         : <><label className="mb-3 block text-sm">Cliente (opcional)<input maxLength={150} disabled={ocupado} value={nome} onChange={e => setNome(e.target.value)} className={`${input} mt-1`} placeholder="Nome do cliente" /></label><label className="block text-sm">Telefone (opcional)<input maxLength={30} disabled={ocupado} type="tel" value={telefone} onChange={e => setTelefone(e.target.value)} className={`${input} mt-1`} placeholder="(81) 99999-9999" /></label>{servicos.length > 0 && <label className="mt-3 block text-sm">Moto (opcional)<input maxLength={150} disabled={ocupado} value={moto} onChange={e => setMoto(e.target.value)} className={`${input} mt-1`} placeholder="Modelo da moto" /></label>}</>}
         <div className="my-5 space-y-2 border-t pt-4"><p className="flex justify-between text-sm"><span>Subtotal</span><span>{dinheiro(subtotal)}</span></p><p className="flex justify-between text-sm"><span>Descontos</span><span>{dinheiro(0)}</span></p><p className="flex justify-between text-2xl font-bold"><span>Total</span><span>{dinheiro(subtotal)}</span></p><p className="text-xs text-slate-500">Preços do cadastro. Descontos dependem de autorização da administração.</p></div>
-        {osEdicao ? <div className="space-y-2"><button onClick={() => salvarOS('SALVAR')} disabled={ocupado || !alterado} className={`${secondary} w-full`}>{ocupado ? 'Salvando…' : alterado ? 'Salvar OS (manter aberta)' : 'OS salva'}</button><button onClick={() => salvarOS('FINALIZAR')} disabled={ocupado || vazio || subtotal <= 0} className={`${button} w-full`}>Finalizar OS e enviar ao Caixa</button><button onClick={sairDaOS} disabled={ocupado} className="w-full py-2 text-sm font-semibold text-slate-600 underline">Sair da OS (continua aberta)</button><p className="text-xs text-slate-500">A OS aberta não aparece no Caixa. Só ao finalizar ela entra na fila de pagamento e deixa de aceitar alterações.</p></div>
+        {osEdicao ? <div className="space-y-2"><button onClick={sairESalvarOS} disabled={ocupado} className={`${secondary} w-full`}>Sair da OS (e salvar)</button><button onClick={() => salvarOS('FINALIZAR')} disabled={ocupado || vazio || subtotal <= 0} className={`${button} w-full`}>Finalizar OS e enviar ao Caixa</button><button onClick={sairSemSalvarOS} disabled={ocupado} className="w-full py-2 text-sm font-semibold text-slate-600 underline">Sair sem salvar</button><p className="text-xs text-slate-500">A OS aberta não aparece no Caixa. Só ao finalizar ela entra na fila de pagamento e deixa de aceitar alterações.</p></div>
         : abrirOS ? <div className="space-y-2"><button onClick={() => salvar(true)} disabled={ocupado} className={`${button} w-full`}>{ocupado ? 'Salvando…' : 'Abrir OS e manter aberta'}</button><button onClick={() => salvar()} disabled={ocupado || vazio || subtotal <= 0} className={`${secondary} w-full`}>Salvar e enviar direto ao Caixa</button><p className="text-xs text-slate-500">Mantida aberta, a OS continua recebendo peças e serviços na aba Ordens de Serviço e só vai ao Caixa ao clicar em Finalizar OS.</p></div>
         : <><button onClick={() => salvar()} disabled={ocupado || vazio || subtotal <= 0} className={`${button} w-full`}>{ocupado ? 'Salvando…' : 'Confirmar pedido e gerar código'}</button><p className="mt-3 text-xs text-slate-500">O pedido será salvo aguardando pagamento.</p></>}
       </aside>
