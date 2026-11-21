@@ -48,6 +48,7 @@ const balcaoServicosMenu = [
 
 const balcaoVendaMenu = [
   { label: 'Atendimento', href: '/balcao/atendimento', d: 'M3 3h2l2 10h10l4-8H6M9 20h.01M17 20h.01' },
+  { label: 'Nota Fiscal', href: '/balcao/atendimento/nf-manual', d: 'M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z' },
 ];
 
 const estoqueMenu = [
@@ -171,7 +172,7 @@ export default function Sidebar({ user, collapsed, mobileOpen, isMobile, onToggl
 
         <nav className="flex-1 py-3 px-2.5 overflow-y-auto">
           {menuItems.map((item: any, idx: number) => {
-            const active = item.href === base ? pathname === item.href : pathname.startsWith(item.href);
+            const active = item.href === base ? pathname === item.href : (pathname === item.href || (pathname.startsWith(item.href + '/') && !menuItems.some((o: any) => o.href.length > item.href.length && pathname.startsWith(o.href))));
             const novoGrupo = item.group && item.group !== (menuItems[idx - 1] as any)?.group;
             return (
               <div key={item.href}>

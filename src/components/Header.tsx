@@ -22,7 +22,7 @@ const pageTitles: Record<string, string> = {
   '/dono/notificacoes': 'Central de Notificações',
   '/dono/eventos': 'Eventos do Sistema',
   '/balcao': 'Painel', '/balcao/estoque': 'Estoque', '/balcao/ordens': 'Ordens de Servico',
-  '/balcao/notas': 'Nota Fiscal', '/balcao/oficina': 'Oficina Premium', '/balcao/recebimento': 'Receber pedidos', '/balcao/atendimento': 'Atendimento',
+  '/balcao/notas': 'Nota Fiscal', '/balcao/oficina': 'Oficina Premium', '/balcao/recebimento': 'Receber pedidos', '/balcao/atendimento': 'Atendimento', '/balcao/atendimento/nf-manual': 'Nota Fiscal',
   '/dono/estoque/nomes': 'Revisão de nomes',
   '/balcao/pdv': 'PDV', '/balcao/caixa': 'Caixa',
   '/balcao/retirada-qrcode': 'Retirada QR Code',
