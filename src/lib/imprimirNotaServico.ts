@@ -26,22 +26,22 @@ export { DADOS_EMPRESA };
 
 // CSS único das Notas do Cliente (OS + Venda) e NF Manual
 export const CSS_NOTA_CLIENTE = `
-  *{margin:0;padding:0;box-sizing:border-box}body{font-family:"DejaVu Sans",Arial,Helvetica,sans-serif;font-size:13px;color:#222;padding:40px;line-height:1.5}
+  *{margin:0;padding:0;box-sizing:border-box}body{font-family:Arial,Helvetica,"DejaVu Sans",sans-serif;font-size:14px;color:#222;padding:40px;line-height:1.5}
   .header{text-align:center;margin-bottom:22px;padding-bottom:16px;border-bottom:3px double #111}
-  .fantasia{font-size:24px;font-weight:900;letter-spacing:-0.5px;color:#111}
-  .razao{font-size:13px;font-weight:700;color:#333;margin-top:2px}
-  .empresa-linha{font-size:12.5px;color:#333;font-weight:600;margin-top:2px;line-height:1.65}
-  .doc-titulo{display:inline-block;margin-top:12px;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;background:#f2f2f2;border:1px solid #ccc;border-radius:4px;padding:3px 14px;color:#333}
+  .fantasia{font-size:26px;font-weight:900;letter-spacing:-0.5px;color:#111}
+  .razao{font-size:15px;font-weight:700;color:#333;margin-top:2px}
+  .empresa-linha{font-size:13.5px;color:#333;font-weight:600;margin-top:2px;line-height:1.65}
+  .doc-titulo{display:inline-block;margin-top:12px;font-size:13px;font-weight:700;text-transform:uppercase;letter-spacing:1.5px;background:#f2f2f2;border:1px solid #ccc;border-radius:4px;padding:3px 14px;color:#333}
   .info{display:flex;justify-content:space-between;flex-wrap:wrap;margin-bottom:16px;padding:12px 16px;background:#f8f8f8;border-radius:8px;gap:6px 16px}
-  .info div{font-size:12px}.info span{font-weight:700;color:#444}
-  .section-title{font-size:13px;font-weight:800;margin:18px 0 8px;color:#333;text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid #ddd;padding-bottom:3px}
+  .info div{font-size:14px}.info span{font-weight:700;color:#444}
+  .section-title{font-size:14px;font-weight:800;margin:18px 0 8px;color:#333;text-transform:uppercase;letter-spacing:0.5px;border-bottom:1px solid #ddd;padding-bottom:3px}
   table{width:100%;border-collapse:collapse;margin-bottom:14px}
-  th{background:#f2f2f2;padding:8px;text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:0.4px;border-bottom:2px solid #ccc;color:#444}
-  td{padding:6px 8px;border-bottom:1px solid #eee;font-size:12px;color:#333;vertical-align:top}
+  th{background:#f2f2f2;padding:8px;text-align:left;font-size:12.5px;text-transform:uppercase;letter-spacing:0.4px;border-bottom:2px solid #ccc;color:#444}
+  td{padding:6px 8px;border-bottom:1px solid #eee;font-size:14px;color:#333;vertical-align:top}
   .center{text-align:center}.right{text-align:right}
-  .totais{width:300px;margin-left:auto}.totais table td{padding:5px 8px;border:none}.totais tr.total td{font-size:15px;font-weight:700;border-top:2px solid #333;padding-top:8px}
-  .footer{text-align:center;margin-top:30px;font-size:10px;color:#888;line-height:1.6}
-  .obs{font-size:10px;color:#999;margin-top:6px}
+  .totais{width:300px;margin-left:auto}.totais table td{padding:5px 8px;border:none}.totais tr.total td{font-size:18px;font-weight:700;border-top:2px solid #333;padding-top:8px}
+  .footer{text-align:center;margin-top:30px;font-size:12.5px;color:#555;line-height:1.6}
+  .obs{font-size:12px;color:#999;margin-top:6px}
   @media print{body{padding:20px}.empresa-linha{-webkit-print-color-adjust:exact;print-color-adjust:exact}}
 `;
 
@@ -237,7 +237,7 @@ export function imprimirNotaServico(os: OsParaImprimir): void {
       <div><span>OS:</span> #${esc(os.numero?.toString() || '')}</div>
       <div><span>Data do Serviço:</span> ${dataServicoStr}</div>
       ${os.notaFiscal?.chaveAcesso ? `<div><span>Chave:</span> ${esc(os.notaFiscal.chaveAcesso)}</div>` : ''}
-      <div style="width:100%;margin-top:4px;font-size:10px;color:#999"><span>Impresso em:</span> ${impressoEm}</div>
+      <div style="width:100%;margin-top:4px;font-size:12px;color:#777"><span>Impresso em:</span> ${impressoEm}</div>
     </div>
     <div class="section-title">Dados do Cliente</div>
     <div class="info">
@@ -397,7 +397,7 @@ export function imprimirNotaVenda(venda: VendaParaImprimir): void {
       ${venda.clienteNome ? `<div><span>Cliente:</span> ${esc(venda.clienteNome)}</div>` : ''}
       ${venda.clienteTelefone ? `<div><span>Telefone:</span> ${esc(venda.clienteTelefone)}</div>` : ''}
       ${venda.clienteCpf ? `<div><span>CPF/CNPJ:</span> ${esc(venda.clienteCpf)}</div>` : ''}
-      <div style="width:100%;margin-top:4px;font-size:10px;color:#999"><span>Impresso em:</span> ${impressoEm}</div>
+      <div style="width:100%;margin-top:4px;font-size:12px;color:#777"><span>Impresso em:</span> ${impressoEm}</div>
     </div>
     <div class="section-title">Produtos</div>
     <table><thead><tr><th>SKU</th><th>Descrição</th><th class="center">Qtd</th><th class="right">V. Unit.</th><th class="right">Subtotal</th></tr></thead><tbody>${linhasItens || '<tr><td colspan="5" style="text-align:center;color:#999">Nenhum item</td></tr>'}</tbody></table>
@@ -468,7 +468,7 @@ export function imprimirNfManual(opts: NfManualParaImprimir): void {
       <div><span>NF:</span> ${esc(String(opts.numero))}</div>
       <div><span>Data:</span> ${dataEmissaoStr}</div>
       ${opts.formaPagamento ? `<div><span>Pagamento:</span> ${esc(opts.formaPagamento)}</div>` : ''}
-      <div style="width:100%;margin-top:4px;font-size:10px;color:#999"><span>Impresso em:</span> ${impressoEm}</div>
+      <div style="width:100%;margin-top:4px;font-size:12px;color:#777"><span>Impresso em:</span> ${impressoEm}</div>
     </div>
     <div class="section-title">Dados do Cliente</div>
     <div class="info">
@@ -492,7 +492,7 @@ export function imprimirNfManual(opts: NfManualParaImprimir): void {
       ${Number(opts.desconto) > 0 ? `<tr><td class="right">Desconto</td><td class="right">− ${fm(opts.desconto)}</td></tr>` : ''}
       <tr class="total"><td class="right">TOTAL</td><td class="right">${fm(opts.total)}</td></tr>
     </table></div>
-    ${opts.observacoes ? `<div class="section-title">Observações</div><p style="font-size:12px;color:#555">${esc(opts.observacoes)}</p>` : ''}
+    ${opts.observacoes ? `<div class="section-title">Observações</div><p style="font-size:14px;color:#333">${esc(opts.observacoes)}</p>` : ''}
     ${footerHtml()}
     ${autoPrint ? '<script>setTimeout(function(){window.print();},300);</script>' : ''}
   </body></html>`);

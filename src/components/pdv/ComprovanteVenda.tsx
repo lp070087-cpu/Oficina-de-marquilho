@@ -99,18 +99,18 @@ export default function ComprovanteVenda({ venda, onFechar }: ComprovanteVendaPr
     `).join('');
 
     return `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Venda #${venda.numero}</title><style>
-      *{margin:0;padding:0;box-sizing:border-box}body{font-family:"DejaVu Sans Mono","Courier New",monospace;font-size:10px;color:#111;width:280px;margin:0 auto;padding:8px 6px;background:#fff;line-height:1.45}
-      .center{text-align:center}.logo{font-size:17px;font-weight:900;margin-bottom:2px;letter-spacing:-0.5px}.ofic{font-size:8px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:#222}.emp{font-size:8.5px;color:#222;font-weight:700;margin-top:1px;letter-spacing:0.3px;line-height:1.5}.doc-titulo-term{display:inline-block;margin-top:5px;font-size:9px;font-weight:900;letter-spacing:1.5px;color:#111;border:1.5px solid #000;border-radius:3px;padding:2px 8px;text-transform:uppercase}
-      .vn{font-size:21px;font-weight:900;margin:6px 0 3px;letter-spacing:-0.5px}.dt{font-size:8px;margin-bottom:6px;color:#444}
+      *{margin:0;padding:0;box-sizing:border-box}body{font-family:Consolas,"Lucida Console","DejaVu Sans Mono","Courier New",monospace;font-size:12px;color:#111;width:280px;margin:0 auto;padding:8px 6px;background:#fff;line-height:1.45}
+      .center{text-align:center}.logo{font-size:19px;font-weight:900;margin-bottom:2px;letter-spacing:-0.5px}.ofic{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:#222}.emp{font-size:10.5px;color:#222;font-weight:700;margin-top:1px;letter-spacing:0.3px;line-height:1.5}.doc-titulo-term{display:inline-block;margin-top:5px;font-size:11px;font-weight:900;letter-spacing:1.5px;color:#111;border:1.5px solid #000;border-radius:3px;padding:2px 8px;text-transform:uppercase}
+      .vn{font-size:22px;font-weight:900;margin:6px 0 3px;letter-spacing:-0.5px}.dt{font-size:10px;margin-bottom:6px;color:#444}
       .sep{border:none;border-top:1.5px solid #000;margin:6px 0}.sep-dot{border:none;border-top:1px dotted #000;margin:5px 0}
-      .cliente{font-size:10px;margin:3px 0;color:#222}.cliente span{font-weight:700}
+      .cliente{font-size:12px;margin:3px 0;color:#222}.cliente span{font-weight:700}
       .item{border-bottom:1px dotted #ccc;padding:4px 0}.item-top,.item-mid{display:flex;justify-content:space-between}
       .item-nome{font-weight:700;max-width:155px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-      .item-qtd{font-weight:700}.item-cod{font-size:8px;color:#555}.item-preco{font-size:8px;color:#555}
-      .item-desc{font-size:8px;color:#c00;text-align:right}.item-sub{font-size:9px;font-weight:700;text-align:right}
-      .pg-item{display:flex;justify-content:space-between;font-size:9px;padding:2px 0}
-      .total{display:flex;justify-content:space-between;font-size:14px;font-weight:900;padding:4px 0}
-      .footer{text-align:center;font-size:8px;margin-top:10px;padding-top:5px;border-top:1px solid #000;color:#444}
+      .item-qtd{font-weight:700}.item-cod{font-size:10px;color:#555}.item-preco{font-size:10px;color:#555}
+      .item-desc{font-size:10px;color:#c00;text-align:right}.item-sub{font-size:11px;font-weight:700;text-align:right}
+      .pg-item{display:flex;justify-content:space-between;font-size:11px;padding:2px 0}
+      .total{display:flex;justify-content:space-between;font-size:16px;font-weight:900;padding:4px 0}
+      .footer{text-align:center;font-size:10px;margin-top:10px;padding-top:5px;border-top:1px solid #000;color:#444}
       @media print{body{width:72mm;padding:3mm}@page{margin:0}}
     </style></head><body>
       ${headerEmpresaCompacto(`Venda #${venda.numero}`)}
@@ -120,7 +120,7 @@ export default function ComprovanteVenda({ venda, onFechar }: ComprovanteVendaPr
       <div>ITENS</div>
       ${linhasItens}
       <hr class="sep-dot">
-      ${venda.descontoTotal > 0 ? `<div style="display:flex;justify-content:space-between;font-size:8px;color:#c00"><span>Descontos</span><span>− ${fm(Number(venda.descontoTotal))}</span></div>` : ''}
+      ${venda.descontoTotal > 0 ? `<div style="display:flex;justify-content:space-between;font-size:10px;color:#c00"><span>Descontos</span><span>− ${fm(Number(venda.descontoTotal))}</span></div>` : ''}
       <div class="total"><span>TOTAL</span><span>${fm(Number(venda.total))}</span></div>
       <hr class="sep-dot">
       <div>PAGAMENTO</div>
