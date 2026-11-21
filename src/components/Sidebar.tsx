@@ -172,7 +172,7 @@ export default function Sidebar({ user, collapsed, mobileOpen, isMobile, onToggl
 
         <nav className="flex-1 py-3 px-2.5 overflow-y-auto">
           {menuItems.map((item: any, idx: number) => {
-            const active = item.href === base ? pathname === item.href : (pathname === item.href || (pathname.startsWith(item.href + '/') && !menuItems.some((o: any) => o.href.length > item.href.length && pathname.startsWith(o.href))));
+            const active = item.href === base ? pathname === item.href : pathname.startsWith(item.href) && !(menuItems === balcaoVendaMenu && menuItems.some((o: any) => o.href.length > item.href.length && pathname.startsWith(o.href)));
             const novoGrupo = item.group && item.group !== (menuItems[idx - 1] as any)?.group;
             return (
               <div key={item.href}>

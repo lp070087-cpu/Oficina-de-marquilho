@@ -30,7 +30,6 @@ export default function NFManualPage() {
   const [manualNome, setManualNome] = useState('');
   const [manualQtd, setManualQtd] = useState('1');
   const [manualValor, setManualValor] = useState('');
-  const manualNomeRef = useRef<HTMLInputElement>(null);
 
   // AJUSTE 2 — VALOR TOTAL MANUAL: se preenchido, vira o TOTAL FINAL (ignora o
   // cálculo subtotal−desconto). Vazio → usa o total calculado.
@@ -107,9 +106,7 @@ export default function NFManualPage() {
       quantidade: qtd,
       valorUnitario: valor,
     }]);
-    // Formulário continua aberto e limpo para o próximo produto (fecha só no X).
-    setManualNome(''); setManualQtd('1'); setManualValor(''); setMsg('');
-    setTimeout(() => manualNomeRef.current?.focus(), 0);
+    setManualNome(''); setManualQtd('1'); setManualValor(''); setManualAberto(false); setMsg('');
   }
 
   const total = itens.reduce((s, i) => s + (i.valorUnitario || 0) * i.quantidade, 0);
@@ -272,32 +269,29 @@ export default function NFManualPage() {
             não altera estoque/SKU/código de barras/vitrine. Só este documento. */}
         <div className="border-t border-slate-100 pt-3">
           {!manualAberto ? (
-            <button onClick={() => { setManualAberto(true); setMsg(''); setTimeout(() => manualNomeRef.current?.focus(), 0); }} className="text-xs font-medium text-brand-600 hover:text-brand-700 inline-flex items-center gap-1">
+            <button onClick={() => { setManualAberto(true); setMsg(''); }} className="text-xs font-medium text-brand-600 hover:text-brand-700 inline-flex items-center gap-1">
               <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4"/></svg>
               Adicionar produto manual
             </button>
           ) : (
-            <form
-              onSubmit={e => { e.preventDefault(); adicionarProdutoManual(); }}
-              className="flex flex-wrap sm:flex-nowrap gap-3 items-end"
-            >
-              <div className="w-full sm:flex-1 min-w-0">
+            <div className="grid grid-cols-12 gap-2 items-end">
+              <div className="col-span-12 sm:col-span-5">
                 <label className="text-[10px] font-semibold text-slate-500 uppercase">Nome / descrição</label>
-                <input ref={manualNomeRef} value={manualNome} onChange={e => setManualNome(e.target.value)} className="input-field mt-1 text-xs h-10" placeholder="Ex.: Serviço de montagem"/>
+                <input value={manualNome} onChange={e => setManualNome(e.target.value)} className="input-field mt-1 text-xs" placeholder="Ex.: Serviço de montagem"/>
               </div>
-              <div className="w-20 shrink-0">
+              <div className="col-span-3 sm:col-span-2">
                 <label className="text-[10px] font-semibold text-slate-500 uppercase">Qtd</label>
-                <input type="number" min="1" value={manualQtd} onChange={e => setManualQtd(e.target.value)} className="input-field mt-1 text-xs text-center h-10"/>
+                <input type="number" min="1" value={manualQtd} onChange={e => setManualQtd(e.target.value)} className="input-field mt-1 text-xs text-center"/>
               </div>
-              <div className="flex-1 sm:flex-none sm:w-36 min-w-0">
+              <div className="col-span-4 sm:col-span-3">
                 <label className="text-[10px] font-semibold text-slate-500 uppercase">Valor unitário</label>
-                <input value={manualValor} onChange={e => setManualValor(mascaraMoeda(e.target.value, manualValor))} inputMode="numeric" placeholder="0,00" className="input-field mt-1 text-xs text-right h-10"/>
+                <input value={manualValor} onChange={e => setManualValor(mascaraMoeda(e.target.value, manualValor))} inputMode="numeric" placeholder="0,00" className="input-field mt-1 text-xs text-right"/>
               </div>
-              <div className="w-full sm:w-auto flex gap-2 shrink-0">
-                <button type="submit" className="btn-primary text-xs !px-3 !py-0 h-10 flex-1">Adicionar</button>
-                <button type="button" title="Fechar" onClick={() => { setManualAberto(false); setManualNome(''); setManualValor(''); setManualQtd('1'); }} className="btn-secondary text-xs !px-3 !py-0 h-10 w-10">X</button>
+              <div className="col-span-5 sm:col-span-2 flex gap-1">
+                <button onClick={adicionarProdutoManual} className="btn-primary text-xs px-2 flex-1">Add</button>
+                <button onClick={() => { setManualAberto(false); setManualNome(''); setManualValor(''); setManualQtd('1'); }} className="btn-secondary text-xs px-2">X</button>
               </div>
-            </form>
+            </div>
           )}
         </div>
 
@@ -307,11 +301,11 @@ export default function NFManualPage() {
               <thead><tr className="bg-slate-50"><th className="text-left py-2 px-3 font-medium text-slate-500">Produto</th><th className="text-left py-2 px-3 font-medium text-slate-500">Cod</th><th className="text-center py-2 px-3 font-medium text-slate-500">Qtd</th><th className="text-right py-2 px-3 font-medium text-slate-500">Unit</th><th className="text-right py-2 px-3 font-medium text-slate-500">Total</th><th className="text-right py-2 px-3"></th></tr></thead>
               <tbody>{itens.map(i=>(
                 <tr key={i.id} className="border-t border-slate-50">
-                  <td className="py-1.5 px-3 text-slate-700 align-middle">{i.nome}</td><td className="py-1.5 px-3 text-slate-400 font-mono align-middle">{i.codigo||'-'}</td>
+                  <td className="py-1.5 px-3 text-slate-700">{i.nome}</td><td className="py-1.5 px-3 text-slate-400 font-mono">{i.codigo||'-'}</td>
                   <td className="py-1.5 px-3 text-center"><input type="number" min="1" value={i.quantidade} onChange={e=>atualizarQtd(i.id, parseInt(e.target.value)||1)} className="w-16 text-center input-field !py-1 !px-1 text-xs"/></td>
                   <td className="py-1.5 px-3 text-right"><input value={fmtMoeda(i.valorUnitario)} onChange={e=>atualizarValor(i.id, e.target.value)} className="w-28 text-right input-field !py-1 !px-1 text-xs"/></td>
                   <td className="py-1.5 px-3 text-right font-bold">{fm(i.valorUnitario*i.quantidade)}</td>
-                  <td className="py-1.5 px-3 text-right"><button onClick={()=>removeItem(i.id)} title="Remover" className="inline-flex items-center justify-center w-7 h-7 rounded-md text-red-500 hover:bg-red-50 text-xs font-bold">X</button></td>
+                  <td className="py-1.5 px-3 text-right"><button onClick={()=>removeItem(i.id)} className="text-red-500 text-[10px]">x</button></td>
                 </tr>
               ))}</tbody>
               <tfoot><tr className="bg-brand-50"><td colSpan={4} className="py-2.5 px-3 text-right text-sm font-bold text-slate-700">Total</td><td className="py-2.5 px-3 text-right text-sm font-extrabold text-brand-700">{fm(total)}</td><td></td></tr></tfoot>
@@ -335,7 +329,7 @@ export default function NFManualPage() {
         <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-2 gap-4">
           <div>
             <label className="text-[10px] font-semibold text-slate-500 uppercase">Subtotal</label>
-            <p className="text-lg font-extrabold text-slate-800 mt-1 h-10 flex items-center">{fm(total)}</p>
+            <p className="text-lg font-extrabold text-slate-800 mt-1">{fm(total)}</p>
           </div>
           <div>
             <label className="text-[10px] font-semibold text-slate-500 uppercase">Desconto (R$)</label>
@@ -344,7 +338,7 @@ export default function NFManualPage() {
               onChange={e => setDescontoStr(mascaraMoeda(e.target.value, descontoStr))}
               inputMode="numeric"
               placeholder="R$ 0,00"
-              className="input-field mt-1 text-sm font-bold h-10"
+              className="input-field mt-1 text-sm font-bold"
             />
             {descontoValor > total && (
               <p className="text-[10px] text-red-500 mt-0.5">Desconto não pode ser maior que o subtotal.</p>
@@ -382,7 +376,7 @@ export default function NFManualPage() {
         <button
           onClick={() => gerarDocumento(true)}
           disabled={itens.length===0}
-          className="btn-primary text-xs inline-flex items-center justify-center gap-2 disabled:opacity-50 h-11 sm:min-w-[160px] xl:w-full"
+          className="btn-primary text-xs inline-flex items-center gap-2 disabled:opacity-50 xl:w-full xl:h-11"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
           IMPRIMIR
@@ -390,7 +384,7 @@ export default function NFManualPage() {
         <button
           onClick={() => gerarDocumento(false)}
           disabled={itens.length===0}
-          className="btn-secondary text-xs inline-flex items-center justify-center gap-2 disabled:opacity-50 h-11 sm:min-w-[160px] xl:w-full"
+          className="btn-secondary text-xs inline-flex items-center gap-2 disabled:opacity-50 xl:w-full xl:h-11"
         >
           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"/></svg>
           GERAR PDF
