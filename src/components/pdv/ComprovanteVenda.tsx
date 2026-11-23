@@ -1,5 +1,6 @@
 'use client';
 
+import { CSS_NOTA_TERMICA } from '@/lib/nota-impressao';
 import { imprimirNotaVenda, normalizarVendaParaImpressao, headerEmpresaCompacto, fmtDataHora } from '@/lib/imprimirNotaServico';
 
 interface ItemComprovante {
@@ -98,20 +99,19 @@ export default function ComprovanteVenda({ venda, onFechar }: ComprovanteVendaPr
       <div class="pg-item"><span>${TIPO_LABEL[p.tipo] || p.tipo}${p.bandeira ? ' (' + esc(p.bandeira) + ')' : ''}${p.parcelas ? ' ' + p.parcelas + 'x' : ''}</span><span>${fm(Number(p.valor))}</span></div>
     `).join('');
 
-    return `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Venda #${venda.numero}</title><style>
-      *{margin:0;padding:0;box-sizing:border-box}body{font-family:Consolas,"Lucida Console","DejaVu Sans Mono","Courier New",monospace;font-weight:700;-webkit-print-color-adjust:exact;print-color-adjust:exact;font-size:12px;color:#000;width:280px;margin:0 auto;padding:8px 6px;background:#fff;line-height:1.45}
+    return `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Venda #${venda.numero}</title><style>
+      ${CSS_NOTA_TERMICA}
       .center{text-align:center}.logo{font-size:19px;font-weight:900;margin-bottom:2px;letter-spacing:-0.5px}.ofic{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:#000}.emp{font-size:10.5px;color:#000;font-weight:700;margin-top:1px;letter-spacing:0.3px;line-height:1.5}.doc-titulo-term{display:inline-block;margin-top:5px;font-size:11px;font-weight:900;letter-spacing:1.5px;color:#000;border:1.5px solid #000;border-radius:3px;padding:2px 8px;text-transform:uppercase}
       .vn{font-size:22px;font-weight:900;margin:6px 0 3px;letter-spacing:-0.5px}.dt{font-size:10px;margin-bottom:6px;color:#000}
       .sep{border:none;border-top:1.5px solid #000;margin:6px 0}.sep-dot{border:none;border-top:1px dotted #000;margin:5px 0}
       .cliente{font-size:12px;margin:3px 0;color:#000}.cliente span{font-weight:700}
-      .item{border-bottom:1px dotted #000;padding:4px 0}.item-top,.item-mid{display:flex;justify-content:space-between}
-      .item-nome{font-weight:700;max-width:155px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-      .item-qtd{font-weight:700}.item-cod{font-size:10px;color:#000}.item-preco{font-size:10px;color:#000}
+      .item-cod{min-width:0}.item{border-bottom:1px dotted #000;padding:4px 0}.item-top,.item-mid{display:flex;justify-content:space-between;gap:6px}
+      .item-nome{font-weight:700;min-width:0;overflow-wrap:anywhere}
+      .item-qtd,.item-preco,.pg-item span:last-child,.total span:last-child{flex-shrink:0}.item-qtd{font-weight:700}.item-cod{font-size:10px;color:#000}.item-preco{font-size:10px;color:#000}
       .item-desc{font-size:10px;color:#000;text-align:right}.item-sub{font-size:11px;font-weight:700;text-align:right}
       .pg-item{display:flex;justify-content:space-between;font-size:11px;padding:2px 0}
       .total{display:flex;justify-content:space-between;font-size:16px;font-weight:900;padding:4px 0}
       .footer{text-align:center;font-size:10px;margin-top:10px;padding-top:5px;border-top:1px solid #000;color:#000}
-      @media print{body{width:72mm;padding:3mm}@page{margin:0}}
     </style></head><body>
       ${headerEmpresaCompacto(`Venda #${venda.numero}`)}
       <div class="dt">${dataHoraStr}</div>
