@@ -1,7 +1,7 @@
 'use client';
 
 // ============================================================================
-// MÓDULO ÚNICO DE IMPRESSÃO — NOTAS DO CLIENTE / NOTA DE SERVIÇO (A4 interna)
+// IMPRESSÃO DE NOTAS DO CLIENTE E COMPROVANTES DE SERVIÇO
 // ============================================================================
 // Usado por:
 //  - DONA:  /dono/notas (Central de Notas), /dono/ordens (DetalheOS)
@@ -13,8 +13,8 @@
 //   B) NOTA DO CLIENTE — OS           → imprimirNotaServico()
 //   C) NOTA DO CLIENTE — VENDA/PDV    → imprimirNotaVenda()
 //   D) NF MANUAL                      → imprimirNfManual()
-// B/C/D compartilham o MESMO cabeçalho, CSS, dados da empresa, formatação de
-// moeda e rodapé. Não há cópias duplicadas de HTML.
+// As notas numeradas usam o cupom térmico do Atendimento. Os comprovantes
+// sem número de nota mantêm o formato A4.
 // ----------------------------------------------------------------------------
 // SEM integração SEFAZ: documento interno, sem autorização fiscal, sem chave
 // de acesso inventada, sem QR Code fiscal. Reimpressão NUNCA altera
@@ -22,6 +22,7 @@
 // ============================================================================
 
 import { DADOS_EMPRESA } from './dados-empresa';
+import { htmlNotaFiscalTermica } from './comprovante-html';
 import { cabecalhoNota, CSS_NOTA_CLIENTE, rodapeNota } from './nota-impressao';
 export { DADOS_EMPRESA };
 
@@ -160,7 +161,58 @@ function traduzirFormas(str?: string | null): string {
     .join(', ');
 }
 
+function dadosCupom(campos: [string, unknown][]): string[] {
+  return campos.filter(([, valor]) => valor != null && String(valor).trim() !== '')
+    .map(([rotulo, valor]) => `${rotulo}: ${valor}`);
+}
+
+function dataCupom(data?: string | Date | null): string {
+  if (typeof data === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(data)) return fmtDataHora(data);
+  return new Date(data || new Date()).toLocaleString('pt-BR', { timeZone: 'America/Recife' });
+}
+
+function pagamentosCupom(pagamentos: PagamentoNotaVenda[] = []): string[] {
+  return pagamentos.map(p => {
+    const meta = [p.bandeira, p.parcelas ? `${p.parcelas}x` : ''].filter(Boolean).join(' · ');
+    return `${TIPO_LABEL[p.tipo] || p.tipo}${meta ? ' · ' + meta : ''}: ${fm(p.valor)}${p.troco > 0 ? ' · Troco: ' + fm(p.troco) : ''}`;
+  });
+}
+
+function abrirNotaTermica(nota: Parameters<typeof htmlNotaFiscalTermica>[0]): void {
+  const janela = window.open('', '_blank', 'width=340,height=760');
+  if (!janela) return;
+  janela.document.write(htmlNotaFiscalTermica(nota));
+  janela.document.close();
+}
+
 export function imprimirNotaServico(os: OsParaImprimir): void {
+  if (os.notaFiscal?.numero) {
+    const itens = (os.itens || []).map(i => ({
+      nome: rotuloProduto(i.peca?.nome, i.peca?.marca), codigo: i.peca?.codigo || '',
+      quantidade: i.quantidade, unitario: Number(i.precoUnitario),
+      valor: Number(i.precoUnitario) * i.quantidade,
+    }));
+    const maoDeObra = Number(os.valorMaoDeObra) || 0;
+    const pagamentos = pagamentosCupom(os.pagamentos);
+    const forma = traduzirFormas(os.formaPagamento);
+    abrirNotaTermica({
+      numero: os.notaFiscal.numero,
+      data: dataCupom(os.notaFiscal.dataServico || os.notaFiscal.emitidaEm),
+      dados: dadosCupom([
+        ['Cliente', os.nomeCliente], ['Telefone', os.telefoneCliente], ['OS nº', os.numero],
+        ['Moto', os.modeloMoto], ['Placa', os.placaMoto], ['Ano', os.anoMoto],
+        ['Chave', os.notaFiscal.chaveAcesso], ['Mecânico', os.mecanico?.name],
+        ['Início', os.inicioServico && fmtH(os.inicioServico)], ['Término', os.fimServico && fmtH(os.fimServico)],
+        ['Serviços', os.servicos?.length ? os.servicos.map(servico => servico.nome).filter(Boolean).join(', ') : os.tipoServico],
+        ...((os.servicos || []).filter(servico => servico.valor != null).map(servico => [servico.nome || 'Serviço', fm(servico.valor)] as [string, unknown])),
+        ['Mão de obra', maoDeObra > 0 ? fm(maoDeObra) : ''],
+      ]),
+      itens, subtotal: itens.reduce((soma, i) => soma + i.valor, maoDeObra),
+      desconto: Number(os.desconto) || 0, total: Number(os.valorTotal) || 0,
+      pagamentos: pagamentos.length ? pagamentos : forma ? [forma] : [],
+    });
+    return;
+  }
   const w = abrirJanela('Nota de Serviço');
   if (!w) return;
 
@@ -333,6 +385,23 @@ const TIPO_LABEL: Record<string, string> = {
 };
 
 export function imprimirNotaVenda(venda: VendaParaImprimir): void {
+  if (venda.notaNumero) {
+    abrirNotaTermica({
+      numero: venda.notaNumero,
+      data: dataCupom(venda.createdAt),
+      dados: dadosCupom([
+        ['Cliente', venda.clienteNome], ['Telefone', venda.clienteTelefone],
+        ['CPF/CNPJ', venda.clienteCpf], ['Venda nº', venda.numero],
+      ]),
+      itens: venda.itens.map(i => ({
+        nome: rotuloProduto(i.nome, i.marca), codigo: i.codigo, quantidade: i.quantidade,
+        unitario: i.precoUnitario, valor: i.subtotal,
+      })),
+      subtotal: venda.subtotal, desconto: venda.descontoTotal, total: venda.total,
+      pagamentos: pagamentosCupom(venda.pagamentos),
+    });
+    return;
+  }
   const w = abrirJanela('Nota de Venda');
   if (!w) return;
 
@@ -408,56 +477,20 @@ export interface NfManualParaImprimir {
 }
 
 export function imprimirNfManual(opts: NfManualParaImprimir): void {
-  const w = abrirJanela('Nota Fiscal');
-  if (!w) return;
-  // AJUSTE 2: data + horário do documento no formato único dd/MM/yyyy - HH:mm.
-  // A NF Manual não é persistida — o horário é o do instante de emissão,
-  // informado pelo caller (o mesmo em Imprimir e em Gerar PDF).
-  const dataEmissaoStr = fmtDataHora(opts.dataEmissao ?? new Date());
-  const impressoEm = new Date().toLocaleString('pt-BR');
-  const autoPrint = opts.autoPrint !== false;
-
-  const linhasItens = opts.itens.map((i) =>
-    `<tr><td>${esc(i.codigo)}</td><td>${esc(rotuloProduto(i.nome, i.marca))}</td><td class="center">${i.quantidade}</td><td class="right">${fm(i.valorUnitario)}</td><td class="right">${fm(i.valorUnitario * i.quantidade)}</td></tr>`
-  ).join('');
-
-  w.document.write(`<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Nota Fiscal ${esc(String(opts.numero))}</title><style>
-    ${CSS_NOTA_CLIENTE}
-    ${autoPrint ? '' : '.btn-print{position:fixed;top:12px;right:12px;z-index:99;background:#2563eb;color:#fff;border:none;border-radius:8px;padding:10px 18px;font-size:13px;font-weight:700;cursor:pointer;box-shadow:0 4px 12px rgba(37,99,235,.35)}@media print{.btn-print{display:none}}'}
-  </style></head><body>
-    ${autoPrint ? '' : '<button class="btn-print" onclick="window.print()">🖨 Imprimir / Salvar PDF</button>'}
-    ${cabecalhoNota('Nota Fiscal')}
-    <div class="info">
-      <div><span>NF:</span> ${esc(String(opts.numero))}</div>
-      <div><span>Data:</span> ${dataEmissaoStr}</div>
-      ${opts.formaPagamento ? `<div><span>Pagamento:</span> ${esc(opts.formaPagamento)}</div>` : ''}
-      <div style="width:100%;margin-top:4px;font-size:12px;color:#000"><span>Impresso em:</span> ${impressoEm}</div>
-    </div>
-    <div class="section-title">Dados do Cliente</div>
-    <div class="info">
-      <div><span>Cliente:</span> ${esc(opts.cliente) || '—'}</div>
-      <div><span>CPF/CNPJ:</span> ${esc(opts.cpfCnpj) || '—'}</div>
-      <div><span>Endereço:</span> ${esc(opts.endereco) || '—'}</div>
-    </div>
-    ${opts.telefoneCliente ? `<div class="info"><div><span>Telefone:</span> ${esc(opts.telefoneCliente)}</div></div>` : ''}
-    ${(opts.modeloMoto || opts.placaMoto || opts.anoMoto || opts.quilometragemMoto) ? `
-    <div class="section-title">Dados da Moto</div>
-    <div class="info">
-      ${opts.modeloMoto ? `<div><span>Modelo:</span> ${esc(opts.modeloMoto)}</div>` : ''}
-      ${opts.placaMoto ? `<div><span>Placa:</span> ${esc(opts.placaMoto)}</div>` : ''}
-      ${opts.anoMoto ? `<div><span>Ano:</span> ${esc(opts.anoMoto)}</div>` : ''}
-      ${opts.quilometragemMoto ? `<div><span>Quilometragem:</span> ${esc(opts.quilometragemMoto)} km</div>` : ''}
-    </div>` : ''}
-    <div class="section-title">Produtos</div>
-    <table class="produtos"><thead><tr><th>SKU</th><th>Descrição</th><th class="center">Qtd</th><th class="right">V. Unit.</th><th class="right">Total</th></tr></thead><tbody>${linhasItens || '<tr><td colspan="5" style="text-align:center;color:#000">Nenhum item</td></tr>'}</tbody></table>
-    <div class="totais"><table>
-      ${opts.subtotal != null ? `<tr><td class="right">Subtotal</td><td class="right">${fm(opts.subtotal)}</td></tr>` : ''}
-      ${Number(opts.desconto) > 0 ? `<tr><td class="right">Desconto</td><td class="right">− ${fm(opts.desconto)}</td></tr>` : ''}
-      <tr class="total doc-total"><td class="right">TOTAL</td><td class="right">${fm(opts.total)}</td></tr>
-    </table></div>
-    ${opts.observacoes ? `<div class="section-title">Observações</div><p style="font-size:14px;color:#000">${esc(opts.observacoes)}</p>` : ''}
-    ${rodapeNota()}
-    ${autoPrint ? '<script>setTimeout(function(){window.print();},300);</script>' : ''}
-  </body></html>`);
-  w.document.close();
+  const itens = opts.itens.map(i => ({
+    nome: rotuloProduto(i.nome, i.marca), codigo: i.codigo, quantidade: i.quantidade,
+    unitario: i.valorUnitario, valor: i.valorUnitario * i.quantidade,
+  }));
+  abrirNotaTermica({
+    numero: opts.numero,
+    data: dataCupom(opts.dataEmissao),
+    dados: dadosCupom([
+      ['Cliente', opts.cliente], ['Telefone', opts.telefoneCliente], ['CPF/CNPJ', opts.cpfCnpj],
+      ['Endereço', opts.endereco], ['Moto', opts.modeloMoto], ['Placa', opts.placaMoto],
+      ['Ano', opts.anoMoto], ['KM', opts.quilometragemMoto],
+    ]),
+    itens, subtotal: opts.subtotal ?? itens.reduce((soma, i) => soma + i.valor, 0),
+    desconto: opts.desconto, total: opts.total, observacoes: opts.observacoes,
+    pagamentos: opts.formaPagamento ? [opts.formaPagamento] : [], autoPrint: opts.autoPrint,
+  });
 }
