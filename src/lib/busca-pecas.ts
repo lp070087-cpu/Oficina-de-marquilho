@@ -38,7 +38,7 @@ function casarTermo(termo: string, palavra: string): number {
   return d > tol ? 0 : d <= 1 ? 4 : 2;
 }
 
-export type PecaBusca = { id: string; nome: string; codigo: string; marca: string | null; codigoBarras: string | null; descricao?: string | null; subcategoria?: string | null; compatibilidade?: string | null };
+export type PecaBusca = { id: string; nome: string; codigo: string; marca: string | null; codigoBarras: string | null; descricao?: string | null; descricaoCurta?: string | null; localizacao?: string | null; subcategoria?: string | null; compatibilidade?: string | null };
 
 export type IndicePeca = { nome: string[]; marca: string[]; codigo: string; barras: string; extra: string[] };
 
@@ -48,7 +48,7 @@ export function indexar(p: PecaBusca): IndicePeca {
     marca: palavras(p.marca),
     codigo: normalizar(p.codigo).replace(/[^a-z0-9]/g, ''),
     barras: normalizar(p.codigoBarras).replace(/[^a-z0-9]/g, ''),
-    extra: [...palavras(p.subcategoria), ...palavras(p.compatibilidade), ...palavras(p.descricao)],
+    extra: [p.subcategoria, p.compatibilidade, p.descricao, p.descricaoCurta, p.localizacao].flatMap(palavras),
   };
 }
 

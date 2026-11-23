@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { codigoPedido, descreverPagamento, dinheiro, formas, htmlComprovante, imprimirPedido, maoDeObra } from './ComprovantePedido';
 
 type Peca = { id: string; nome: string; codigo: string; marca?: string; codigoBarras?: string; imagemUrl?: string; precoVenda: string | number; quantidadeLoja: number; vendidosRecentes?: number; vendidosTotal?: number };
+type PecaCatalogo = Peca & { quantidade: number };
 type Linha = { peca: Peca; quantidade: number };
 type Servico = { id: string; nome: string; valor: string | number; categoria?: string };
 type CategoriaFaixa = { id: string; nome: string; total: number };
@@ -36,7 +37,7 @@ export default function Atendimento({ modo, podeReceber, podeConfigurar = false 
   const caixa = modo === 'caixa';
   // ── Catálogo / busca incremental ─────────────────────────────
   const [busca, setBusca] = useState('');
-  const [pecas, setPecas] = useState<Peca[]>([]);
+  const [pecas, setPecas] = useState<PecaCatalogo[]>([]);
   const [totalBusca, setTotalBusca] = useState(0);
   const [proximo, setProximo] = useState<number | null>(null);
   const [carregando, setCarregando] = useState(!caixa);
@@ -46,6 +47,9 @@ export default function Atendimento({ modo, podeReceber, podeConfigurar = false 
   const [categorias, setCategorias] = useState<CategoriaFaixa[]>([]);
   const [totalGeral, setTotalGeral] = useState(0);
   const versaoBusca = useRef(0);
+  const atualizacaoPecas = useRef<AbortController | null>(null);
+  const [atualizandoPecas, setAtualizandoPecas] = useState(false);
+  const [avisoPecas, setAvisoPecas] = useState('');
   // ── Pedido em montagem ───────────────────────────────────────
   const [carrinho, setCarrinho] = useState<Linha[]>([]);
   const [aba, setAba] = useState<'pecas' | 'servicos' | 'os'>('pecas');
@@ -203,24 +207,46 @@ export default function Atendimento({ modo, podeReceber, podeConfigurar = false 
   const pesquisar = useCallback(async (termo: string, cat: string, offset: number, signal?: AbortSignal) => {
     const versao = offset === 0 ? ++versaoBusca.current : versaoBusca.current;
     const data = await api(`/api/pecas/busca?q=${encodeURIComponent(termo)}&categoria=${encodeURIComponent(cat)}&offset=${offset}&limite=${POR_PAGINA}`, { signal });
-    if (versao !== versaoBusca.current) return;
-    setPecas(old => offset === 0 ? data.itens : [...old, ...data.itens.filter((p: Peca) => !old.some(o => o.id === p.id))]);
+    if (signal?.aborted || versao !== versaoBusca.current) return false;
+    setPecas(old => offset === 0 ? data.itens : [...old, ...data.itens.filter((p: PecaCatalogo) => !old.some(o => o.id === p.id))]);
     setTotalBusca(data.total); setProximo(data.proximo);
     if (offset === 0) { setDestaque(0); setCategorias(data.categorias || []); setTotalGeral(data.totalGeral ?? data.total); }
+    return true;
   }, []);
   useEffect(() => {
     if (caixa) return;
     const controller = new AbortController();
+    setAvisoPecas('');
     setCarregando(true);
     const timer = setTimeout(async () => {
       try { await pesquisar(busca, categoria, 0, controller.signal); }
       catch (e) { if ((e as Error).name !== 'AbortError') setErro((e as Error).message); }
       finally { if (!controller.signal.aborted) setCarregando(false); }
     }, busca ? 180 : 0);
-    return () => { clearTimeout(timer); controller.abort(); };
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+      atualizacaoPecas.current?.abort();
+      ++versaoBusca.current;
+    };
   }, [busca, categoria, caixa, pesquisar]);
+  async function atualizarPecas() {
+    if (carregando || carregandoMais || atualizacaoPecas.current) return;
+    const controller = new AbortController();
+    atualizacaoPecas.current = controller;
+    setAtualizandoPecas(true);
+    setAvisoPecas('');
+    try {
+      if (await pesquisar(busca, categoria, 0, controller.signal)) setAvisoPecas('Peças atualizadas.');
+    } catch {
+      if (!controller.signal.aborted) setAvisoPecas('Não foi possível atualizar as peças. Tente novamente.');
+    } finally {
+      atualizacaoPecas.current = null;
+      setAtualizandoPecas(false);
+    }
+  }
   const carregarMais = useCallback(async () => {
-    if (proximo === null || carregandoMais || carregando) return;
+    if (proximo === null || carregandoMais || carregando || atualizacaoPecas.current) return;
     setCarregandoMais(true);
     try { await pesquisar(busca, categoria, proximo); } catch (e) { setErro((e as Error).message); } finally { setCarregandoMais(false); }
   }, [proximo, carregandoMais, carregando, pesquisar, busca, categoria]);
@@ -470,16 +496,24 @@ export default function Atendimento({ modo, podeReceber, podeConfigurar = false 
             </div>}
           </div>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-6">{catalogoServicos.map(s => <article key={s.id} className="flex min-w-0 flex-col gap-1 rounded-lg border border-slate-200 bg-white p-2"><span className="line-clamp-2 text-xs font-semibold leading-snug" title={s.nome}>{s.nome}</span><span className="mt-auto pt-1 text-sm font-bold">{dinheiro(s.valor)}</span><button className="rounded-md bg-orange-600 px-2 py-1.5 text-xs font-semibold text-white hover:bg-orange-700 disabled:opacity-40" disabled={ocupado || servicos.some(l => l.servicoTabeladoId === s.id)} onClick={() => adicionarServico(s)}>Adicionar</button></article>)}</div>{!catalogoServicos.length && <p className="text-sm text-slate-500">Nenhum serviço tabelado ativo.</p>}<form className="grid gap-2 rounded-lg border border-slate-200 bg-white p-3 sm:grid-cols-[1fr_130px_auto]" onSubmit={e => { e.preventDefault(); adicionarAvulso(); }}><label className="text-sm">Mão de obra avulsa<input maxLength={150} value={avulsoNome} onChange={e => setAvulsoNome(e.target.value)} className={`${input} mt-1`} placeholder="Descrição do serviço" /></label><label className="text-sm">Valor<input inputMode="decimal" value={avulsoValor} onChange={e => setAvulsoValor(e.target.value)} className={`${input} mt-1`} placeholder="0,00" /></label><button className={`${secondary} self-end`} disabled={ocupado}>Adicionar</button></form></div>}
-        {aba === 'pecas' && <><label htmlFor="busca-pecas" className="mb-2 block text-sm font-semibold">Pesquisar peças</label><input id="busca-pecas" role="combobox" aria-expanded={pecas.length > 0} aria-controls="lista-pecas" aria-activedescendant={pecas[destaque] ? `peca-${pecas[destaque].id}` : undefined} autoComplete="off" className={input} placeholder="Nome, marca, SKU ou código de barras" value={busca} onChange={e => setBusca(e.target.value)} onKeyDown={teclaBusca} autoFocus />
-        <div aria-live="polite" className="my-3 flex flex-wrap items-center justify-between gap-2 text-sm text-slate-500"><span>{carregando ? <span className="inline-flex items-center gap-2"><span className="h-3 w-3 animate-spin rounded-full border-2 border-orange-600 border-t-transparent" />Buscando peças…</span> : `${totalBusca} ${totalBusca === 1 ? 'produto encontrado' : 'produtos encontrados'}${busca.trim() ? '' : ' · mais vendidos primeiro'}`}</span><span className="hidden text-xs sm:inline">↑ ↓ navegar · Enter adicionar · Esc limpar</span></div>
+        {aba === 'pecas' && <>
+        <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+          <label htmlFor="busca-pecas" className="text-sm font-semibold">Pesquisar peças</label>
+          <button type="button" onClick={atualizarPecas} disabled={carregando || carregandoMais || atualizandoPecas} className="inline-flex min-h-10 items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold hover:bg-slate-50 disabled:opacity-50">
+            <svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" className={`h-4 w-4 ${atualizandoPecas ? 'motion-safe:animate-spin' : ''}`}><path d="M20 7v5h-5M4 17v-5h5M5.2 8.2a8 8 0 0 1 13-2.1L20 8M4 16l1.8 1.9a8 8 0 0 0 13-2.1" /></svg>
+            {atualizandoPecas ? 'Atualizando peças…' : 'Atualizar peças'}
+          </button>
+        </div>
+        <input id="busca-pecas" role="combobox" aria-expanded={pecas.length > 0} aria-controls="lista-pecas" aria-activedescendant={pecas[destaque] ? `peca-${pecas[destaque].id}` : undefined} autoComplete="off" className={input} placeholder="Nome, marca, SKU ou código de barras" value={busca} onChange={e => setBusca(e.target.value)} onKeyDown={teclaBusca} autoFocus />
+        <div aria-live="polite" className="my-3 flex flex-wrap items-center justify-between gap-2 text-sm text-slate-500"><span>{carregando ? <span className="inline-flex items-center gap-2"><span className="h-3 w-3 animate-spin rounded-full border-2 border-orange-600 border-t-transparent" />Buscando peças…</span> : `${totalBusca} ${totalBusca === 1 ? 'produto encontrado' : 'produtos encontrados'}${busca.trim() ? '' : ' · mais vendidos primeiro'}`}</span>{avisoPecas ? <span className={avisoPecas === 'Peças atualizadas.' ? 'text-emerald-700' : 'text-red-700'}>{avisoPecas}</span> : <span className="hidden text-xs sm:inline">↑ ↓ navegar · Enter adicionar · Esc limpar</span>}</div>
         <div role="group" aria-label="Categorias" className="-mx-1 mb-3 flex gap-2 overflow-x-auto overscroll-x-contain px-1 pb-1 [scrollbar-width:thin] sm:flex-wrap sm:overflow-visible">{[{ id: '', nome: 'Todas', total: totalGeral }, ...categorias, ...(categoria && !categorias.some(c => c.id === categoria) ? [{ id: categoria, nome: 'Categoria selecionada', total: 0 }] : [])].map(c => <button key={c.id || 'todas'} type="button" aria-pressed={categoria === c.id} onClick={() => { if (categoria !== c.id) { setCategoria(c.id); setPecas([]); setProximo(null); } }} className={`shrink-0 whitespace-nowrap rounded-lg border px-3 py-1.5 text-xs font-semibold transition ${categoria === c.id ? 'border-orange-600 bg-orange-600 text-white shadow-sm' : 'border-slate-200 bg-white text-slate-700 hover:border-orange-300 hover:bg-orange-50'}`}>{c.nome}<span className={`ml-1.5 rounded px-1 text-[10px] ${categoria === c.id ? 'bg-white/20' : 'bg-slate-100 text-slate-500'}`}>{c.total}</span></button>)}</div>
         <div id="catalogo-rolagem" ref={catalogo} className="lg:max-h-[calc(100dvh-15rem)] lg:min-h-[22rem] lg:overflow-y-auto lg:overflow-x-hidden lg:overscroll-contain lg:p-1 lg:pr-2 [scrollbar-width:thin]"><div id="lista-pecas" role="listbox" aria-label="Peças encontradas" className={`grid grid-cols-2 gap-2 min-[480px]:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 ${carregando ? 'opacity-60' : ''}`}>
           {pecas.map((p, i) => <article id={`peca-${p.id}`} role="option" aria-selected={i === destaque} key={p.id} onMouseEnter={() => setDestaque(i)} className={`flex min-w-0 flex-col overflow-hidden rounded-lg border bg-white ${i === destaque ? 'border-orange-500 ring-2 ring-orange-500' : 'border-slate-200'}`}>
             <div className="relative flex h-20 items-center justify-center bg-slate-50 p-1">{p.imagemUrl ? <img loading="lazy" src={p.imagemUrl} alt={p.nome} className="h-full w-full object-contain" /> : <span className="flex h-full w-full items-center justify-center text-slate-300" aria-label="Sem foto"><svg className="h-8 w-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.2} d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" /></svg></span>}{!busca.trim() && (p.vendidosRecentes || 0) > 0 && <span className="absolute left-1 top-1 rounded bg-orange-600 px-1.5 py-0.5 text-[10px] font-bold text-white">Mais vendido</span>}</div>
-            <div className="flex flex-1 flex-col gap-0.5 p-2"><span className="truncate text-[11px] text-slate-400">{p.codigo}{p.marca ? ` · ${p.marca}` : ''}</span><span className="line-clamp-2 text-xs font-semibold leading-snug" title={p.nome}>{p.nome}</span><span className="mt-auto pt-1 text-sm font-bold">{dinheiro(p.precoVenda)}</span><span className={`text-[11px] ${p.quantidadeLoja > 0 ? 'text-emerald-700' : 'text-red-700'}`}>{p.quantidadeLoja > 0 ? `${p.quantidadeLoja} disponíveis` : 'Indisponível'}</span><button tabIndex={-1} aria-label={`Adicionar ${p.nome}`} className="mt-1 rounded-md bg-orange-600 px-2 py-1.5 text-xs font-semibold text-white hover:bg-orange-700 disabled:opacity-40" disabled={!vendivel(p) || ocupado} onClick={() => adicionar(p)}>Adicionar</button></div>
+            <div className="flex flex-1 flex-col gap-0.5 p-2"><span className="truncate text-[11px] text-slate-400">{p.codigo}{p.marca ? ` · ${p.marca}` : ''}</span><span className="line-clamp-2 text-xs font-semibold leading-snug" title={p.nome}>{p.nome}</span><span className="mt-auto pt-1 text-sm font-bold">{dinheiro(p.precoVenda)}</span><span className="text-[11px] text-slate-600">Central: {p.quantidade}</span><span className={`text-[11px] ${vendivel(p) ? 'text-emerald-700' : 'text-red-700'}`}>Loja: {p.quantidadeLoja}{!vendivel(p) && (p.quantidadeLoja > 0 ? ' · Sem preço de venda' : ' · Indisponível na loja')}</span><button tabIndex={-1} aria-label={`Adicionar ${p.nome}`} className="mt-1 rounded-md bg-orange-600 px-2 py-1.5 text-xs font-semibold text-white hover:bg-orange-700 disabled:opacity-40" disabled={!vendivel(p) || ocupado} onClick={() => adicionar(p)}>Adicionar</button></div>
           </article>)}
         </div>{!carregando && pecas.length === 0 && <p className="py-12 text-center text-slate-500">Nenhuma peça encontrada. Confira a grafia ou tente parte do nome, a marca ou o SKU.</p>}
-        {proximo !== null && <div className="mt-5 flex flex-col items-center gap-1"><button className={secondary} disabled={carregandoMais || carregando} onClick={carregarMais}>{carregandoMais ? 'Carregando…' : 'Carregar mais produtos'}</button><span className="text-xs text-slate-500">{pecas.length} de {totalBusca} exibidos</span></div>}{proximo === null && !carregando && pecas.length > 0 && <p className="mt-5 text-center text-sm text-slate-500">Todos os produtos foram carregados</p>}</div></>}
+        {proximo !== null && <div className="mt-5 flex flex-col items-center gap-1"><button className={secondary} disabled={carregandoMais || carregando || atualizandoPecas} onClick={carregarMais}>{carregandoMais ? 'Carregando…' : 'Carregar mais produtos'}</button><span className="text-xs text-slate-500">{pecas.length} de {totalBusca} exibidos</span></div>}{proximo === null && !carregando && pecas.length > 0 && <p className="mt-5 text-center text-sm text-slate-500">Todos os produtos foram carregados</p>}</div></>}
         {!vazio && <a href="#pedido-montagem" className="sticky bottom-3 z-20 mt-4 flex items-center justify-between gap-3 rounded-xl bg-slate-900 px-4 py-3 font-semibold text-white shadow-lg xl:hidden"><span>{totalItens} {totalItens === 1 ? 'item' : 'itens'} · {dinheiro(subtotal)}</span><span>Ver pedido</span></a>}
       </section>
       <aside id="pedido-montagem" className="scroll-mt-20 self-start rounded-xl border border-slate-200 bg-white p-5 xl:sticky xl:top-4"><h2 className="text-xl font-bold">{osEdicao ? `OS nº ${osEdicao.ordemServico?.numero ?? ''}` : abrirOS ? 'Ordem de Serviço' : 'Pedido em montagem'}</h2><p className="mt-1 text-sm text-slate-500">{totalItens} {totalItens === 1 ? 'item' : 'itens'}{osEdicao && <> · <span className="font-semibold text-orange-700">em aberto</span> · Código <span className="font-mono">{codigoPedido(osEdicao)}</span>{alterado && <span className="ml-1 font-semibold text-amber-700">· alterações não salvas</span>}</>}</p>

@@ -1,36 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import prisma from '@/lib/prisma';
 import { getSession } from '@/lib/auth';
-import { indexar, relevancia, type IndicePeca } from '@/lib/busca-pecas';
+import { indexar, relevancia } from '@/lib/busca-pecas';
+
+export const dynamic = 'force-dynamic';
 
 // Busca incremental do Atendimento/OS: todo o catálogo ativo é pesquisável, mas só uma
 // página de resultados vai ao navegador. Sem termo, os mais vendidos aparecem primeiro.
 type Vendas = Map<string, { recente: number; total: number }>;
 let cacheVendas: { em: number; dados: Vendas } | null = null;
-// Catálogo indexado por poucos segundos: a digitação não repete a consulta a cada tecla.
-// Estoque e preço são conferidos de novo no servidor ao salvar o pedido.
-const selecao = { id: true, nome: true, codigo: true, marca: true, codigoBarras: true, imagemUrl: true, precoVenda: true, quantidadeLoja: true, categoriaId: true, subcategoria: true, compatibilidade: true, descricao: true } as const;
-type PecaCatalogo = Awaited<ReturnType<typeof carregarCatalogo>>[number];
-let cacheCatalogo: { em: number; dados: PecaCatalogo[] } | null = null;
-async function carregarCatalogo() {
-  const pecas = await prisma.peca.findMany({ where: { ativo: true }, select: selecao });
-  return pecas.map(p => ({ ...p, indice: indexar(p) as IndicePeca }));
-}
-async function catalogo(): Promise<PecaCatalogo[]> {
-  if (cacheCatalogo && Date.now() - cacheCatalogo.em < 10_000) return cacheCatalogo.dados;
-  const dados = await carregarCatalogo();
-  cacheCatalogo = { em: Date.now(), dados };
-  return dados;
-}
-// Categorias do cadastro (nomes reais); a contagem vem das peças ativas encontradas.
-let cacheCategorias: { em: number; dados: Map<string, { nome: string; ordem: number }> } | null = null;
-async function categorias() {
-  if (cacheCategorias && Date.now() - cacheCategorias.em < 60_000) return cacheCategorias.dados;
-  const linhas = await prisma.categoria.findMany({ select: { id: true, nome: true, ordem: true } });
-  const dados = new Map(linhas.map(c => [c.id, { nome: c.nome, ordem: c.ordem }]));
-  cacheCategorias = { em: Date.now(), dados };
-  return dados;
-}
+// O saldo vem do cadastro de peças em cada consulta. Só a estatística de vendas é cacheada.
+const selecao = { id: true, nome: true, codigo: true, marca: true, codigoBarras: true, imagemUrl: true, precoVenda: true, quantidade: true, quantidadeLoja: true, categoriaId: true, subcategoria: true, compatibilidade: true, descricao: true, descricaoCurta: true, localizacao: true } as const;
 
 async function vendasConfirmadas(): Promise<Vendas> {
   if (cacheVendas && Date.now() - cacheVendas.em < 60_000) return cacheVendas.dados;
@@ -53,34 +33,44 @@ export async function GET(req: NextRequest) {
   if (!session || !['DONO', 'BALCAO'].includes(session.role)) return NextResponse.json({ error: 'Nao autorizado' }, { status: 403 });
   try {
     const q = (req.nextUrl.searchParams.get('q') || '').slice(0, 100);
-    const offset = Math.max(0, Math.min(100000, Number(req.nextUrl.searchParams.get('offset')) || 0));
+    const inicio = Number(req.nextUrl.searchParams.get('offset'));
+    const offset = Number.isSafeInteger(inicio) && inicio > 0 ? inicio : 0;
     const categoria = (req.nextUrl.searchParams.get('categoria') || '').slice(0, 60);
-    const limite = Math.max(1, Math.min(60, Number(req.nextUrl.searchParams.get('limite')) || 36));
-    const [pecas, vendas, cats] = await Promise.all([catalogo(), vendasConfirmadas(), categorias()]);
+    const limite = Math.max(1, Math.min(60, Math.trunc(Number(req.nextUrl.searchParams.get('limite'))) || 36));
+    const [pecas, vendas, categorias] = await Promise.all([
+      prisma.peca.findMany({ where: { ativo: true }, select: selecao }),
+      vendasConfirmadas(),
+      prisma.categoria.findMany({ select: { id: true, nome: true, parentId: true } }),
+    ]);
+    const cats = new Map(categorias.map(c => [c.id, c]));
     const termo = q.trim();
     const porCategoria = new Map<string, number>();
     const ranqueadas = [] as { p: (typeof pecas)[number]; rel: number; recente: number; total: number }[];
+    let totalGeral = 0;
     for (const p of pecas) {
-      const rel = termo ? relevancia(termo, p.indice) : 0;
+      const rel = termo ? relevancia(termo, indexar(p)) : 0;
       if (termo && rel <= 0) continue;
-      // Contagem por categoria considera a pesquisa, mas não a categoria escolhida (para trocar de faixa).
+      totalGeral++;
+      const pai = cats.get(p.categoriaId)?.parentId;
       porCategoria.set(p.categoriaId, (porCategoria.get(p.categoriaId) || 0) + 1);
-      if (categoria && p.categoriaId !== categoria) continue;
+      if (pai) porCategoria.set(pai, (porCategoria.get(pai) || 0) + 1);
+      if (categoria && p.categoriaId !== categoria && pai !== categoria) continue;
       const v = vendas.get(p.id);
       ranqueadas.push({ p, rel, recente: v?.recente || 0, total: v?.total || 0 });
     }
-    // Relevância da pesquisa primeiro; depois vendidos recentemente, vendidos no histórico,
-    // disponíveis na loja e nome. Nenhum produto é escondido por vender pouco.
+    // O saldo não muda a posição entre páginas. Nome e código desempatam vendas iguais.
     ranqueadas.sort((a, b) => b.rel - a.rel || b.recente - a.recente || b.total - a.total
-      || Number(b.p.quantidadeLoja > 0) - Number(a.p.quantidadeLoja > 0) || a.p.nome.localeCompare(b.p.nome, 'pt-BR'));
+      || a.p.nome.localeCompare(b.p.nome, 'pt-BR') || a.p.codigo.localeCompare(b.p.codigo, 'pt-BR') || a.p.id.localeCompare(b.p.id));
     const itens = ranqueadas.slice(offset, offset + limite).map(({ p, recente, total }) => ({
       id: p.id, nome: p.nome, codigo: p.codigo, marca: p.marca, codigoBarras: p.codigoBarras, imagemUrl: p.imagemUrl,
-      precoVenda: p.precoVenda, quantidadeLoja: p.quantidadeLoja, vendidosRecentes: recente, vendidosTotal: total,
+      precoVenda: p.precoVenda, quantidade: p.quantidade, quantidadeLoja: p.quantidadeLoja, vendidosRecentes: recente, vendidosTotal: total,
     }));
     const listaCategorias = [...porCategoria].filter(([id]) => cats.has(id))
       .map(([id, total]) => ({ id, nome: cats.get(id)!.nome, total }))
       .sort((a, b) => b.total - a.total || a.nome.localeCompare(b.nome, 'pt-BR'));
-    return NextResponse.json({ itens, categorias: listaCategorias, totalGeral: [...porCategoria.values()].reduce((a, b) => a + b, 0), total: ranqueadas.length, offset, proximo: offset + itens.length < ranqueadas.length ? offset + itens.length : null });
+    return NextResponse.json({ itens, categorias: listaCategorias, totalGeral, total: ranqueadas.length, offset, proximo: offset + itens.length < ranqueadas.length ? offset + itens.length : null }, {
+      headers: { 'Cache-Control': 'private, no-store' },
+    });
   } catch (e) {
     console.error('Busca de pecas:', e);
     return NextResponse.json({ error: 'Erro ao pesquisar pecas' }, { status: 500 });
