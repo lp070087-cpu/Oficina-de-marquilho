@@ -38,7 +38,15 @@ function cnpjValido(valor: string) {
   return true;
 }
 
-const CSS_CUPOM_ATENDIMENTO = `${CSS_NOTA_TERMICA}header{text-align:center;border-bottom:1px dashed #000;padding-bottom:6px}h1{font-size:15px;margin:0 0 4px}p{margin:2px 0;line-height:1.35}.code{font-size:18px;font-weight:bold;text-align:center;margin-top:6px}.stamp{text-align:center;font-size:16px;font-weight:bold;border:2px solid #000;margin:6px 0;padding:3px}table{width:100%;border-collapse:collapse;margin:6px 0}td,th{padding:3px 0;text-align:left;vertical-align:top;border-bottom:1px dashed #000;font-size:11px}th{font-size:10px}.right{text-align:right}.totals p{display:flex;justify-content:space-between;gap:4px}.total{font-size:15px;font-weight:bold}footer{border-top:1px dashed #000;margin-top:8px;padding-top:6px;font-size:10px;text-align:center}td small{font-size:10px}.totals span:last-child{flex-shrink:0}`;
+const CSS_CUPOM_ATENDIMENTO = `${CSS_NOTA_TERMICA}header{text-align:center;border-bottom:1px dashed #000;padding-bottom:6px}h1{font-size:15px;margin:0 0 4px}p{margin:2px 0;line-height:1.35}.code{font-size:18px;font-weight:bold;text-align:center;margin-top:6px}.stamp{text-align:center;font-size:16px;font-weight:bold;border:2px solid #000;margin:6px 0;padding:3px}table{width:100%;border-collapse:collapse;margin:6px 0}td,th{padding:3px 0;text-align:left;vertical-align:top;border-bottom:1px dashed #000;font-size:11px}th{font-size:10px}.right{text-align:right}.totals p{display:flex;justify-content:space-between;gap:4px}.total{font-size:15px;font-weight:bold}footer{border-top:1px dashed #000;margin-top:8px;padding-top:6px;font-size:10px;text-align:center}td small{font-size:10px}.totals span:last-child{flex-shrink:0;white-space:nowrap}
+  /* A tabela reserva espaço para as colunas numéricas antes de quebrar o nome da peça. */
+  .itens-termicos{table-layout:auto}
+  .itens-termicos :is(th,td):not(:first-child){
+    width:1%;padding-inline-start:5px;white-space:nowrap;overflow-wrap:normal;
+  }
+  .itens-termicos :is(th,td):nth-child(2){text-align:center}
+  .itens-termicos :is(th,td):first-child{padding-inline-end:4px;overflow-wrap:anywhere}
+`;
 const RODAPE_CUPOM = '<footer>Obrigado pela preferência. Marquinho Moto Peças</footer>';
 
 function cabecalhoCupom() {
@@ -75,7 +83,7 @@ export function htmlNotaFiscalTermica(nota: {
     <p class="code">Nota Fiscal ${esc(nota.numero)}</p>
     <p>${esc(nota.data)}</p>
     ${nota.dados.map(dado => `<p>${esc(dado)}</p>`).join('')}
-    <table>${CABECALHO_ITENS}<tbody>${nota.itens.map(linhaCupom).join('')}</tbody></table>
+    <table class="itens-termicos">${CABECALHO_ITENS}<tbody>${nota.itens.map(linhaCupom).join('')}</tbody></table>
     ${totaisCupom(nota.subtotal, nota.desconto, nota.total)}
     ${nota.pagamentos?.length ? `<h3>Pagamento</h3>${nota.pagamentos.map(p => `<p>${esc(p)}</p>`).join('')}` : ''}
     ${nota.observacoes ? `<p>Observações: ${esc(nota.observacoes)}</p>` : ''}
@@ -117,7 +125,7 @@ export function htmlComprovante(pedido: any, venda?: any, opcoes: OpcoesComprova
   return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>Comprovante ${codigoPedido(pedido)}</title><style>${css}</style></head><body>${notaA4 ? cabecalhoNota('Comprovante do Pedido') : cabecalhoCupom()}
   <p class="code">Pedido ${codigoPedido(pedido)}</p><div class="stamp ${pago ? '' : 'pending'}">${pago ? 'PAGO' : pedido.status === 'ABERTO' ? 'OS EM ABERTO' : 'AGUARDANDO PAGAMENTO'}</div>${pago && segundaVia ? '<p><strong>2ª VIA</strong></p>' : ''}<p>${esc(data)}</p>${pago && venda?.numero ? `<p>Venda nº ${esc(venda.numero)}</p>` : ''}${pedido.clienteNome ? `<p>Cliente: ${esc(pedido.clienteNome)}</p>` : ''}${telefone ? `<p>Telefone: ${esc(telefone)}</p>` : ''}
   ${os ? `<p>OS nº ${esc(os.numero)}${os.modeloMoto && os.modeloMoto !== 'Nao informado' ? ` · Moto: ${esc(os.modeloMoto)}` : ''}${os.placaMoto ? ` · Placa: ${esc(os.placaMoto)}` : ''}${os.anoMoto ? ` · Ano: ${esc(os.anoMoto)}` : ''}${os.kmAtual ? ` · KM: ${esc(os.kmAtual)}` : ''}</p>${os.descricaoProblema ? `<p>Problema relatado: ${esc(os.descricaoProblema)}</p>` : ''}` : ''}
-  <table${notaA4 ? ' class="produtos comprovante-itens"' : ''}>${CABECALHO_ITENS}<tbody>${itens.map((i: any) => linhaCupom({ nome: i.peca?.nome, codigo: i.peca?.codigo, quantidade: i.quantidade, unitario: i.precoVendido, valor: i.subtotal })).join('')}${linhasServico.map((i: any) => `<tr><td>${esc(i.nome)}<br><small>Serviço</small></td><td>1</td><td class="right">${dinheiro(i.valor)}</td><td class="right">${dinheiro(i.valor)}</td></tr>`).join('')}</tbody></table>
+  <table${termica ? ' class="itens-termicos"' : notaA4 ? ' class="produtos comprovante-itens"' : ''}>${CABECALHO_ITENS}<tbody>${itens.map((i: any) => linhaCupom({ nome: i.peca?.nome, codigo: i.peca?.codigo, quantidade: i.quantidade, unitario: i.precoVendido, valor: i.subtotal })).join('')}${linhasServico.map((i: any) => `<tr><td>${esc(i.nome)}<br><small>Serviço</small></td><td>1</td><td class="right">${dinheiro(i.valor)}</td><td class="right">${dinheiro(i.valor)}</td></tr>`).join('')}</tbody></table>
   ${servicos > 0 ? `<p>Serviços / mão de obra: ${dinheiro(servicos)}</p>` : ''}${totaisCupom(pedido.subtotal, pedido.descontoTotal, pedido.total)}
   ${pago ? `<h3>Pagamento</h3>${(venda.pagamentos || []).map((p: any) => `<p>${esc(descreverPagamento(p))}: ${dinheiro(p.valor)}${Number(p.troco) > 0 ? ` · Recebido: ${dinheiro(Number(p.valor) + Number(p.troco))} · Troco: ${dinheiro(p.troco)}` : ''}</p>`).join('')}<p>Operador: ${esc(venda.operadorNome || venda.criadoPor)}</p>` : pedido.status === 'ABERTO' ? '<p>OS em aberto no Atendimento. Ainda não enviada ao caixa.</p>' : '<p>Apresente este código no caixa. Este pedido ainda não foi pago.</p>'}${notaA4 ? rodapeNota() : RODAPE_CUPOM}</body></html>`;
 }
