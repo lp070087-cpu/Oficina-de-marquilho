@@ -1,5 +1,6 @@
 // Comprovante interno do pedido (sem valor fiscal). Puro: usado no Caixa (navegador)
 // e na página do link enviado ao cliente (servidor).
+import { CSS_MARCA_TERMICA, MARCA_TERMICA_HTML } from './marca-termica';
 import { DADOS_EMPRESA } from './dados-empresa';
 import { codigoPedido } from './codigo-pedido';
 import { cabecalhoNota, CSS_NOTA_CLIENTE, CSS_NOTA_TERMICA, rodapeNota } from './nota-impressao';
@@ -53,14 +54,20 @@ function cabecalhoCupom() {
   return `<header><h1>${esc(DADOS_EMPRESA.fantasia)}</h1><p>${esc(DADOS_EMPRESA.razao)}</p>${cnpjValido(DADOS_EMPRESA.cnpj) ? `<p>CNPJ: ${esc(DADOS_EMPRESA.cnpj)}</p>` : ''}<p>${esc(DADOS_EMPRESA.endereco)} — ${esc(DADOS_EMPRESA.cidade)}</p><p>${esc(DADOS_EMPRESA.telefone1)} / ${esc(DADOS_EMPRESA.telefone2)}</p></header>`;
 }
 
-type LinhaCupom = { nome?: string; codigo?: string; quantidade: number; unitario: unknown; valor: unknown };
+type LinhaCupom = { nome?: string; codigo?: string; quantidade: number; unitario: unknown; valor: unknown; observacao?: string };
 
-function linhaCupom(i: LinhaCupom) {
-  return `<tr><td>${esc(i.nome)}<br><small>${esc(i.codigo)}</small></td><td>${esc(i.quantidade)}</td><td class="right">${dinheiro(i.unitario)}</td><td class="right">${dinheiro(i.valor)}</td></tr>`;
+function linhaCupom(i: LinhaCupom, ficha = false) {
+  return `<tr><td>${ficha ? '☐ ' : ''}${esc(i.nome)}<br><small>${esc(i.codigo)}</small>${i.observacao ? `<br><small>${esc(i.observacao)}</small>` : ''}</td><td>${esc(i.quantidade)}</td><td class="right">${ficha ? '' : dinheiro(i.unitario)}</td><td class="right">${ficha ? '' : dinheiro(i.valor)}</td></tr>`;
 }
 
 function totaisCupom(subtotal: unknown, desconto: unknown, total: unknown) {
   return `<div class="totals doc-total"><p><span>Subtotal</span><span>${dinheiro(subtotal)}</span></p><p><span>Descontos</span><span>${dinheiro(desconto)}</span></p><p class="total"><span>Total</span><span>${dinheiro(total)}</span></p></div>`;
+}
+
+function camposFichaExecucao(ficha: { linhas: number; horarios?: boolean }) {
+  const linhas = '<p>__________________________________</p>'.repeat(ficha.linhas);
+  const horarios = ficha.horarios ? '<p>Início: ____:____</p><p>Término: ____:____</p>' : '';
+  return `<h3>Execução</h3>${linhas}${horarios}<p>__________________________________</p><p>Assinatura do Mecânico</p>`;
 }
 
 export function htmlNotaFiscalTermica(nota: {
@@ -74,17 +81,21 @@ export function htmlNotaFiscalTermica(nota: {
   pagamentos?: string[];
   observacoes?: string;
   autoPrint?: boolean;
+  titulo?: string;
+  fichaExecucao?: { linhas: number; horarios?: boolean };
 }) {
   const autoPrint = nota.autoPrint !== false;
+  const titulo = nota.titulo ?? `Nota Fiscal ${nota.numero}`;
+  const marca = nota.itens.length || nota.fichaExecucao ? MARCA_TERMICA_HTML : '';
   return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-    <title>Nota Fiscal ${esc(nota.numero)}</title><style>${CSS_CUPOM_ATENDIMENTO}@media print{.btn-print{display:none}}</style></head><body>
+    <title>${esc(titulo)}</title><style>${CSS_CUPOM_ATENDIMENTO}${marca ? CSS_MARCA_TERMICA : ''}@media print{.btn-print{display:none}}</style></head><body>
     ${autoPrint ? '' : '<button class="btn-print" onclick="window.print()">Imprimir / Salvar PDF</button>'}
     ${cabecalhoCupom()}
-    <p class="code">Nota Fiscal ${esc(nota.numero)}</p>
+    <p class="code">${esc(titulo)}</p>
     <p>${esc(nota.data)}</p>
     ${nota.dados.map(dado => `<p>${esc(dado)}</p>`).join('')}
-    <table class="itens-termicos">${CABECALHO_ITENS}<tbody>${nota.itens.map(linhaCupom).join('')}</tbody></table>
-    ${totaisCupom(nota.subtotal, nota.desconto, nota.total)}
+    <table class="itens-termicos">${CABECALHO_ITENS}<tbody>${nota.itens.map(i => linhaCupom(i, Boolean(nota.fichaExecucao))).join('') || (nota.fichaExecucao ? '<tr><td colspan="4">☐ ________________________</td></tr>' : '')}</tbody></table>${marca}
+    ${nota.fichaExecucao ? camposFichaExecucao(nota.fichaExecucao) : totaisCupom(nota.subtotal, nota.desconto, nota.total)}
     ${nota.pagamentos?.length ? `<h3>Pagamento</h3>${nota.pagamentos.map(p => `<p>${esc(p)}</p>`).join('')}` : ''}
     ${nota.observacoes ? `<p>Observações: ${esc(nota.observacoes)}</p>` : ''}
     ${RODAPE_CUPOM}
@@ -97,7 +108,7 @@ const CABECALHO_ITENS = '<thead><tr><th>Produto</th><th>Qtd.</th><th class="righ
 export type OpcoesComprovante = { segundaVia?: boolean; formato?: 'a4' | 'termica'; publico?: boolean };
 
 export function htmlComprovante(pedido: any, venda?: any, opcoes: OpcoesComprovante = {}) {
-  const { segundaVia = false, formato = 'a4', publico = false } = opcoes;
+  const { segundaVia = false, formato = 'termica', publico = false } = opcoes;
   // A receipt must always belong to this persistent order, including reprints.
   if (venda && venda.pedidoId !== pedido.id) venda = undefined;
   const pago = venda?.status === 'PAGA' && pedido.status === 'PAGO';
@@ -110,6 +121,7 @@ export function htmlComprovante(pedido: any, venda?: any, opcoes: OpcoesComprova
   const telefone = pedido.clienteTelefone ? (publico ? String(pedido.clienteTelefone).replace(/\d(?=\d{4})/g, '•') : pedido.clienteTelefone) : '';
   const termica = formato === 'termica';
   const notaA4 = !termica && !publico;
+  const marca = termica && (itens.length || linhasServico.length) ? MARCA_TERMICA_HTML : '';
   const css = termica
     ? CSS_CUPOM_ATENDIMENTO
     : notaA4
@@ -122,10 +134,10 @@ export function htmlComprovante(pedido: any, venda?: any, opcoes: OpcoesComprova
         .total{font-size:18px;font-weight:700;border-top:2px solid #333;padding-top:8px}
         h3{font-size:14px;margin-top:18px;break-after:avoid}`
       : `*{box-sizing:border-box}body{font:14px Arial,Helvetica,sans-serif;color:#000;max-width:760px;margin:30px auto;padding:20px}header{text-align:center;border-bottom:2px solid #152236;padding-bottom:20px}h1{font-size:24px;margin:0 0 8px}p{line-height:1.6;margin:4px 0}.code{font-size:28px;letter-spacing:2px;font-weight:bold}.stamp{display:inline-block;border:3px solid #087d4d;color:#087d4d;font-size:26px;font-weight:bold;padding:7px 22px;margin:16px 0}.pending{color:#875a00;border-color:#875a00;font-size:18px}table{width:100%;border-collapse:collapse;margin:24px 0}td,th{padding:10px 6px;text-align:left;border-bottom:1px solid #ddd}th{font-size:11px;text-transform:uppercase}.right{text-align:right}.totals{margin-left:auto;max-width:300px}.totals p{display:flex;justify-content:space-between}.total{font-size:22px;font-weight:bold}footer{border-top:1px solid #ccc;margin-top:25px;padding-top:12px;font-size:11px;text-align:center;color:#000}td{overflow-wrap:anywhere}@media print{body{margin:0;max-width:none}@page{size:A4;margin:12mm}}@media (max-width:600px){body{margin:0;padding:14px;font-size:13px}.code{font-size:22px}}`;
-  return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>Comprovante ${codigoPedido(pedido)}</title><style>${css}</style></head><body>${notaA4 ? cabecalhoNota('Comprovante do Pedido') : cabecalhoCupom()}
+  return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>Comprovante ${codigoPedido(pedido)}</title><style>${css}${marca ? CSS_MARCA_TERMICA : ''}</style></head><body>${notaA4 ? cabecalhoNota('Comprovante do Pedido') : cabecalhoCupom()}
   <p class="code">Pedido ${codigoPedido(pedido)}</p><div class="stamp ${pago ? '' : 'pending'}">${pago ? 'PAGO' : pedido.status === 'ABERTO' ? 'OS EM ABERTO' : 'AGUARDANDO PAGAMENTO'}</div>${pago && segundaVia ? '<p><strong>2ª VIA</strong></p>' : ''}<p>${esc(data)}</p>${pago && venda?.numero ? `<p>Venda nº ${esc(venda.numero)}</p>` : ''}${pedido.clienteNome ? `<p>Cliente: ${esc(pedido.clienteNome)}</p>` : ''}${telefone ? `<p>Telefone: ${esc(telefone)}</p>` : ''}
   ${os ? `<p>OS nº ${esc(os.numero)}${os.modeloMoto && os.modeloMoto !== 'Nao informado' ? ` · Moto: ${esc(os.modeloMoto)}` : ''}${os.placaMoto ? ` · Placa: ${esc(os.placaMoto)}` : ''}${os.anoMoto ? ` · Ano: ${esc(os.anoMoto)}` : ''}${os.kmAtual ? ` · KM: ${esc(os.kmAtual)}` : ''}</p>${os.descricaoProblema ? `<p>Problema relatado: ${esc(os.descricaoProblema)}</p>` : ''}` : ''}
-  <table${termica ? ' class="itens-termicos"' : notaA4 ? ' class="produtos comprovante-itens"' : ''}>${CABECALHO_ITENS}<tbody>${itens.map((i: any) => linhaCupom({ nome: i.peca?.nome, codigo: i.peca?.codigo, quantidade: i.quantidade, unitario: i.precoVendido, valor: i.subtotal })).join('')}${linhasServico.map((i: any) => `<tr><td>${esc(i.nome)}<br><small>Serviço</small></td><td>1</td><td class="right">${dinheiro(i.valor)}</td><td class="right">${dinheiro(i.valor)}</td></tr>`).join('')}</tbody></table>
+  <table${termica ? ' class="itens-termicos"' : notaA4 ? ' class="produtos comprovante-itens"' : ''}>${CABECALHO_ITENS}<tbody>${itens.map((i: any) => linhaCupom({ nome: i.peca?.nome, codigo: i.peca?.codigo, quantidade: i.quantidade, unitario: i.precoVendido, valor: i.subtotal })).join('')}${linhasServico.map((i: any) => `<tr><td>${esc(i.nome)}<br><small>Serviço</small></td><td>1</td><td class="right">${dinheiro(i.valor)}</td><td class="right">${dinheiro(i.valor)}</td></tr>`).join('')}</tbody></table>${marca}
   ${servicos > 0 ? `<p>Serviços / mão de obra: ${dinheiro(servicos)}</p>` : ''}${totaisCupom(pedido.subtotal, pedido.descontoTotal, pedido.total)}
   ${pago ? `<h3>Pagamento</h3>${(venda.pagamentos || []).map((p: any) => `<p>${esc(descreverPagamento(p))}: ${dinheiro(p.valor)}${Number(p.troco) > 0 ? ` · Recebido: ${dinheiro(Number(p.valor) + Number(p.troco))} · Troco: ${dinheiro(p.troco)}` : ''}</p>`).join('')}<p>Operador: ${esc(venda.operadorNome || venda.criadoPor)}</p>` : pedido.status === 'ABERTO' ? '<p>OS em aberto no Atendimento. Ainda não enviada ao caixa.</p>' : '<p>Apresente este código no caixa. Este pedido ainda não foi pago.</p>'}${notaA4 ? rodapeNota() : RODAPE_CUPOM}</body></html>`;
 }
