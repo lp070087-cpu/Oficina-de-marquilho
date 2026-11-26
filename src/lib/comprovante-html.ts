@@ -1,6 +1,6 @@
 // Comprovante interno do pedido (sem valor fiscal). Puro: usado no Caixa (navegador)
 // e na página do link enviado ao cliente (servidor).
-import { CSS_MARCA_TERMICA, MARCA_TERMICA_HTML } from './marca-termica';
+import { CSS_MARCA_TERMICA, MARCA_TERMICA_HTML, scriptImpressaoTermica } from './marca-termica';
 import { DADOS_EMPRESA } from './dados-empresa';
 import { codigoPedido } from './codigo-pedido';
 import { cabecalhoNota, CSS_NOTA_CLIENTE, CSS_NOTA_TERMICA, rodapeNota } from './nota-impressao';
@@ -89,7 +89,7 @@ export function htmlNotaFiscalTermica(nota: {
   const marca = nota.itens.length || nota.fichaExecucao ? MARCA_TERMICA_HTML : '';
   return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
     <title>${esc(titulo)}</title><style>${CSS_CUPOM_ATENDIMENTO}${marca ? CSS_MARCA_TERMICA : ''}@media print{.btn-print{display:none}}</style></head><body>
-    ${autoPrint ? '' : '<button class="btn-print" onclick="window.print()">Imprimir / Salvar PDF</button>'}
+    ${autoPrint ? '' : '<button class="btn-print" type="button">Imprimir / Salvar PDF</button>'}
     ${cabecalhoCupom()}
     <p class="code">${esc(titulo)}</p>
     <p>${esc(nota.data)}</p>
@@ -99,7 +99,7 @@ export function htmlNotaFiscalTermica(nota: {
     ${nota.pagamentos?.length ? `<h3>Pagamento</h3>${nota.pagamentos.map(p => `<p>${esc(p)}</p>`).join('')}` : ''}
     ${nota.observacoes ? `<p>Observações: ${esc(nota.observacoes)}</p>` : ''}
     ${RODAPE_CUPOM}
-    ${autoPrint ? '<script>setTimeout(function(){window.print();},300);</script>' : ''}
+    ${scriptImpressaoTermica(autoPrint)}
   </body></html>`;
 }
 

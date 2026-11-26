@@ -1,6 +1,7 @@
 'use client';
 
 import { htmlComprovante, type OpcoesComprovante } from '@/lib/comprovante-html';
+import { aguardarMarcaTermica } from '@/lib/marca-termica';
 
 export { codigoPedido } from '@/lib/codigo-pedido';
 export { dinheiro, formas, maoDeObra, descreverPagamento, htmlComprovante } from '@/lib/comprovante-html';
@@ -19,7 +20,12 @@ export async function imprimirPedido(pedido: any, venda?: any, opcoes: OpcoesCom
   if (!doc || !frame.contentWindow) { frame.remove(); throw new Error('Não foi possível preparar a impressão neste navegador.'); }
   doc.open(); doc.write(htmlComprovante(pedido, venda, opcoes)); doc.close();
   const win = frame.contentWindow;
-  await new Promise(resolve => setTimeout(resolve, 250));
-  try { win.focus(); win.print(); }
+  try {
+    await new Promise(resolve => setTimeout(resolve, 250));
+    await aguardarMarcaTermica(doc);
+    win.focus();
+    win.print();
+  }
   finally { setTimeout(() => frame.remove(), 60_000); }
 }
+
