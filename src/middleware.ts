@@ -111,8 +111,17 @@ export async function middleware(request: NextRequest) {
 		}
 	}
 
-	// Login page is always allowed
-	if (pathname === '/') return nextWithHeaders(request);
+	// O ícone instalado abre o painel somente com a sessão da Dona.
+	if (pathname === '/') {
+		const token = request.cookies.get('token')?.value;
+		if (token && request.nextUrl.searchParams.get('app') === 'marquinho') {
+			const sessao = await jwtVerify(token, JWT_SECRET).catch(() => null);
+			if (sessao?.payload.role === 'DONO') {
+				return applySecurityHeaders(NextResponse.redirect(new URL('/dono', request.url)));
+			}
+		}
+		return nextWithHeaders(request);
+	}
 
 	const token = request.cookies.get('token')?.value;
 	if (!token) {

@@ -1,0 +1,168 @@
+.painel {
+  display: contents;
+}
+
+.abertura {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: grid;
+  place-items: safe center;
+  overflow: hidden auto;
+  isolation: isolate;
+  background: #050e1c;
+  color: #f7fbff;
+  text-align: center;
+  padding: max(1rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right))
+    max(1rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
+  transition: opacity 400ms ease;
+}
+
+.abertura[data-fase='saindo'] {
+  opacity: 0;
+}
+
+/* Foto da oficina: Dragon White Munthe, Unsplash (3g5D1UOfMQQ). */
+.fundo {
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  background:
+    radial-gradient(ellipse at center, #143c6c55, #050e1cc9 70%),
+    linear-gradient(180deg, #050e1ca6, #050e1c 96%),
+    url('/dono/abertura-oficina.webp') center 55% / cover;
+  animation: aparecer 700ms ease both;
+}
+
+.conteudo {
+  width: min(100%, 27rem);
+  display: grid;
+  justify-items: center;
+  gap: clamp(0.9rem, 3vh, 1.8rem);
+}
+
+.logo {
+  width: min(100%, 25rem, 49vh);
+  height: auto;
+  max-height: 36vh;
+  object-fit: contain;
+  filter: drop-shadow(0 0 28px #2475d83f);
+  animation: entrada 680ms cubic-bezier(.2, .75, .25, 1) both;
+}
+
+.etapa {
+  display: grid;
+  place-items: center;
+  min-height: 9.75rem;
+  width: 100%;
+}
+
+.carregando {
+  display: grid;
+  justify-items: center;
+  gap: 0.8rem;
+  color: #d4e3f9;
+  font-size: clamp(.875rem, 3vw, 1rem);
+  animation: aparecer 520ms ease 250ms both;
+}
+
+.indicador {
+  width: 2.1rem;
+  aspect-ratio: 1;
+  border: 2px solid #327ac65e;
+  border-top-color: #7dc1ff;
+  border-radius: 50%;
+  box-shadow: 0 0 18px #3599ff35;
+  animation: girar 850ms linear infinite;
+}
+
+.mensagem {
+  position: relative;
+  width: 100%;
+  border: 1px solid #407dba9c;
+  border-radius: 1rem;
+  padding: 1rem clamp(1rem, 5vw, 2rem);
+  background: linear-gradient(160deg, #112b49f5, #08162aea);
+  box-shadow: 0 8px 30px #020b189e, inset 0 1px 0 #93ccff30;
+  animation: entrada 420ms cubic-bezier(.2, .75, .25, 1) both;
+}
+
+.confirmacao {
+  position: absolute;
+  top: .75rem;
+  right: .75rem;
+  width: 1.4rem;
+  color: #83c8ff;
+}
+
+.periodo {
+  display: block;
+  width: 1.7rem;
+  margin: 0 auto .35rem;
+  color: #a1d3ff;
+}
+
+.saudacao {
+  font-weight: 700;
+  font-size: clamp(1.25rem, 5vw, 1.75rem);
+  line-height: 1.2;
+}
+
+.frase {
+  margin: .35rem auto 0;
+  max-width: 32ch;
+  color: #dceafa;
+  font-size: clamp(.875rem, 3vw, 1.05rem);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.barras {
+  display: flex;
+  gap: .3rem;
+}
+
+.barras span {
+  width: 1.25rem;
+  height: 3px;
+  border-radius: 999px;
+  background: #429aff;
+  box-shadow: 0 0 10px #429aff9e;
+}
+
+.barras span:first-child,
+.barras span:last-child {
+  opacity: .45;
+}
+
+@keyframes girar {
+  to { transform: rotate(1turn); }
+}
+
+@keyframes aparecer {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes entrada {
+  from { opacity: 0; transform: translateY(8px) scale(.97); }
+  to { opacity: 1; transform: none; }
+}
+
+@media (max-height: 420px) and (orientation: landscape) {
+  .conteudo {
+    width: min(100%, 46rem);
+    grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr);
+    align-items: center;
+  }
+
+  .barras {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .abertura { transition: none; }
+  .abertura[data-fase='saindo'] { opacity: 1; }
+  .abertura * { animation: none; }
+}

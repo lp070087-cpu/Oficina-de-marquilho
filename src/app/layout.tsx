@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next';
+import EntradaPwa from '@/components/abertura-dona/EntradaPwa';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -24,7 +25,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <meta name="mobile-web-app-capable" content="yes" />
         <link rel="apple-touch-icon" href="/icon-192.png" />
       </head>
-      <body className="min-h-screen bg-slate-50">{children}</body>
+      <body className="min-h-screen bg-slate-50"><EntradaPwa />{children}</body>
     </html>
   );
 }
