@@ -178,39 +178,87 @@ function pagamentosCupom(pagamentos: PagamentoNotaVenda[] = []): string[] {
   });
 }
 
-function abrirNotaTermica(nota: Parameters<typeof htmlNotaFiscalTermica>[0]): void {
+type OpcoesTermicas = { autoPrint?: boolean };
+type FormatoNota = 'termica' | 'a4';
+
+function abrirNotaTermica(html: string): void {
   const janela = window.open('', '_blank', 'width=340,height=760');
   if (!janela) return;
-  janela.document.write(htmlNotaFiscalTermica(nota));
+  janela.document.write(html);
   janela.document.close();
 }
 
-export function imprimirNotaServico(os: OsParaImprimir): void {
-  if (os.notaFiscal?.numero) {
-    const itens = (os.itens || []).map(i => ({
-      nome: rotuloProduto(i.peca?.nome, i.peca?.marca), codigo: i.peca?.codigo || '',
-      quantidade: i.quantidade, unitario: Number(i.precoUnitario),
-      valor: Number(i.precoUnitario) * i.quantidade,
-    }));
-    const maoDeObra = Number(os.valorMaoDeObra) || 0;
-    const pagamentos = pagamentosCupom(os.pagamentos);
-    const forma = traduzirFormas(os.formaPagamento);
-    abrirNotaTermica({
-      numero: os.notaFiscal.numero,
-      data: dataCupom(os.notaFiscal.dataServico || os.notaFiscal.emitidaEm),
-      dados: dadosCupom([
-        ['Cliente', os.nomeCliente], ['Telefone', os.telefoneCliente], ['OS nº', os.numero],
-        ['Moto', os.modeloMoto], ['Placa', os.placaMoto], ['Ano', os.anoMoto],
-        ['Chave', os.notaFiscal.chaveAcesso], ['Mecânico', os.mecanico?.name],
-        ['Início', os.inicioServico && fmtH(os.inicioServico)], ['Término', os.fimServico && fmtH(os.fimServico)],
-        ['Serviços', os.servicos?.length ? os.servicos.map(servico => servico.nome).filter(Boolean).join(', ') : os.tipoServico],
-        ...((os.servicos || []).filter(servico => servico.valor != null).map(servico => [servico.nome || 'Serviço', fm(servico.valor)] as [string, unknown])),
-        ['Mão de obra', maoDeObra > 0 ? fm(maoDeObra) : ''],
+type FichaServicoParaImprimir = Pick<OsParaImprimir,
+  'numero' | 'nomeCliente' | 'telefoneCliente' | 'placaMoto' | 'anoMoto' | 'modeloMoto' |
+  'mecanico' | 'descricaoProblema' | 'tipoServico' | 'notaFiscal' | 'itens'
+> & { createdAt?: string };
+
+export function htmlFichaServicoTermica(os: FichaServicoParaImprimir, tipo: 'ordem' | 'mecanico', autoPrint = false): string {
+  const mecanico = tipo === 'mecanico';
+  const servicos = os.tipoServico?.split(',').map(servico => servico.trim()).filter(Boolean) ?? [];
+  return htmlNotaFiscalTermica({
+    numero: os.numero ?? '',
+    titulo: `${mecanico ? 'Nota do Mecânico' : 'Ordem de Serviço'} · OS #${os.numero ?? ''}`,
+    data: fmtDataHora(os.notaFiscal?.dataServico || os.notaFiscal?.emitidaEm || os.createdAt),
+    dados: [
+      ...dadosCupom([
+        ['Cliente', os.nomeCliente], ['Telefone', mecanico ? os.telefoneCliente : undefined], ['Placa', os.placaMoto],
+        ['Ano', os.anoMoto], ['Moto', os.modeloMoto], ['Mecânico', os.mecanico?.name],
+        ['Problema relatado', os.descricaoProblema],
       ]),
-      itens, subtotal: itens.reduce((soma, i) => soma + i.valor, maoDeObra),
-      desconto: Number(os.desconto) || 0, total: Number(os.valorTotal) || 0,
-      pagamentos: pagamentos.length ? pagamentos : forma ? [forma] : [],
-    });
+      ...servicos.map(servico => '☐ ' + servico),
+    ],
+    itens: (os.itens ?? []).map(item => ({
+      nome: rotuloProduto(item.peca?.nome, item.peca?.marca),
+      codigo: item.peca?.codigo ?? undefined,
+      quantidade: item.quantidade,
+      unitario: null,
+      valor: null,
+    })),
+    subtotal: 0,
+    total: 0,
+    fichaExecucao: { linhas: mecanico ? 4 : 3, horarios: !mecanico },
+    autoPrint,
+  });
+}
+
+export function imprimirFichaServico(os: FichaServicoParaImprimir, tipo: 'ordem' | 'mecanico'): void {
+  abrirNotaTermica(htmlFichaServicoTermica(os, tipo, true));
+}
+
+export function htmlServicoTermica(os: OsParaImprimir, opcoes: OpcoesTermicas = { autoPrint: false }): string {
+  const itens = (os.itens || []).map(i => ({
+    nome: rotuloProduto(i.peca?.nome, i.peca?.marca), codigo: i.peca?.codigo || '',
+    quantidade: i.quantidade, unitario: Number(i.precoUnitario),
+    valor: Number(i.precoUnitario) * i.quantidade,
+  }));
+  const maoDeObra = Number(os.valorMaoDeObra) || 0;
+  const pagamentos = pagamentosCupom(os.pagamentos);
+  const forma = traduzirFormas(os.formaPagamento);
+  return htmlNotaFiscalTermica({
+    ...opcoes,
+    numero: os.notaFiscal?.numero ?? os.numero ?? '',
+    titulo: os.notaFiscal?.numero ? undefined : `Ordem de Serviço ${os.numero != null ? '#' + os.numero : ''}`.trim(),
+    data: dataCupom(os.notaFiscal?.dataServico || os.notaFiscal?.emitidaEm || os.fimServico || os.inicioServico),
+    dados: dadosCupom([
+      ['Cliente', os.nomeCliente], ['Telefone', os.telefoneCliente], ['OS nº', os.numero],
+      ['Moto', os.modeloMoto], ['Placa', os.placaMoto], ['Ano', os.anoMoto],
+      ['Chave', os.notaFiscal?.chaveAcesso], ['Status', os.status],
+      ['Problema relatado', os.descricaoProblema], ['Diagnóstico', os.diagnostico], ['Mecânico', os.mecanico?.name],
+      ['Início', os.inicioServico && fmtH(os.inicioServico)], ['Término', os.fimServico && fmtH(os.fimServico)],
+      ['Serviços', os.servicos?.length ? os.servicos.map(servico => servico.nome).filter(Boolean).join(', ') : os.tipoServico],
+      ...((os.servicos || []).filter(servico => servico.valor != null).map(servico => [servico.nome || 'Serviço', fm(servico.valor)] as [string, unknown])),
+      ['Mão de obra', maoDeObra > 0 ? fm(maoDeObra) : ''],
+    ]),
+    itens, subtotal: itens.reduce((soma, i) => soma + i.valor, maoDeObra),
+    desconto: Number(os.desconto) || 0, total: Number(os.valorTotal) || 0,
+    pagamentos: pagamentos.length ? pagamentos : forma ? [forma] : [],
+  });
+}
+
+export function imprimirNotaServico(os: OsParaImprimir, formato: FormatoNota = 'termica'): void {
+  if (formato === 'termica') {
+    abrirNotaTermica(htmlServicoTermica(os, { autoPrint: true }));
     return;
   }
   const w = abrirJanela('Nota de Serviço');
@@ -296,6 +344,8 @@ export function imprimirNotaServico(os: OsParaImprimir): void {
 // C) NOTA DO CLIENTE — VENDA / PDV
 // ============================================================================
 export interface ItemNotaVenda {
+  descontoPercent?: number;
+  descontoReais?: number;
   nome: string;
   codigo: string;
   marca?: string | null;
@@ -351,6 +401,8 @@ export function normalizarVendaParaImpressao(venda: any, notaNumero?: string): V
       nome: i.nome || i.peca?.nome || '—',
       codigo: i.codigo || i.peca?.codigo || '',
       marca: i.marca ?? i.peca?.marca ?? null,
+      descontoPercent: Number(i.descontoPercent) || undefined,
+      descontoReais: Number(i.descontoReais) || undefined,
       quantidade: Number(i.quantidade) || 0,
       precoUnitario: precoUnit,
       subtotal: Number(i.subtotal) || 0,
@@ -384,22 +436,31 @@ const TIPO_LABEL: Record<string, string> = {
   DINHEIRO: 'Dinheiro', PIX: 'PIX', CARTAO_DEBITO: 'Débito', CARTAO_CREDITO: 'Crédito',
 };
 
-export function imprimirNotaVenda(venda: VendaParaImprimir): void {
-  if (venda.notaNumero) {
-    abrirNotaTermica({
-      numero: venda.notaNumero,
-      data: dataCupom(venda.createdAt),
-      dados: dadosCupom([
-        ['Cliente', venda.clienteNome], ['Telefone', venda.clienteTelefone],
-        ['CPF/CNPJ', venda.clienteCpf], ['Venda nº', venda.numero],
-      ]),
-      itens: venda.itens.map(i => ({
-        nome: rotuloProduto(i.nome, i.marca), codigo: i.codigo, quantidade: i.quantidade,
-        unitario: i.precoUnitario, valor: i.subtotal,
-      })),
-      subtotal: venda.subtotal, desconto: venda.descontoTotal, total: venda.total,
-      pagamentos: pagamentosCupom(venda.pagamentos),
-    });
+export function htmlVendaTermica(venda: VendaParaImprimir, opcoes: OpcoesTermicas = { autoPrint: false }): string {
+  return htmlNotaFiscalTermica({
+    ...opcoes,
+    numero: venda.notaNumero ?? venda.numero,
+    titulo: venda.notaNumero ? undefined : `Venda #${venda.numero}`,
+    data: dataCupom(venda.createdAt),
+    dados: dadosCupom([
+      ['Cliente', venda.clienteNome], ['Telefone', venda.clienteTelefone],
+      ['CPF/CNPJ', venda.clienteCpf], ['Venda nº', venda.numero],
+    ]),
+    itens: venda.itens.map(i => ({
+      nome: rotuloProduto(i.nome, i.marca), codigo: i.codigo, quantidade: i.quantidade,
+      unitario: i.precoUnitario, valor: i.subtotal,
+      observacao: i.descontoPercent || i.descontoReais
+        ? 'Desc.: ' + [i.descontoPercent && `${i.descontoPercent}%`, i.descontoReais && fm(i.descontoReais)].filter(Boolean).join(' · ')
+        : undefined,
+    })),
+    subtotal: venda.subtotal, desconto: venda.descontoTotal, total: venda.total,
+    pagamentos: pagamentosCupom(venda.pagamentos),
+  });
+}
+
+export function imprimirNotaVenda(venda: VendaParaImprimir, formato: FormatoNota = 'termica'): void {
+  if (formato === 'termica') {
+    abrirNotaTermica(htmlVendaTermica(venda, { autoPrint: true }));
     return;
   }
   const w = abrirJanela('Nota de Venda');
@@ -476,12 +537,12 @@ export interface NfManualParaImprimir {
   dataEmissao?: string | Date;
 }
 
-export function imprimirNfManual(opts: NfManualParaImprimir): void {
+export function htmlNfManualTermica(opts: NfManualParaImprimir): string {
   const itens = opts.itens.map(i => ({
     nome: rotuloProduto(i.nome, i.marca), codigo: i.codigo, quantidade: i.quantidade,
     unitario: i.valorUnitario, valor: i.valorUnitario * i.quantidade,
   }));
-  abrirNotaTermica({
+  return htmlNotaFiscalTermica({
     numero: opts.numero,
     data: dataCupom(opts.dataEmissao),
     dados: dadosCupom([
@@ -493,4 +554,8 @@ export function imprimirNfManual(opts: NfManualParaImprimir): void {
     desconto: opts.desconto, total: opts.total, observacoes: opts.observacoes,
     pagamentos: opts.formaPagamento ? [opts.formaPagamento] : [], autoPrint: opts.autoPrint,
   });
+}
+
+export function imprimirNfManual(opts: NfManualParaImprimir): void {
+  abrirNotaTermica(htmlNfManualTermica(opts));
 }

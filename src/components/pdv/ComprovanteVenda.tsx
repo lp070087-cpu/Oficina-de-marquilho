@@ -1,7 +1,6 @@
 'use client';
 
-import { CSS_NOTA_TERMICA } from '@/lib/nota-impressao';
-import { imprimirNotaVenda, normalizarVendaParaImpressao, headerEmpresaCompacto, fmtDataHora } from '@/lib/imprimirNotaServico';
+import { imprimirNotaVenda, normalizarVendaParaImpressao, fmtDataHora } from '@/lib/imprimirNotaServico';
 
 interface ItemComprovante {
   nome: string;
@@ -78,71 +77,12 @@ export default function ComprovanteVenda({ venda, onFechar }: ComprovanteVendaPr
   const dataHoraStr = fmtDataHora(venda.createdAt);
   const itens = normalizarItens(venda.itens);
 
-  function gerarTermicoHTML() {
-    function esc(s: string) { return (s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
-    const linhasItens = itens.map(i => `
-      <div class="item">
-        <div class="item-top">
-          <span class="item-nome">${esc(i.nome)}</span>
-          <span class="item-qtd">${i.quantidade}x</span>
-        </div>
-        <div class="item-mid">
-          <span class="item-cod">${esc(i.codigo)}</span>
-          <span class="item-preco">${fm(i.precoUnitario)} un.</span>
-        </div>
-        ${(i.descontoPercent > 0 || i.descontoReais > 0) ? `<div class="item-desc">Desc: ${i.descontoPercent > 0 ? i.descontoPercent + '%' : ''} ${i.descontoReais > 0 ? '− ' + fm(i.descontoReais) : ''}</div>` : ''}
-        <div class="item-sub">Subtotal: ${fm(i.subtotal)}</div>
-      </div>
-    `).join('');
-
-    const linhasPg = venda.pagamentos.map(p => `
-      <div class="pg-item"><span>${TIPO_LABEL[p.tipo] || p.tipo}${p.bandeira ? ' (' + esc(p.bandeira) + ')' : ''}${p.parcelas ? ' ' + p.parcelas + 'x' : ''}</span><span>${fm(Number(p.valor))}</span></div>
-    `).join('');
-
-    return `<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Venda #${venda.numero}</title><style>
-      ${CSS_NOTA_TERMICA}
-      .center{text-align:center}.logo{font-size:19px;font-weight:900;margin-bottom:2px;letter-spacing:-0.5px}.ofic{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:#000}.emp{font-size:10.5px;color:#000;font-weight:700;margin-top:1px;letter-spacing:0.3px;line-height:1.5}.doc-titulo-term{display:inline-block;margin-top:5px;font-size:11px;font-weight:900;letter-spacing:1.5px;color:#000;border:1.5px solid #000;border-radius:3px;padding:2px 8px;text-transform:uppercase}
-      .vn{font-size:22px;font-weight:900;margin:6px 0 3px;letter-spacing:-0.5px}.dt{font-size:10px;margin-bottom:6px;color:#000}
-      .sep{border:none;border-top:1.5px solid #000;margin:6px 0}.sep-dot{border:none;border-top:1px dotted #000;margin:5px 0}
-      .cliente{font-size:12px;margin:3px 0;color:#000}.cliente span{font-weight:700}
-      .item-cod{min-width:0}.item{border-bottom:1px dotted #000;padding:4px 0}.item-top,.item-mid{display:flex;justify-content:space-between;gap:6px}
-      .item-nome{font-weight:700;min-width:0;overflow-wrap:anywhere}
-      .item-qtd,.item-preco,.pg-item span:last-child,.total span:last-child{flex-shrink:0}.item-qtd{font-weight:700}.item-cod{font-size:10px;color:#000}.item-preco{font-size:10px;color:#000}
-      .item-desc{font-size:10px;color:#000;text-align:right}.item-sub{font-size:11px;font-weight:700;text-align:right}
-      .pg-item{display:flex;justify-content:space-between;font-size:11px;padding:2px 0}
-      .total{display:flex;justify-content:space-between;font-size:16px;font-weight:900;padding:4px 0}
-      .footer{text-align:center;font-size:10px;margin-top:10px;padding-top:5px;border-top:1px solid #000;color:#000}
-    </style></head><body>
-      ${headerEmpresaCompacto(`Venda #${venda.numero}`)}
-      <div class="dt">${dataHoraStr}</div>
-      <hr class="sep">
-      ${venda.clienteNome ? `<div class="cliente"><span>Cliente:</span> ${esc(venda.clienteNome)}${venda.clienteTelefone ? '<br><span>Tel:</span> ' + esc(venda.clienteTelefone) : ''}${venda.clienteCpf ? '<br><span>CPF:</span> ' + esc(venda.clienteCpf) : ''}</div><hr class="sep-dot">` : ''}
-      <div>ITENS</div>
-      ${linhasItens}
-      <hr class="sep-dot">
-      ${venda.descontoTotal > 0 ? `<div style="display:flex;justify-content:space-between;font-size:10px;color:#000"><span>Descontos</span><span>− ${fm(Number(venda.descontoTotal))}</span></div>` : ''}
-      <div class="total"><span>TOTAL</span><span>${fm(Number(venda.total))}</span></div>
-      <hr class="sep-dot">
-      <div>PAGAMENTO</div>
-      ${linhasPg}
-      <hr class="sep">
-      <div class="footer">${dataHoraStr}<br>Obrigado pela preferência. Marquinho Moto Peças</div>
-      <script>setTimeout(function(){window.print();},300);</script>
-    </body></html>`;
-  }
-
   function imprimir() {
-    const w = window.open('', '_blank', 'width=320,height=700');
-    if (!w) return;
-    w.document.write(gerarTermicoHTML());
-    w.document.close();
+    imprimirNotaVenda(normalizarVendaParaImpressao(venda));
   }
 
   function imprimirA4() {
-    // Fonte única: normalizarVendaParaImpressao() + imprimirNotaVenda().
-    // Mesma identidade das notas de OS e NF Manual — cabeçalho/CSS/rodapé
-    // centralizados. Sem mapeamento manual de itens/pagamentos aqui.
-    imprimirNotaVenda(normalizarVendaParaImpressao(venda));
+    imprimirNotaVenda(normalizarVendaParaImpressao(venda), 'a4');
   }
 
   function enviarWhatsApp() {

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import DetalheOSBalcao, { OS } from '@/components/DetalheOSBalcao';
-import { headerEmpresaCompacto, fmtDataHora } from '@/lib/imprimirNotaServico';
+import { imprimirFichaServico } from '@/lib/imprimirNotaServico';
 
 interface Mecanico { id: string; name: string; emAlmoco: boolean; }
 interface RevisaoAPI { id: string; nome: string; valor: number; ativa: boolean; ordem: number; }
@@ -213,23 +213,7 @@ export default function OrdensPage() {
   }
 
   function imprimirOS(os: OS) {
-    const w = window.open('', '_blank', 'width=320,height=700');
-    if (!w) return;
-    // AJUSTE 2 — data + hora no formato único do sistema: dd/MM/yyyy - HH:mm.
-    // Fonte: NotaFiscal.dataServico (preservado na reimpressão) → emitidaEm → createdAt.
-    const dataHoraStr = fmtDataHora(os.notaFiscal?.dataServico || os.notaFiscal?.emitidaEm || os.createdAt);
-    const itens = os.itens || [];
-    const servicosList = os.tipoServico ? os.tipoServico.split(', ') : [];
-    function esc(s: string) { return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
-    const linhasPecas = itens.length > 0
-      ? itens.map((i: any) => '<div class="ck"><span class="cb"></span> ' + esc(i.peca?.nome || '-') + ' <span style="font-size:10px">x' + i.quantidade + '</span></div>').join('')
-      : '<div class="ck"><span class="cb"></span> ________________________</div>';
-    const linhasServicos = servicosList.length > 0
-      ? servicosList.map((s: string) => '<div class="ck"><span class="cb"></span> ' + esc(s) + '</div>').join('')
-      : '';
-    const linhasExecucao = [1, 2, 3].map(() => '<div style="border-bottom:1px dotted #000;height:18px;margin-bottom:4px"></div>').join('');
-    w.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>OS #' + os.numero + '</title><style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:Consolas,"Lucida Console","DejaVu Sans Mono","Courier New",monospace;font-weight:700;-webkit-print-color-adjust:exact;print-color-adjust:exact;font-size:12px;color:#000;width:280px;margin:0 auto;padding:8px 6px;background:#fff;line-height:1.45}.center{text-align:center}.logo{font-size:18px;font-weight:900;margin-bottom:2px;letter-spacing:-0.5px}.ofic{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:0.8px;color:#000}.emp{font-size:10.5px;color:#000;font-weight:700;margin-top:1px;letter-spacing:0.3px;line-height:1.5}.doc-titulo-term{display:inline-block;margin-top:5px;font-size:11px;font-weight:900;letter-spacing:1.5px;color:#000;border:1.5px solid #000;border-radius:3px;padding:2px 8px;text-transform:uppercase}.os-num{font-size:21px;font-weight:900;margin:5px 0 3px;letter-spacing:-0.5px}.dt{font-size:10px;margin-bottom:6px;color:#000}.sep{border:none;border-top:1.5px solid #000;margin:7px 0}.sep-dot{border:none;border-top:1px dotted #000;margin:6px 0}.s-title{font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:1px;margin:9px 0 4px;padding-bottom:2px;border-bottom:1.5px solid #000;color:#000}.big{font-size:15px;font-weight:900;margin:3px 0;color:#000}.big-label{font-size:10px;text-transform:uppercase;letter-spacing:1px;margin-top:5px;color:#000}.grid{display:flex;flex-wrap:wrap}.g-item{width:50%;padding:3px 0}.g-label{font-size:10px;text-transform:uppercase;letter-spacing:.5px;color:#000}.g-val{font-size:14px;font-weight:700;color:#000}.ck{display:flex;align-items:center;gap:6px;padding:3px 0;font-size:12px}.cb{width:14px;height:14px;border:1.5px solid #000;display:inline-block;flex-shrink:0}.desc{font-size:12px;padding:5px 0;line-height:1.5;color:#000}.tf{display:flex;justify-content:space-between;align-items:center;padding:4px 0;font-size:12px;font-weight:700}.tf span:last-child{border-bottom:1px solid #000;min-width:70px;text-align:center}.sign{margin-top:14px;text-align:center}.sign .sig-line{border-top:1px solid #000;margin:35px 20px 5px}.sign .sig-label{font-size:11px;text-transform:uppercase;letter-spacing:1px;font-weight:700}.footer{text-align:center;font-size:10px;margin-top:12px;padding-top:6px;border-top:1px solid #000;color:#000}@media print{body{width:72mm;padding:3mm}@page{margin:0}}</style></head><body>' + headerEmpresaCompacto('Ordem de Serviço') + '<hr class="sep"><div class="os-num">OS #' + os.numero + '</div><div class="dt">' + dataHoraStr + '</div><hr class="sep"><div class="big-label">Cliente</div><div class="big">' + esc(os.nomeCliente) + '</div><div class="grid"><div class="g-item"><div class="g-label">Placa</div><div class="g-val">' + (os.placaMoto || '-') + '</div></div><div class="g-item"><div class="g-label">Ano</div><div class="g-val">' + (os.anoMoto || '-') + '</div></div><div class="g-item"><div class="g-label">Moto</div><div class="g-val" style="font-size:12px">' + esc(os.modeloMoto) + '</div></div><div class="g-item"><div class="g-label">Mecanico</div><div class="g-val" style="font-size:12px">' + esc(os.mecanico?.name || '-') + '</div></div></div>' + (linhasServicos ? '<hr class="sep-dot"><div class="s-title">Tipos de Servico</div>' + linhasServicos : '') + (os.descricaoProblema ? '<hr class="sep-dot"><div class="s-title">Problema</div><div class="desc">' + esc(os.descricaoProblema) + '</div>' : '') + '<hr class="sep-dot"><div class="s-title">Pecas</div>' + linhasPecas + '<hr class="sep-dot"><div class="s-title">Execucao</div>' + linhasExecucao + '<hr class="sep-dot"><div class="tf"><span>Inicio:</span><span>____:____</span></div><div class="tf"><span>Termino:</span><span>____:____</span></div><div class="sign"><div class="sig-line"></div><div class="sig-label">Assinatura do Mecanico</div></div><div class="footer">Marquinho Moto Peças — ' + dataHoraStr + '</div><script>setTimeout(function(){window.print();},300);</script></body></html>');
-    w.document.close();
+    imprimirFichaServico(os, 'ordem');
   }
 
   const sortArrow = (f: SortField) => (
