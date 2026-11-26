@@ -23,10 +23,25 @@ export function SinalizarDadosProntos() {
 }
 
 export default function AberturaDona({ children }: { children: ReactNode }) {
-  const [fase, setFase] = useState<'carregando' | 'saudacao' | 'saindo' | 'encerrada'>(() => aberturaConcluida ? 'encerrada' : 'carregando');
+  const [fase, setFase] = useState<'entrada' | 'carregando' | 'saudacao' | 'saindo' | 'encerrada'>(() => aberturaConcluida ? 'encerrada' : 'entrada');
+  const [abertura, setAbertura] = useState(0);
   const [dadosProntos, setDadosProntos] = useState(false);
   const [tempoMinimo, setTempoMinimo] = useState(false);
   const [saudacao, setSaudacao] = useState<{ periodo: keyof typeof boasVindas; mensagem: string } | null>(null);
+
+  useEffect(() => {
+    function retomarDocumento(event: PageTransitionEvent) {
+      if (!event.persisted) return;
+      aberturaConcluida = false;
+      setFase('entrada');
+      setTempoMinimo(false);
+      setSaudacao(null);
+      setAbertura(vez => vez + 1);
+    }
+
+    window.addEventListener('pageshow', retomarDocumento);
+    return () => window.removeEventListener('pageshow', retomarDocumento);
+  }, []);
 
   useEffect(() => {
     if (aberturaConcluida) {
@@ -42,18 +57,22 @@ export default function AberturaDona({ children }: { children: ReactNode }) {
     try { localStorage.setItem(CHAVE_MENSAGEM, mensagem); } catch { /* usa a memória da aba */ }
     setSaudacao({ periodo, mensagem });
 
-    const timer = window.setTimeout(() => setTempoMinimo(true), 1550);
-    return () => window.clearTimeout(timer);
-  }, []);
+    const indicador = window.setTimeout(() => setFase('carregando'), 1000);
+    const tempoMinimo = window.setTimeout(() => setTempoMinimo(true), 2000);
+    return () => {
+      window.clearTimeout(indicador);
+      window.clearTimeout(tempoMinimo);
+    };
+  }, [abertura]);
 
   useEffect(() => {
     if (!dadosProntos || !tempoMinimo || !saudacao) return;
     setFase('saudacao');
-    const saida = window.setTimeout(() => setFase('saindo'), 2050);
+    const saida = window.setTimeout(() => setFase('saindo'), 3500);
     const fim = window.setTimeout(() => {
       aberturaConcluida = true;
       setFase('encerrada');
-    }, 2450);
+    }, 4000);
     return () => {
       window.clearTimeout(saida);
       window.clearTimeout(fim);
@@ -71,7 +90,7 @@ export default function AberturaDona({ children }: { children: ReactNode }) {
         <DadosProntos.Provider value={marcarPronto}>{children}</DadosProntos.Provider>
       </div>
       {ativa && (
-        <div className={styles.abertura} data-fase={fase} role="status" aria-live="polite">
+        <div key={abertura} className={styles.abertura} data-fase={fase} role="status" aria-live="polite">
           <div className={styles.fundo} aria-hidden="true" />
           <div className={styles.conteudo}>
             {/* Asset oficial, com as cores ajustadas localmente para a abertura. */}
@@ -89,7 +108,7 @@ export default function AberturaDona({ children }: { children: ReactNode }) {
                   <p className={styles.saudacao}>{boasVindas[saudacao.periodo].saudacao}</p>
                   <p className={styles.frase}>{saudacao.mensagem}</p>
                 </div>
-              ) : (
+              ) : fase === 'carregando' && (
                 <div className={styles.carregando}>
                   <span className={styles.indicador} aria-hidden="true" />
                   <p>Preparando seu ambiente...</p>

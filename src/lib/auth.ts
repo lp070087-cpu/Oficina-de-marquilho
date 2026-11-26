@@ -13,6 +13,7 @@ export interface SessionUser {
   emAlmoco?: boolean;
   trocarSenha?: boolean;
   iat?: number;
+  credenciaisEm?: number | null;
 }
 
 const ehAtendente = (u: SessionUser) => u.role === 'BALCAO' && u.tipoBalcao === 'VENDA_LOJA';
@@ -49,8 +50,23 @@ export async function getSession(): Promise<SessionUser | null> {
   const token = cookieStore.get('token')?.value;
   if (!token) return null;
   const session = await verifyToken(token);
-  if (session && session.role !== 'DONO' && !(await sessaoFuncionarioValida(session))) return null;
-  return session;
+  if (!session) return null;
+  if (session.role !== 'DONO') return (await sessaoFuncionarioValida(session)) ? session : null;
+
+  const user = await prisma.user.findUnique({
+    where: { id: session.id },
+    select: { name: true, email: true, role: true, active: true, deletedAt: true, passwordUpdatedAt: true },
+  });
+  if (!user?.active || user.deletedAt || user.role !== 'DONO') return null;
+
+  // O token registra a versão exata das credenciais. Tokens antigos usam o horário de emissão.
+  const versao = user.passwordUpdatedAt?.getTime() ?? null;
+  if (session.credenciaisEm !== undefined) {
+    if (session.credenciaisEm !== versao) return null;
+  } else if (versao !== null && versao >= (session.iat ?? 0) * 1000) {
+    return null;
+  }
+  return { ...session, name: user.name, email: user.email, credenciaisEm: versao };
 }
 
 export async function requireAuth(allowedRoles?: string[], loginPath = '/'): Promise<SessionUser> {

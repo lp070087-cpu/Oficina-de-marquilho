@@ -15,7 +15,7 @@
   text-align: center;
   padding: max(1rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right))
     max(1rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
-  transition: opacity 400ms ease;
+  transition: opacity 500ms ease;
 }
 
 .abertura[data-fase='saindo'] {

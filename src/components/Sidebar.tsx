@@ -207,6 +207,21 @@ export default function Sidebar({ user, collapsed, mobileOpen, isMobile, onToggl
             </div>
             {!menuCollapsed && <div className="min-w-0"><p className="text-[12px] font-medium truncate">{user.name}</p><p className="text-[10px] text-slate-500">{roleLabel}</p></div>}
           </div>
+          {isDono && (
+            <button
+              onClick={() => navigate('/dono/minha-conta')}
+              aria-label="Minha conta"
+              title={menuCollapsed ? 'Minha conta' : undefined}
+              aria-current={pathname === '/dono/minha-conta' ? 'page' : undefined}
+              className={`relative mb-2 flex w-full items-center gap-3 rounded-lg px-3 py-2 text-[13px] font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold-400/40 ${menuCollapsed ? 'justify-center' : ''} ${pathname === '/dono/minha-conta' ? 'bg-white/[0.08] text-white' : 'text-slate-400 hover:bg-white/[0.04] hover:text-white'}`}
+            >
+              {pathname === '/dono/minha-conta' && <span className="absolute left-0 top-1/2 h-5 w-[3px] -translate-y-1/2 rounded-r-full bg-gold-400" />}
+              <span className={pathname === '/dono/minha-conta' ? 'text-gold-400' : ''} aria-hidden="true">
+                {menuIcon('M16 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0ZM4 21v-2a5 5 0 0 1 5-5h6a5 5 0 0 1 5 5v2H4Z')}
+              </span>
+              {!menuCollapsed && 'Minha conta'}
+            </button>
+          )}
           <button onClick={handleLogout} title={menuCollapsed ? 'Sair' : undefined} className={`w-full flex items-center justify-center gap-2 py-2 rounded-lg text-[12px] text-slate-400 hover:text-white bg-white/[0.03] hover:bg-white/[0.07] transition-colors ${menuCollapsed ? '' : 'gap-2'}`}>
             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"/></svg>
             {!menuCollapsed && 'Sair'}

@@ -99,6 +99,7 @@ export async function POST(request: Request) {
       tipoBalcao: user.tipoBalcao,
       emAlmoco: user.emAlmoco,
       trocarSenha,
+      ...(user.role === 'DONO' ? { credenciaisEm: user.passwordUpdatedAt?.getTime() ?? null } : {}),
     });
 
     const response = NextResponse.json({

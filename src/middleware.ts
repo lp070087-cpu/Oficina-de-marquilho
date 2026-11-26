@@ -57,7 +57,9 @@ const apiPerms: Record<string, string[]> = {
 };
 
 const publicPaths = [
-	'/api/auth/login', '/api/auth/atendimento', '/atendimento', '/api/vitrine', '/api/categorias', '/vitrine',
+	// A rota valida a sessão e o perfil para devolver erros JSON inclusive quando o cookie expira.
+	'/api/auth/minha-conta',
+	'/api/auth/login', '/api/auth/iniciar-app', '/api/auth/atendimento', '/atendimento', '/api/vitrine', '/api/categorias', '/vitrine',
 	// C2 — Permitir acesso público ao portal do cliente (login/cadastro via /cliente e /api/cliente)
 	'/api/cliente', '/cliente',
 	// Link temporario e assinado do comprovante enviado ao cliente (token validado na rota).
@@ -114,10 +116,10 @@ export async function middleware(request: NextRequest) {
 	// O ícone instalado abre o painel somente com a sessão da Dona.
 	if (pathname === '/') {
 		const token = request.cookies.get('token')?.value;
-		if (token && request.nextUrl.searchParams.get('app') === 'marquinho') {
+		if (token && request.nextUrl.searchParams.get('app') === 'marquinho' && !request.nextUrl.searchParams.has('login')) {
 			const sessao = await jwtVerify(token, JWT_SECRET).catch(() => null);
 			if (sessao?.payload.role === 'DONO') {
-				return applySecurityHeaders(NextResponse.redirect(new URL('/dono', request.url)));
+				return applySecurityHeaders(NextResponse.redirect(new URL('/api/auth/iniciar-app', request.url)));
 			}
 		}
 		return nextWithHeaders(request);

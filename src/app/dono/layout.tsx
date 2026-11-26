@@ -18,13 +18,10 @@ export default async function DonoLayout({ children }: { children: ReactNode }) 
 }
 
 async function PainelDona({ children, session }: { children: ReactNode; session: SessionUser }) {
-  const [user, totalPecas] = await Promise.all([
-    prisma.user.findUnique({ where: { id: session.id }, select: { name: true } }),
-    prisma.peca.count({ where: { ativo: true } }),
-  ]);
+  const totalPecas = await prisma.peca.count({ where: { ativo: true } });
   return (
     <div className="flex h-screen overflow-hidden bg-[#F3F6FB]">
-      <AppShell user={session} userName={user?.name || session.name} totalItens={totalPecas}>
+      <AppShell user={session} userName={session.name} totalItens={totalPecas}>
         {children}
         <SinalizarDadosProntos />
       </AppShell>
